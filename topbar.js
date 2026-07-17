@@ -487,3 +487,16 @@ body.topbar-modal-open {
     boot();
   }
 })();
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+
+const manifestLink = document.createElement('link');
+manifestLink.rel = 'manifest';
+manifestLink.href = '/manifest.json';
+document.head.appendChild(manifestLink);
+
+const themeMeta = document.createElement('meta');
+themeMeta.name = 'theme-color';
+themeMeta.content = '#050506';
+document.head.appendChild(themeMeta);
