@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
 <meta name="color-scheme" content="dark">
-<title>Daily Stack — Customizable Template</title>
+<title>Project Manager — Customizable Template</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
@@ -86,41 +86,6 @@ main {
 }
 .section-title::before { content: '≡'; font-size: 14px; opacity: 0.5; }
 
-.sleep-open-btn {
-  display: flex; align-items: center; gap: 14px;
-  margin: 0 0 24px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(125, 211, 252, 0.10), rgba(168, 162, 255, 0.08));
-  border: 1px solid rgba(168, 162, 255, 0.18);
-  border-radius: 16px;
-  text-decoration: none; color: var(--text-primary);
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s, transform 0.10s;
-}
-.sleep-open-btn:hover {
-  background: linear-gradient(135deg, rgba(125, 211, 252, 0.16), rgba(168, 162, 255, 0.14));
-}
-.sleep-open-btn:active { transform: scale(0.985); }
-.sleep-open-icon {
-  font-size: 22px; line-height: 1;
-  filter: grayscale(20%);
-}
-.sleep-open-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.sleep-open-title {
-  font-size: 14px; font-weight: 700; letter-spacing: 0.02em;
-}
-.sleep-open-sub {
-  font-size: 11px; font-weight: 500;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em; text-transform: uppercase;
-}
-.sleep-open-chevron {
-  font-size: 22px; line-height: 1;
-  color: var(--text-tertiary);
-  font-weight: 300;
-}
-
 .water-embed { margin-top: 56px; }
 .water-iframe {
   display: block;
@@ -137,7 +102,7 @@ main {
   .water-iframe { height: 780px; }
 }
 
-.stack-card {
+.pm-card {
   background: var(--bg-card);
   border-radius: 16px;
   padding: 22px 22px 18px;
@@ -146,50 +111,40 @@ main {
   box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 
-.stack-head { margin-bottom: 12px; }
-.sf-eyebrow {
+.pm-head { margin-bottom: 12px; }
+.pm-eyebrow {
   font-family: var(--font-mono);
   font-size: 11px; font-weight: 600;
   letter-spacing: 0.16em; text-transform: uppercase;
   color: var(--text-tertiary);
   margin-bottom: 6px;
 }
-.sf-title {
+.pm-title {
   font-size: 24px; font-weight: 700;
   letter-spacing: -0.022em;
   color: var(--text-primary);
   line-height: 1.15; margin-bottom: 2px;
 }
-.stack-progress-text {
+.pm-progress-text {
   font-family: var(--font-mono);
   font-size: 12px; color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
   margin-top: 6px;
 }
-.stack-progress-track {
+.pm-progress-track {
   height: 5px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 999px; overflow: hidden;
   margin: 14px 0 18px;
 }
-.stack-progress-fill {
+.pm-progress-fill {
   height: 100%; width: 0%;
   background: #FFFFFF; border-radius: 999px;
   transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-.stack-window { margin-bottom: 14px; }
-.stack-window-header {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 8px; padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.stack-window-icon { font-size: 16px; }
-.stack-window-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-.stack-window-time { font-size: 11px; color: var(--text-tertiary); font-weight: 500; }
-
-.stack-item {
+.pm-item {
   display: grid;
   grid-template-columns: 32px 1fr auto auto;
   gap: 10px;
@@ -201,23 +156,15 @@ main {
   border: 1px solid transparent;
   transition: background 0.2s, border-color 0.2s;
 }
-.stack-item:hover { background: rgba(255,255,255,0.05); }
-.stack-item.taken { background: rgba(29,158,117,0.08); }
-.stack-item.taken .stack-item-name { text-decoration: line-through; color: var(--text-tertiary); }
+.pm-item:hover { background: rgba(255,255,255,0.05); }
+.pm-item.done { background: rgba(29,158,117,0.08); }
+.pm-item.done .pm-item-name { text-decoration: line-through; color: var(--text-tertiary); }
 
-@keyframes pulse-red {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50%      { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-}
-.stack-item.missed {
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  animation: pulse-red 1.5s ease-in-out infinite;
-}
-.stack-item.missed .stack-check { border-color: rgba(239, 68, 68, 0.55); }
-.stack-item.taken.missed { animation: none; border-color: transparent; }
-.stack-item.taken.missed .stack-check { border-color: var(--accent); }
+.pm-item.overdue { border: 1px solid rgba(239, 68, 68, 0.45); }
+.pm-item.overdue .pm-check { border-color: rgba(239, 68, 68, 0.55); }
+.pm-item.overdue .pm-item-meta { color: #FF8A8A; }
 
-.stack-check {
+.pm-check {
   width: 28px; height: 28px;
   border-radius: 50%;
   border: 2px solid var(--border-strong);
@@ -228,72 +175,45 @@ main {
   transition: all 0.2s;
   flex-shrink: 0; font-family: inherit; padding: 0;
 }
-.stack-check:hover { border-color: var(--accent); }
-.stack-check.checked {
+.pm-check:hover { border-color: var(--accent); }
+.pm-check.checked {
   background: var(--accent); border-color: var(--accent);
   color: white;
   box-shadow: 0 0 12px var(--accent-glow);
 }
 
-.stack-item-body { min-width: 0; }
-.stack-item-name {
+.pm-item-body { min-width: 0; }
+.pm-item-name {
   font-size: 14px; font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
   display: inline-flex; align-items: center;
   gap: 8px; flex-wrap: wrap;
-  outline: none;
 }
-.stack-item-name[contenteditable="true"] {
-  outline: 1px solid rgba(255,255,255,0.25);
-  outline-offset: 4px; border-radius: 4px;
-}
-.stack-item-meta {
+.pm-item-meta {
   font-size: 11px; color: var(--text-tertiary);
-  margin-top: 2px; outline: none; cursor: text;
+  margin-top: 2px;
 }
-.stack-item-meta[contenteditable="true"] {
-  outline: 1px solid rgba(255,255,255,0.2);
-  outline-offset: 4px; border-radius: 4px;
-  color: var(--text-secondary);
-}
-.stack-item-meta:empty::before {
-  content: 'add notes…';
+.pm-item-meta.is-blank {
   color: var(--text-quaternary);
   font-style: italic;
 }
 
-.stack-item-tag {
+.pm-status-pill {
   font-family: var(--font-mono);
   font-size: 10px;
   padding: 2px 7px; border-radius: 99px;
   font-weight: 600; letter-spacing: 0.04em;
   text-transform: lowercase;
+  border: none; cursor: pointer;
+  transition: filter 0.15s;
 }
-.stack-item-tag.tag-stack { background: var(--tag-stack-bg); color: var(--tag-stack); }
-.stack-item-tag.tag-not-ordered { background: var(--warning-bg); color: var(--text-tertiary); }
+.pm-status-pill:hover { filter: brightness(1.15); }
+.pm-status-pill.status-not_started { background: rgba(255,255,255,0.08); color: var(--text-tertiary); }
+.pm-status-pill.status-in_progress { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-status-pill.status-done { background: var(--accent-glow); color: var(--accent); }
 
-.stack-low-btn {
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  color: var(--text-tertiary);
-  font-size: 10px;
-  padding: 5px 9px; border-radius: 6px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-weight: 600; letter-spacing: 0.04em;
-  white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 4px;
-  transition: all 0.15s;
-}
-.stack-low-btn:hover { border-color: rgba(163,45,45,0.4); color: var(--warning); }
-.stack-low-btn.is-low {
-  background: var(--warning-bg);
-  border-color: rgba(163,45,45,0.4);
-  color: var(--warning);
-}
-
-.stack-item-del {
+.pm-item-del {
   background: transparent;
   border: 1px solid var(--border-strong);
   color: var(--text-tertiary);
@@ -307,92 +227,34 @@ main {
   min-width: 28px; min-height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.stack-item:hover .stack-item-del { opacity: 1; }
-.stack-item-del:hover, .stack-item-del:active {
+.pm-item:hover .pm-item-del { opacity: 1; }
+.pm-item-del:hover, .pm-item-del:active {
   color: #FF6B6B;
   border-color: rgba(239, 68, 68, 0.45);
   background: rgba(239, 68, 68, 0.08);
   opacity: 1;
 }
 
-.stack-window-empty {
+.pm-list-empty {
   font-size: 12px;
   color: var(--text-quaternary);
   font-style: italic;
   padding: 8px 12px;
 }
 
-/* ====== TICKER — cycles missed + running low every 5s ====== */
-.stack-ticker {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  font-size: 12px;
-  min-height: 36px;
-}
-.stack-ticker-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #6BE3A4;
-  flex-shrink: 0;
-  transition: background 0.3s;
-}
-.stack-ticker.status-low .stack-ticker-dot { background: #FF8A4D; }
-.stack-ticker.status-missed .stack-ticker-dot {
-  background: #FF6B6B;
-  animation: ticker-pulse 1.5s ease-in-out infinite;
-}
-@keyframes ticker-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-  50%      { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
-}
-.stack-ticker-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-.stack-ticker-sep { color: var(--text-quaternary); flex-shrink: 0; }
-.stack-ticker-msg {
-  flex: 1;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: opacity 0.28s;
-}
-.stack-ticker-msg.is-fading { opacity: 0; }
-.stack-ticker-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-.stack-add-wrap {
+.pm-add-wrap {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--border-soft);
 }
-.stack-add-label { margin-bottom: 10px; }
-.stack-add-row {
+.pm-add-label { margin-bottom: 10px; }
+.pm-add-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 110px 90px;
+  grid-template-columns: 1fr 140px 130px 90px;
   gap: 6px;
   align-items: center;
 }
-.stack-input {
+.pm-input {
   font-size: 13px;
   padding: 9px 11px;
   border-radius: 10px;
@@ -402,14 +264,14 @@ main {
   font-family: inherit;
   transition: border-color 0.18s, background 0.18s;
 }
-.stack-input::placeholder { color: var(--text-tertiary); }
-.stack-input:focus {
+.pm-input::placeholder { color: var(--text-tertiary); }
+.pm-input:focus {
   outline: none;
   border-color: rgba(255, 255, 255, 0.40);
   background: var(--bg-input-focus);
 }
-.stack-select { cursor: pointer; }
-.stack-add-btn {
+.pm-select { cursor: pointer; }
+.pm-add-btn {
   font-size: 13px;
   padding: 9px 11px;
   border-radius: 10px;
@@ -425,58 +287,11 @@ main {
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     0 4px 14px rgba(0, 0, 0, 0.30);
 }
-.stack-add-btn:hover {
+.pm-add-btn:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #F2F0EA 100%);
   transform: translateY(-1px);
 }
-.stack-add-btn:active { transform: translateY(0) scale(0.97); }
-
-/* ====== SEARCH AUTOCOMPLETE — appears below the form when typing in Name ====== */
-.stack-name-wrap { position: relative; }
-
-.stack-search-results {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  width: max(100%, 320px);
-  background: var(--bg-dropdown);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  max-height: 280px;
-  overflow-y: auto;
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
-  z-index: 50;
-  padding: 6px;
-}
-.stack-search-results[hidden] { display: none; }
-
-.stack-result {
-  display: flex;
-  gap: 12px; align-items: center;
-  width: 100%;
-  padding: 9px 11px;
-  background: transparent; border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-  color: var(--text-secondary);
-  transition: background 0.12s;
-}
-.stack-result:hover, .stack-result.is-focused { background: rgba(255, 255, 255, 0.06); }
-
-.stack-result-icon { font-size: 17px; flex-shrink: 0; width: 24px; text-align: center; }
-.stack-result-body { min-width: 0; flex: 1; }
-.stack-result-name {
-  font-size: 13px; font-weight: 600;
-  color: var(--text-primary); line-height: 1.2;
-}
-.stack-result-meta {
-  font-size: 11px; color: var(--text-tertiary);
-  margin-top: 2px;
-}
+.pm-add-btn:active { transform: translateY(0) scale(0.97); }
 
 .attribution {
   text-align: center; margin-top: 28px;
@@ -489,13 +304,11 @@ main {
 
 @media (max-width: 600px) {
   main { padding: 40px 16px 60px; }
-  .stack-card { padding: 18px 16px 14px; }
-  .stack-item { grid-template-columns: 28px 1fr auto; gap: 8px; }
-  .stack-item .stack-low-btn { grid-column: 2 / 4; margin-top: 4px; justify-self: start; }
-  .stack-add-row { grid-template-columns: 1fr 1fr; }
-  .stack-add-row .stack-add-btn { grid-column: 1 / -1; }
-  .stack-add-row .stack-select { grid-column: 1 / -1; }
-  .stack-search-results { width: 100%; }
+  .pm-card { padding: 18px 16px 14px; }
+  .pm-item { grid-template-columns: 28px 1fr auto; gap: 8px; }
+  .pm-add-row { grid-template-columns: 1fr 1fr; }
+  .pm-add-row .pm-add-btn { grid-column: 1 / -1; }
+  .pm-add-row .pm-select { grid-column: 1 / -1; }
 }
 
 ::selection { background: rgba(224, 118, 88, 0.3); color: var(--text-primary); }
@@ -888,44 +701,32 @@ main {
   })();
   </script>
 
-  <div class="section-title">Daily Stack</div>
+  <div class="section-title">Project Manager</div>
 
-  <div class="stack-card">
-    <div class="stack-ticker" id="stackTicker">
-      <span class="stack-ticker-dot"></span>
-      <span class="stack-ticker-label">STACK</span>
-      <span class="stack-ticker-sep">·</span>
-      <span class="stack-ticker-msg" id="stackTickerMsg">All caught up — keep it rolling</span>
-      <span class="stack-ticker-count" id="stackTickerCount">0/0</span>
+  <div class="pm-card">
+    <div class="pm-head">
+      <div class="pm-eyebrow">Projects</div>
+      <div class="pm-title">Track what's in flight</div>
+      <div class="pm-progress-text" id="pmProgressText">— / — done</div>
     </div>
 
-    <div class="stack-head">
-      <div class="sf-eyebrow">Daily stack</div>
-      <div class="sf-title">Tap each as you take it</div>
-      <div class="stack-progress-text" id="stackProgressText">— / — taken today · resets at 6 AM</div>
+    <div class="pm-progress-track">
+      <div id="pmProgressBar" class="pm-progress-fill"></div>
     </div>
 
-    <div class="stack-progress-track">
-      <div id="stackProgressBar" class="stack-progress-fill"></div>
-    </div>
+    <div id="pmList"></div>
 
-    <div id="stackGroups"></div>
-
-    <div class="stack-add-wrap">
-      <div class="sf-eyebrow stack-add-label">Add to stack</div>
-      <div class="stack-add-row">
-        <div class="stack-name-wrap">
-          <input id="stackAddName" type="text" placeholder="Name (e.g. B-complex)" class="stack-input" autocomplete="off" spellcheck="false" />
-          <div id="stackSearchResults" class="stack-search-results" hidden></div>
-        </div>
-        <input id="stackAddDose" type="text" placeholder="Dose (e.g. 1 cap)" class="stack-input" />
-        <select id="stackAddWindow" class="stack-input stack-select">
-          <option value="morning">Morning</option>
-          <option value="lunch">Lunch</option>
-          <option value="evening">Evening</option>
-          <option value="anytime">Anytime</option>
+    <div class="pm-add-wrap">
+      <div class="pm-eyebrow pm-add-label">Add a project</div>
+      <div class="pm-add-row">
+        <input id="pmAddName" type="text" placeholder="Project name" class="pm-input" autocomplete="off" spellcheck="false" />
+        <input id="pmAddDue" type="date" class="pm-input" />
+        <select id="pmAddStatus" class="pm-input pm-select">
+          <option value="not_started">Not started</option>
+          <option value="in_progress">In progress</option>
+          <option value="done">Done</option>
         </select>
-        <button id="stackAddBtn" class="stack-add-btn">+ Add</button>
+        <button id="pmAddBtn" class="pm-add-btn">+ Add</button>
       </div>
     </div>
   </div>
@@ -945,512 +746,138 @@ main {
   const storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
   const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
-  function getActiveDate() {
+  const STORE_KEY = 'pm:projects';
+  const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
+  const STATUS_LABEL = { not_started: 'not started', in_progress: 'in progress', done: 'done' };
+
+  function getProjects() { return storeGet(STORE_KEY) || []; }
+  function setProjects(list) { storeSet(STORE_KEY, list); }
+
+  function todayISO() {
     const now = new Date();
-    if (now.getHours() < 6) now.setDate(now.getDate() - 1);
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
 
-  const TEMPLATE_VERSION = 5;
-
-  const STACK_DEFAULTS = [
-    { id: 'm1', name: 'XXXXX - Supplement of choice', dose: '', window: 'morning', note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-    { id: 'm2', name: 'XXXXX - Supplement of choice', dose: '', window: 'morning', note: 'how much MG, meal times, any data below', tag: 'stack', ordered: true  },
-    { id: 'm3', name: 'XXXXX - Supplement of choice', dose: '', window: 'morning', note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-    { id: 'l1', name: 'XXXXX - Supplement of choice', dose: '', window: 'lunch',   note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-    { id: 'l2', name: 'XXXXX - Supplement of choice', dose: '', window: 'lunch',   note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-    { id: 'e1', name: 'XXXXX - Supplement of choice', dose: '', window: 'evening', note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-    { id: 'e2', name: 'XXXXX - Supplement of choice', dose: '', window: 'evening', note: 'how much MG, meal times, any data below', tag: 'not-ordered', ordered: false },
-    { id: 'e3', name: 'XXXXX - Supplement of choice', dose: '', window: 'evening', note: 'how much MG, meal times, any data below', tag: null,    ordered: true  },
-  ];
-
-  const STACK_WINDOWS = [
-    { key: 'morning', icon: '🌅', title: 'Morning', time: '7–10 AM', cutoffHour: 10 },
-    { key: 'lunch',   icon: '🍽️', title: 'Lunch',   time: '12–2 PM', cutoffHour: 14 },
-    { key: 'evening', icon: '🌙', title: 'Evening', time: '9–11 PM', cutoffHour: 23 },
-    { key: 'anytime', icon: '⏱️', title: 'Anytime', time: 'No fixed window', cutoffHour: null },
-  ];
-
-  // ====== SUPPLEMENT DATABASE — researched defaults ======
-  const SUPPLEMENT_DB = [
-    { name: 'Creatine monohydrate', dose: '5g', window: 'anytime', note: 'Daily — consistency matters more than timing', icon: '🏋️', aliases: ['creatine'] },
-    { name: 'Beta-alanine', dose: '2–5g', window: 'morning', note: 'Pre-workout — split doses to avoid tingles', icon: '🏋️', aliases: ['beta alanine'] },
-    { name: 'L-citrulline', dose: '6–8g', window: 'morning', note: '~30 min pre-workout for pump', icon: '🏋️', aliases: ['citrulline'] },
-    { name: 'BCAAs', dose: '5–10g', window: 'anytime', note: 'Around workout window', icon: '🏋️', aliases: ['bcaa'] },
-    { name: 'Whey protein', dose: '25–40g', window: 'anytime', note: 'Post-workout or to hit daily target', icon: '🥤', aliases: ['whey'] },
-    { name: 'Casein protein', dose: '25–40g', window: 'evening', note: 'Before bed for slow overnight aminos', icon: '🥤', aliases: ['casein'] },
-    { name: 'L-carnitine', dose: '1–2g', window: 'morning', note: 'With carbs for best uptake', icon: '🏋️', aliases: ['carnitine'] },
-    { name: 'Acetyl-L-carnitine', dose: '500mg–2g', window: 'morning', note: 'Cognitive variant — crosses BBB', icon: '🧠', aliases: ['alcar'] },
-    { name: 'HMB', dose: '3g', window: 'anytime', note: 'Split 3x daily — muscle preservation', icon: '🏋️', aliases: ['hmb'] },
-    { name: 'Glutamine', dose: '5g', window: 'anytime', note: 'Recovery — post-workout or before bed', icon: '🏋️', aliases: ['l-glutamine'] },
-    { name: 'Vitamin D3', dose: '2000–5000 IU', window: 'lunch', note: 'Fat-soluble — take with biggest meal', icon: '☀️', aliases: ['vit d', 'vitamin d', 'd3', 'cholecalciferol'] },
-    { name: 'Vitamin K2 (MK-7)', dose: '100–200 mcg', window: 'lunch', note: 'Pairs with D3 — same meal', icon: '💊', aliases: ['vit k', 'vitamin k', 'k2', 'mk7'] },
-    { name: 'Vitamin C', dose: '500–1000mg', window: 'morning', note: 'Water-soluble — split if over 500mg', icon: '🍊', aliases: ['vit c', 'ascorbic acid'] },
-    { name: 'Vitamin B12', dose: '500–1000mcg', window: 'morning', note: 'Methylcobalamin form preferred', icon: '⚡', aliases: ['b12', 'methylcobalamin'] },
-    { name: 'B-complex', dose: '1 cap', window: 'morning', note: 'All B vitamins — energy', icon: '⚡', aliases: ['b complex', 'b vitamins'] },
-    { name: 'Vitamin A', dose: '5000 IU', window: 'lunch', note: 'Fat-soluble — with fat', icon: '💊', aliases: ['vit a', 'retinol'] },
-    { name: 'Vitamin E', dose: '400 IU', window: 'lunch', note: 'Fat-soluble — with fat', icon: '💊', aliases: ['vit e', 'tocopherol'] },
-    { name: 'Folate', dose: '400–800mcg', window: 'morning', note: 'Methylfolate preferred', icon: '💊', aliases: ['folic acid', 'b9', 'methylfolate'] },
-    { name: 'Biotin', dose: '30mcg–5mg', window: 'anytime', note: 'Hair, skin, nails', icon: '💅', aliases: ['biotin', 'b7'] },
-    { name: 'Multivitamin', dose: '1 serving', window: 'lunch', note: 'Take with food', icon: '💊', aliases: ['multi', 'multivitamin'] },
-    { name: 'Magnesium glycinate', dose: '200–400mg', window: 'evening', note: '30–60 min before bed — sleep helper', icon: '🌙', aliases: ['magnesium', 'mag glycinate', 'bisglycinate'] },
-    { name: 'Magnesium L-threonate', dose: '144mg elemental', window: 'evening', note: 'Cognitive variant — crosses BBB', icon: '🧠', aliases: ['magtein', 'threonate'] },
-    { name: 'Magnesium citrate', dose: '200–400mg', window: 'evening', note: 'Also supports digestion', icon: '🌙', aliases: ['mag citrate'] },
-    { name: 'Zinc', dose: '15–30mg', window: 'evening', note: 'With food — not with calcium or iron', icon: '💊', aliases: ['zinc'] },
-    { name: 'Iron', dose: '18–65mg', window: 'morning', note: 'Empty stomach with vit C', icon: '💊', aliases: ['iron'] },
-    { name: 'Calcium', dose: '500mg', window: 'evening', note: 'With food — not with iron', icon: '🦴', aliases: ['calcium'] },
-    { name: 'Selenium', dose: '100–200mcg', window: 'anytime', note: 'Thyroid + antioxidant', icon: '💊', aliases: ['selenium'] },
-    { name: 'Iodine', dose: '150mcg', window: 'morning', note: 'Thyroid support', icon: '💊', aliases: ['iodine'] },
-    { name: 'Omega-3 (Fish oil)', dose: '2–3g EPA+DHA', window: 'lunch', note: 'With biggest fatty meal', icon: '🐟', aliases: ['omega 3', 'omega3', 'fish oil', 'epa', 'dha'] },
-    { name: 'Krill oil', dose: '500–1000mg', window: 'lunch', note: 'More absorbable than fish oil', icon: '🐟', aliases: ['krill'] },
-    { name: 'MCT oil', dose: '1–2 tbsp', window: 'morning', note: 'Fast energy — start low', icon: '🥥', aliases: ['mct'] },
-    { name: 'Flaxseed oil', dose: '1–2g', window: 'lunch', note: 'Plant omega-3 — with food', icon: '🌱', aliases: ['flax', 'flaxseed'] },
-    { name: 'L-theanine', dose: '100–200mg', window: 'morning', note: 'Stacks with caffeine 2:1', icon: '🧠', aliases: ['theanine'] },
-    { name: 'Caffeine', dose: '100–200mg', window: 'morning', note: 'Stack with L-theanine for cleaner focus', icon: '☕', aliases: ['caffeine'] },
-    { name: 'Rhodiola rosea', dose: '200–400mg', window: 'morning', note: 'Adaptogen — energy and stress', icon: '🌿', aliases: ['rhodiola'] },
-    { name: 'Lion\'s mane', dose: '500–1000mg', window: 'morning', note: 'Cognitive support — daily', icon: '🍄', aliases: ['lions mane', 'hericium'] },
-    { name: 'Bacopa monnieri', dose: '300–600mg', window: 'morning', note: 'With fat — long-term memory', icon: '🌿', aliases: ['bacopa'] },
-    { name: 'Ginkgo biloba', dose: '120–240mg', window: 'morning', note: 'Circulation and cognition', icon: '🌿', aliases: ['ginkgo'] },
-    { name: 'Alpha-GPC', dose: '300–600mg', window: 'morning', note: 'Choline — focus and learning', icon: '🧠', aliases: ['alpha gpc'] },
-    { name: 'Phosphatidylserine', dose: '100–300mg', window: 'evening', note: 'Cortisol regulation', icon: '🧠', aliases: ['ps'] },
-    { name: 'NAC', dose: '600–1800mg', window: 'morning', note: 'Glutathione precursor — split doses', icon: '💊', aliases: ['nac', 'n-acetyl cysteine'] },
-    { name: 'Melatonin', dose: '0.3–3mg', window: 'evening', note: '30–60 min before bed — start low', icon: '🌙', aliases: ['melatonin'] },
-    { name: 'Glycine', dose: '3g', window: 'evening', note: 'Body temp drop = better sleep onset', icon: '🌙', aliases: ['glycine'] },
-    { name: 'Apigenin', dose: '50mg', window: 'evening', note: 'From chamomile — before bed', icon: '🌙', aliases: ['apigenin'] },
-    { name: 'Ashwagandha', dose: '300–600mg', window: 'evening', note: 'KSM-66 form — stress and cortisol', icon: '🌿', aliases: ['ashwagandha', 'ksm-66'] },
-    { name: 'L-tryptophan', dose: '500mg–1g', window: 'evening', note: 'Serotonin precursor — sleep onset', icon: '🌙', aliases: ['tryptophan'] },
-    { name: 'GABA', dose: '500–750mg', window: 'evening', note: 'Calming — before bed', icon: '🌙', aliases: ['gaba'] },
-    { name: 'Valerian root', dose: '300–600mg', window: 'evening', note: 'Sleep onset support', icon: '🌙', aliases: ['valerian'] },
-    { name: 'Probiotics', dose: '10–50 billion CFU', window: 'morning', note: 'Empty stomach or with food', icon: '🦠', aliases: ['probiotic'] },
-    { name: 'Quercetin', dose: '500–1000mg', window: 'anytime', note: 'Pairs well with vitamin C', icon: '🌿', aliases: ['quercetin'] },
-    { name: 'Curcumin', dose: '500–1000mg', window: 'lunch', note: 'With black pepper + fat', icon: '🌿', aliases: ['curcumin', 'turmeric'] },
-    { name: 'Resveratrol', dose: '250–500mg', window: 'morning', note: 'With fat for absorption', icon: '🍇', aliases: ['resveratrol'] },
-    { name: 'CoQ10 / Ubiquinol', dose: '100–200mg', window: 'lunch', note: 'Fat-soluble — with biggest meal', icon: '💊', aliases: ['coq10', 'ubiquinol'] },
-    { name: 'Alpha lipoic acid', dose: '300–600mg', window: 'morning', note: 'Empty stomach for absorption', icon: '💊', aliases: ['ala', 'alpha lipoic'] },
-    { name: 'Glutathione', dose: '250–1000mg', window: 'morning', note: 'Liposomal form for absorption', icon: '💊', aliases: ['glutathione'] },
-    { name: 'Astaxanthin', dose: '4–12mg', window: 'lunch', note: 'Fat-soluble — with fatty meal', icon: '💊', aliases: ['astaxanthin'] },
-    { name: 'Berberine', dose: '500mg', window: 'lunch', note: 'Before meals — glucose support', icon: '💊', aliases: ['berberine'] },
-    { name: 'Milk thistle', dose: '200–400mg', window: 'anytime', note: 'Silymarin — liver support', icon: '🌿', aliases: ['milk thistle', 'silymarin'] },
-    { name: 'Spirulina', dose: '3–5g', window: 'morning', note: 'Algae — protein and antioxidants', icon: '🌱', aliases: ['spirulina'] },
-    { name: 'Chlorella', dose: '2–4g', window: 'morning', note: 'Algae — detox support', icon: '🌱', aliases: ['chlorella'] },
-    { name: 'Tongkat ali', dose: '200–400mg', window: 'morning', note: 'Cycle 8 weeks on/off', icon: '🌿', aliases: ['tongkat', 'longjack'] },
-    { name: 'Fadogia agrestis', dose: '600mg', window: 'morning', note: 'Cycle 8 weeks on/off', icon: '🌿', aliases: ['fadogia'] },
-    { name: 'DHEA', dose: '25–50mg', window: 'morning', note: 'Hormonal — consult doctor', icon: '💊', aliases: ['dhea'] },
-    { name: 'Pregnenolone', dose: '10–50mg', window: 'morning', note: 'Hormonal — consult doctor', icon: '💊', aliases: ['pregnenolone'] },
-    { name: 'Tribulus terrestris', dose: '250–750mg', window: 'morning', note: 'Libido and energy', icon: '🌿', aliases: ['tribulus'] },
-    { name: 'Maca root', dose: '1.5–3g', window: 'morning', note: 'Adaptogen — energy and libido', icon: '🌿', aliases: ['maca'] },
-    { name: 'Collagen peptides', dose: '10–20g', window: 'anytime', note: 'With vitamin C for synthesis', icon: '💅', aliases: ['collagen'] },
-    { name: 'Glucosamine', dose: '1500mg', window: 'lunch', note: 'With food', icon: '🦴', aliases: ['glucosamine'] },
-    { name: 'Chondroitin', dose: '1200mg', window: 'lunch', note: 'Often paired with glucosamine', icon: '🦴', aliases: ['chondroitin'] },
-    { name: 'MSM', dose: '1–3g', window: 'anytime', note: 'Joint support', icon: '🦴', aliases: ['msm'] },
-    { name: 'Hyaluronic acid', dose: '120–200mg', window: 'anytime', note: 'Skin and joint hydration', icon: '💅', aliases: ['hyaluronic', 'ha'] },
-    { name: 'Cordyceps', dose: '1–3g', window: 'morning', note: 'Energy and endurance', icon: '🍄', aliases: ['cordyceps'] },
-    { name: 'Reishi', dose: '1–2g', window: 'evening', note: 'Calming adaptogen', icon: '🍄', aliases: ['reishi', 'ganoderma'] },
-    { name: 'Chaga', dose: '1–2g', window: 'morning', note: 'Antioxidant and immune', icon: '🍄', aliases: ['chaga'] },
-  ];
-
-  let todayKey = `stack:taken:${getActiveDate()}`;
-
-  function getItems() {
-    const storedVersion = storeGet('stack:version');
-    const stored = storeGet('stack:items');
-    if (!stored || !Array.isArray(stored) || !stored.length || storedVersion !== TEMPLATE_VERSION) {
-      const fresh = JSON.parse(JSON.stringify(STACK_DEFAULTS));
-      storeSet('stack:items', fresh);
-      storeSet('stack:version', TEMPLATE_VERSION);
-      return fresh;
-    }
-    return stored;
-  }
-  function setItems(items) { storeSet('stack:items', items); }
-  function getTaken() { return storeGet(todayKey) || {}; }
-  function setTaken(map) { storeSet(todayKey, map); }
-  function getLow() { return storeGet('stack:low') || []; }
-  function setLow(arr) { storeSet('stack:low', arr); }
-
-  function toggleTaken(id) {
-    const taken = getTaken();
-    if (taken[id]) delete taken[id]; else taken[id] = Date.now();
-    setTaken(taken); render();
-  }
-  function toggleLow(id) {
-    const low = getLow();
-    if (low.includes(id)) setLow(low.filter(x => x !== id));
-    else { low.push(id); setLow(low); }
-    render();
-  }
-  function deleteItem(id) {
-    setItems(getItems().filter(i => i.id !== id));
-    const taken = getTaken();
-    delete taken[id];
-    setTaken(taken);
-    setLow(getLow().filter(x => x !== id));
-    render();
-  }
-  function addItem(name, dose, windowKey, note = '') {
+  function addProject(name, dueDate, status) {
     const v = String(name || '').trim();
     if (!v) return;
-    const items = getItems();
-    const id = 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const items = getProjects();
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     items.push({
       id, name: v,
-      dose: String(dose || '').trim(),
-      window: ['morning','lunch','evening','anytime'].includes(windowKey) ? windowKey : 'anytime',
-      note: String(note || '').trim(),
-      tag: null, ordered: true
+      status: STATUS_ORDER.includes(status) ? status : 'not_started',
+      dueDate: String(dueDate || '').trim(),
+      createdAt: Date.now()
     });
-    setItems(items);
+    setProjects(items);
     render();
   }
-  function updateItem(id, field, value) {
-    const items = getItems();
-    const item = items.find(i => i.id === id);
+  function completeProject(id) {
+    const items = getProjects();
+    const item = items.find(p => p.id === id);
     if (!item) return;
-    item[field] = value;
-    setItems(items);
+    item.status = item.status === 'done' ? 'not_started' : 'done';
+    setProjects(items);
+    render();
+  }
+  function cycleStatus(id) {
+    const items = getProjects();
+    const item = items.find(p => p.id === id);
+    if (!item) return;
+    const idx = STATUS_ORDER.indexOf(item.status);
+    item.status = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function deleteProject(id) {
+    setProjects(getProjects().filter(p => p.id !== id));
+    render();
   }
 
-  function render() {
-    const items = getItems();
-    const taken = getTaken();
-    const low = getLow();
-    const totalCount = items.length;
-    const takenCount = items.filter(i => taken[i.id]).length;
-    document.getElementById('stackProgressText').textContent =
-      `${takenCount} / ${totalCount} taken today · resets at 6 AM`;
-    const pct = totalCount === 0 ? 0 : (takenCount / totalCount) * 100;
-    document.getElementById('stackProgressBar').style.width = pct + '%';
-
-    const groupsEl = document.getElementById('stackGroups');
-    groupsEl.innerHTML = '';
-
-    const now = new Date();
-    const nowHour = now.getHours() + (now.getMinutes() / 60);
-
-    STACK_WINDOWS.forEach(win => {
-      const winItems = items.filter(i => (i.window || 'anytime') === win.key);
-      if (winItems.length === 0) return;
-
-      const group = document.createElement('div');
-      group.className = 'stack-window';
-      group.innerHTML = `
-        <div class="stack-window-header">
-          <span class="stack-window-icon">${win.icon}</span>
-          <span class="stack-window-title">${win.title}</span>
-          <span class="stack-window-time">${win.time}</span>
-        </div>`;
-
-      const isPastCutoff = win.cutoffHour !== null && nowHour > win.cutoffHour;
-
-      winItems.forEach(item => {
-        const isTaken = !!taken[item.id];
-        const isLow = low.includes(item.id);
-        const isMissed = !isTaken && isPastCutoff;
-
-        const row = document.createElement('div');
-        row.className = 'stack-item' + (isTaken ? ' taken' : '') + (isMissed ? ' missed' : '');
-
-        let tagHtml = '';
-        if (item.tag === 'stack') tagHtml = '<span class="stack-item-tag tag-stack">stack</span>';
-        else if (item.tag === 'not-ordered') tagHtml = '<span class="stack-item-tag tag-not-ordered">not ordered</span>';
-
-        row.innerHTML = `
-          <button class="stack-check ${isTaken ? 'checked' : ''}" data-action="toggle" data-id="${item.id}" aria-label="Mark taken">${isTaken ? '✓' : ''}</button>
-          <div class="stack-item-body">
-            <div class="stack-item-name" data-edit="name" data-id="${item.id}">
-              <span class="stack-item-name-text">${escapeHtml(item.name)}</span>${tagHtml}
-            </div>
-            <div class="stack-item-meta" data-edit="meta" data-id="${item.id}">${escapeHtml(metaText(item))}</div>
-          </div>
-          <button class="stack-low-btn ${isLow ? 'is-low' : ''}" data-action="low" data-id="${item.id}">↓ Running low</button>
-          <button class="stack-item-del" data-action="del" data-id="${item.id}" aria-label="Delete">×</button>`;
-
-        group.appendChild(row);
-      });
-
-      groupsEl.appendChild(group);
-    });
-
-    if (groupsEl.children.length === 0) {
-      groupsEl.innerHTML = `<div class="stack-window-empty">No items yet — add one below to start your stack.</div>`;
-    }
-
-    // Sync ticker after every render
-    renderTicker();
-  }
-
-  // ====== TICKER ======
-  let tickerIndex = 0;
-  let tickerInterval = null;
-  let cachedIssues = [];
-
-  function getStackIssues() {
-    const items = getItems();
-    const taken = getTaken();
-    const low = getLow();
-    const now = new Date();
-    const nowHour = now.getHours() + (now.getMinutes() / 60);
-
-    const missed = [];
-    const lowList = [];
-
-    items.forEach(item => {
-      const win = STACK_WINDOWS.find(w => w.key === (item.window || 'anytime'));
-      const isPastCutoff = win && win.cutoffHour !== null && nowHour > win.cutoffHour;
-      const isTaken = !!taken[item.id];
-      if (isPastCutoff && !isTaken) {
-        missed.push({
-          type: 'missed',
-          text: `${item.name} — missed ${win.title.toLowerCase()} dose`
-        });
-      }
-      if (low.includes(item.id)) {
-        lowList.push({
-          type: 'low',
-          text: `${item.name} — running low, reorder soon`
-        });
-      }
-    });
-
-    return [...missed, ...lowList];
-  }
-
-  function renderTicker() {
-    const issues = getStackIssues();
-    const tickerEl = document.getElementById('stackTicker');
-    const msgEl = document.getElementById('stackTickerMsg');
-    const countEl = document.getElementById('stackTickerCount');
-    const totalItems = getItems().length;
-
-    cachedIssues = issues;
-
-    if (issues.length === 0) {
-      msgEl.textContent = 'All caught up — keep it rolling';
-      tickerEl.classList.remove('status-low', 'status-missed');
-      countEl.textContent = `0/${totalItems}`;
-      tickerIndex = 0;
-      return;
-    }
-
-    const hasMissed = issues.some(i => i.type === 'missed');
-    tickerEl.classList.remove('status-low', 'status-missed');
-    tickerEl.classList.add(hasMissed ? 'status-missed' : 'status-low');
-
-    if (tickerIndex >= issues.length) tickerIndex = 0;
-    msgEl.textContent = issues[tickerIndex].text;
-    countEl.textContent = `${issues.length}/${totalItems}`;
-  }
-
-  function cycleTicker() {
-    if (cachedIssues.length <= 1) {
-      renderTicker();
-      return;
-    }
-    const msgEl = document.getElementById('stackTickerMsg');
-    msgEl.classList.add('is-fading');
-    setTimeout(() => {
-      tickerIndex++;
-      renderTicker();
-      msgEl.classList.remove('is-fading');
-    }, 280);
-  }
-
-  function startTicker() {
-    if (tickerInterval) clearInterval(tickerInterval);
-    tickerInterval = setInterval(cycleTicker, 5000);
-  }
-
-  function metaText(item) {
-    const parts = [];
-    if (item.dose) parts.push(item.dose);
-    if (item.note) parts.push(item.note);
-    return parts.join(' · ');
+  function fmtDue(dueDate) {
+    if (!dueDate) return '';
+    const [y, m, d] = dueDate.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  document.getElementById('stackGroups').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    e.stopPropagation();
-    const id = btn.dataset.id;
-    if (btn.dataset.action === 'toggle') toggleTaken(id);
-    else if (btn.dataset.action === 'low') toggleLow(id);
-    else if (btn.dataset.action === 'del') deleteItem(id);
-  });
-  document.getElementById('stackGroups').addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('[data-action="del"]');
-    if (!btn) return;
-    e.preventDefault(); e.stopPropagation();
-    deleteItem(btn.dataset.id);
-  });
-  document.getElementById('stackGroups').addEventListener('click', (e) => {
-    const editEl = e.target.closest('[data-edit]');
-    if (!editEl) return;
-    if (e.target.closest('[data-action]')) return;
-    if (editEl.getAttribute('contenteditable') === 'true') return;
-    startEdit(editEl);
-  });
+  function render() {
+    const items = getProjects();
+    const total = items.length;
+    const done = items.filter(p => p.status === 'done').length;
+    document.getElementById('pmProgressText').textContent = `${done} / ${total} done`;
+    const pct = total === 0 ? 0 : (done / total) * 100;
+    document.getElementById('pmProgressBar').style.width = pct + '%';
 
-  function startEdit(el) {
-    const id = el.dataset.id;
-    const field = el.dataset.edit;
-    if (field === 'name') {
-      const textSpan = el.querySelector('.stack-item-name-text');
-      if (!textSpan) return;
-      textSpan.setAttribute('contenteditable', 'true');
-      textSpan.style.outline = '1px solid rgba(255,255,255,0.25)';
-      textSpan.style.outlineOffset = '4px';
-      textSpan.style.borderRadius = '4px';
-      textSpan.focus();
-      placeCaretAtEnd(textSpan);
-      const finish = (commit) => {
-        textSpan.removeAttribute('contenteditable');
-        textSpan.style.outline = ''; textSpan.style.outlineOffset = '';
-        if (commit) {
-          const newVal = textSpan.textContent.trim();
-          if (newVal) updateItem(id, 'name', newVal); else render();
-        } else render();
-      };
-      textSpan.addEventListener('blur', () => finish(true), { once: true });
-      textSpan.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); textSpan.blur(); }
-        if (e.key === 'Escape') { textSpan.blur(); render(); }
-      });
-    }
-    if (field === 'meta') {
-      el.setAttribute('contenteditable', 'true');
-      el.focus(); placeCaretAtEnd(el);
-      const finish = (commit) => {
-        el.removeAttribute('contenteditable');
-        if (commit) {
-          const text = el.textContent.trim();
-          const parts = text.split(/\s*·\s*/);
-          updateItem(id, 'dose', parts[0] || '');
-          updateItem(id, 'note', parts.slice(1).join(' · '));
-        }
-        render();
-      };
-      el.addEventListener('blur', () => finish(true), { once: true });
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
-        if (e.key === 'Escape') { el.blur(); render(); }
-      });
-    }
-  }
+    const listEl = document.getElementById('pmList');
+    listEl.innerHTML = '';
 
-  function placeCaretAtEnd(el) {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
-  // ====== ADD FORM + SEARCH AUTOCOMPLETE ======
-  const nameInput = document.getElementById('stackAddName');
-  const doseInput = document.getElementById('stackAddDose');
-  const winSelect = document.getElementById('stackAddWindow');
-  const addBtn = document.getElementById('stackAddBtn');
-  const resultsEl = document.getElementById('stackSearchResults');
-
-  let pendingNote = ''; // hidden note auto-filled when a DB result is selected
-
-  function searchSupplements(q) {
-    const query = q.toLowerCase().trim();
-    if (!query) return [];
-    const starts = [];
-    const contains = [];
-    SUPPLEMENT_DB.forEach(s => {
-      const nameLC = s.name.toLowerCase();
-      const aliases = (s.aliases || []).map(a => a.toLowerCase());
-      const allNames = [nameLC, ...aliases];
-      if (allNames.some(n => n.startsWith(query))) starts.push(s);
-      else if (allNames.some(n => n.includes(query))) contains.push(s);
-    });
-    return [...starts, ...contains].slice(0, 6);
-  }
-
-  function renderSearchResults(q) {
-    const matches = searchSupplements(q);
-    if (!q.trim() || matches.length === 0) {
-      resultsEl.hidden = true;
-      resultsEl.innerHTML = '';
+    if (total === 0) {
+      listEl.innerHTML = `<div class="pm-list-empty">No projects yet — add one below to get started.</div>`;
       return;
     }
-    resultsEl.hidden = false;
-    resultsEl.innerHTML = matches.map(s => {
-      const winMeta = STACK_WINDOWS.find(w => w.key === s.window) || STACK_WINDOWS[3];
-      return `
-        <button class="stack-result" data-name="${escapeHtml(s.name)}" data-dose="${escapeHtml(s.dose)}" data-window="${s.window}" data-note="${escapeHtml(s.note)}">
-          <div class="stack-result-icon">${s.icon || '💊'}</div>
-          <div class="stack-result-body">
-            <div class="stack-result-name">${escapeHtml(s.name)}</div>
-            <div class="stack-result-meta">${escapeHtml(s.dose)} · ${winMeta.icon} ${winMeta.title.toLowerCase()} · ${escapeHtml(s.note)}</div>
-          </div>
-        </button>`;
-    }).join('');
+
+    const today = todayISO();
+    const sorted = [...items].sort((a, b) => {
+      if ((a.status === 'done') !== (b.status === 'done')) return a.status === 'done' ? 1 : -1;
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate < b.dueDate ? -1 : 1;
+    });
+
+    sorted.forEach(item => {
+      const isDone = item.status === 'done';
+      const isOverdue = !isDone && item.dueDate && item.dueDate < today;
+
+      const row = document.createElement('div');
+      row.className = 'pm-item' + (isDone ? ' done' : '') + (isOverdue ? ' overdue' : '');
+
+      const dueLabel = item.dueDate ? 'Due ' + fmtDue(item.dueDate) : 'No due date';
+      row.innerHTML = `
+        <button class="pm-check ${isDone ? 'checked' : ''}" data-action="complete" data-id="${item.id}" aria-label="Mark complete">${isDone ? '✓' : ''}</button>
+        <div class="pm-item-body">
+          <div class="pm-item-name">${escapeHtml(item.name)}</div>
+          <div class="pm-item-meta${item.dueDate ? '' : ' is-blank'}">${dueLabel}${isOverdue ? ' · overdue' : ''}</div>
+        </div>
+        <button class="pm-status-pill status-${item.status}" data-action="cycle-status" data-id="${item.id}">${STATUS_LABEL[item.status]}</button>
+        <button class="pm-item-del" data-action="del" data-id="${item.id}" aria-label="Delete">×</button>`;
+
+      listEl.appendChild(row);
+    });
   }
 
-  nameInput.addEventListener('input', () => {
-    renderSearchResults(nameInput.value);
-    pendingNote = ''; // reset note if user is typing manually
-  });
-  nameInput.addEventListener('focus', () => {
-    if (nameInput.value.trim()) renderSearchResults(nameInput.value);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.stack-name-wrap')) resultsEl.hidden = true;
-  });
-
-  resultsEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('.stack-result');
+  document.getElementById('pmList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
     if (!btn) return;
-    nameInput.value = btn.dataset.name;
-    doseInput.value = btn.dataset.dose;
-    winSelect.value = btn.dataset.window;
-    pendingNote = btn.dataset.note;
-    resultsEl.hidden = true;
-    addBtn.focus();
+    const id = btn.dataset.id;
+    if (btn.dataset.action === 'complete') completeProject(id);
+    else if (btn.dataset.action === 'cycle-status') cycleStatus(id);
+    else if (btn.dataset.action === 'del') deleteProject(id);
   });
+
+  const nameInput = document.getElementById('pmAddName');
+  const dueInput = document.getElementById('pmAddDue');
+  const statusSelect = document.getElementById('pmAddStatus');
+  const addBtn = document.getElementById('pmAddBtn');
 
   addBtn.addEventListener('click', () => {
-    addItem(nameInput.value, doseInput.value, winSelect.value, pendingNote);
+    addProject(nameInput.value, dueInput.value, statusSelect.value);
     nameInput.value = '';
-    doseInput.value = '';
-    pendingNote = '';
-    resultsEl.hidden = true;
+    dueInput.value = '';
+    statusSelect.value = 'not_started';
     nameInput.focus();
   });
 
-  [nameInput, doseInput].forEach(i => {
-    i.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        // If search dropdown is open with matches, pick the first one
-        if (!resultsEl.hidden && i === nameInput) {
-          const firstResult = resultsEl.querySelector('.stack-result');
-          if (firstResult) { e.preventDefault(); firstResult.click(); return; }
-        }
-        addBtn.click();
-      }
-      if (e.key === 'Escape') resultsEl.hidden = true;
-    });
-  });
-
-  setInterval(() => {
-    const newKey = `stack:taken:${getActiveDate()}`;
-    if (newKey !== todayKey) todayKey = newKey;
-    render();
-  }, 60 * 1000);
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click(); });
 
   render();
-  startTicker();
 })();
 </script>
 
@@ -1459,8 +886,8 @@ document.addEventListener('DOMContentLoaded', function () {
   if (typeof initCloudSync !== 'function') return;
   initCloudSync({
     appKey: 'health',
-    syncedKeys: ['stack:items', 'stack:version', 'stack:low', 'po_water_v1'],
-    syncedPrefixes: ['stack:taken:'],
+    syncedKeys: ['pm:projects', 'po_water_v1'],
+    syncedPrefixes: [],
     onApplied: function () {
       window.dispatchEvent(new Event('storage'));
     }
