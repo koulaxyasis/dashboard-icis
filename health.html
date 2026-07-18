@@ -137,6 +137,7 @@ main {
   border-radius: 999px; overflow: hidden;
   margin: 14px 0 18px;
 }
+.pm-progress-track.small { height: 3px; margin: 8px 0 0; }
 .pm-progress-fill {
   height: 100%; width: 0%;
   background: #FFFFFF; border-radius: 999px;
@@ -144,25 +145,67 @@ main {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-.pm-item {
-  display: grid;
-  grid-template-columns: 32px 1fr auto auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
+.pm-group { margin-bottom: 10px; }
+.pm-group-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.pm-group-chevron {
+  font-size: 10px; color: var(--text-tertiary);
+  transition: transform 0.18s;
+  display: inline-flex; width: 12px; justify-content: center;
+  flex-shrink: 0;
+}
+.pm-group.collapsed .pm-group-chevron { transform: rotate(-90deg); }
+.pm-group.collapsed .pm-group-body { display: none; }
+.pm-group-count {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.pm-proj {
   border-radius: 10px;
   background: var(--bg-secondary);
   margin-bottom: 6px;
   border: 1px solid transparent;
   transition: background 0.2s, border-color 0.2s;
 }
-.pm-item:hover { background: rgba(255,255,255,0.05); }
-.pm-item.done { background: rgba(29,158,117,0.08); }
-.pm-item.done .pm-item-name { text-decoration: line-through; color: var(--text-tertiary); }
+.pm-proj:hover { background: rgba(255,255,255,0.05); }
+.pm-proj.overdue { border-color: rgba(239, 68, 68, 0.35); }
 
-.pm-item.overdue { border: 1px solid rgba(239, 68, 68, 0.45); }
-.pm-item.overdue .pm-check { border-color: rgba(239, 68, 68, 0.55); }
-.pm-item.overdue .pm-item-meta { color: #FF8A8A; }
+.pm-proj-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.pm-proj-chevron {
+  font-size: 10px; color: var(--text-tertiary);
+  transition: transform 0.18s;
+  flex-shrink: 0;
+  display: inline-flex; width: 12px; justify-content: center;
+}
+.pm-proj.expanded .pm-proj-chevron { transform: rotate(90deg); }
+.pm-proj-name {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+  flex: 1; min-width: 0;
+}
+.pm-proj.status-done .pm-proj-name { text-decoration: line-through; color: var(--text-tertiary); }
+
+.pm-proj-body { padding: 0 12px 12px 34px; }
+.pm-proj-meta {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px 10px;
+  font-size: 11px; color: var(--text-tertiary);
+}
+.pm-proj-meta .is-blank { color: var(--text-quaternary); font-style: italic; }
+
+.pm-proj-tasks { margin-top: 12px; display: none; }
+.pm-proj.expanded .pm-proj-tasks { display: block; }
 
 .pm-check {
   width: 28px; height: 28px;
@@ -181,23 +224,20 @@ main {
   color: white;
   box-shadow: 0 0 12px var(--accent-glow);
 }
+.pm-check.sm { width: 22px; height: 22px; font-size: 11px; }
 
-.pm-item-body { min-width: 0; }
-.pm-item-name {
-  font-size: 14px; font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.2;
-  display: inline-flex; align-items: center;
-  gap: 8px; flex-wrap: wrap;
+.pm-task {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  transition: background 0.15s;
 }
-.pm-item-meta {
-  font-size: 11px; color: var(--text-tertiary);
-  margin-top: 2px;
-}
-.pm-item-meta.is-blank {
-  color: var(--text-quaternary);
-  font-style: italic;
-}
+.pm-task:hover { background: rgba(255,255,255,0.04); }
+.pm-task.done .pm-task-name { text-decoration: line-through; color: var(--text-tertiary); }
+.pm-task-name { font-size: 13px; color: var(--text-primary); flex: 1; min-width: 0; }
+.pm-task-due { font-size: 10px; color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
+.pm-task.overdue .pm-task-due { color: #FF8A8A; }
 
 .pm-status-pill {
   font-family: var(--font-mono);
@@ -207,11 +247,28 @@ main {
   text-transform: lowercase;
   border: none; cursor: pointer;
   transition: filter 0.15s;
+  white-space: nowrap;
 }
 .pm-status-pill:hover { filter: brightness(1.15); }
 .pm-status-pill.status-not_started { background: rgba(255,255,255,0.08); color: var(--text-tertiary); }
+.pm-status-pill.status-planning { background: rgba(125,211,252,0.12); color: #7DD3FC; }
 .pm-status-pill.status-in_progress { background: var(--tag-stack-bg); color: var(--tag-stack); }
 .pm-status-pill.status-done { background: var(--accent-glow); color: var(--accent); }
+
+.pm-priority-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px; border-radius: 99px;
+  font-weight: 600; letter-spacing: 0.04em;
+  text-transform: lowercase;
+  border: none; cursor: pointer;
+  transition: filter 0.15s;
+  white-space: nowrap;
+}
+.pm-priority-pill:hover { filter: brightness(1.15); }
+.pm-priority-pill.priority-low { background: var(--accent-glow); color: var(--accent); }
+.pm-priority-pill.priority-medium { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-priority-pill.priority-high { background: rgba(239, 68, 68, 0.15); color: #FF8A8A; }
 
 .pm-item-del {
   background: transparent;
@@ -226,14 +283,16 @@ main {
   line-height: 1;
   min-width: 28px; min-height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
-.pm-item:hover .pm-item-del { opacity: 1; }
 .pm-item-del:hover, .pm-item-del:active {
   color: #FF6B6B;
   border-color: rgba(239, 68, 68, 0.45);
   background: rgba(239, 68, 68, 0.08);
   opacity: 1;
 }
+.pm-item-del.sm { min-width: 22px; min-height: 22px; font-size: 13px; padding: 2px 6px; opacity: 0.5; }
+.pm-task:hover .pm-item-del.sm { opacity: 1; }
 
 .pm-list-empty {
   font-size: 12px;
@@ -242,6 +301,27 @@ main {
   padding: 8px 12px;
 }
 
+.pm-task-add-row {
+  display: flex; gap: 6px; align-items: center;
+  margin-top: 8px;
+}
+.pm-task-add-row .pm-input { flex: 1; padding: 7px 10px; font-size: 12px; }
+.pm-task-add-row input[type="date"] { flex: none; width: 130px; }
+.pm-task-add-btn {
+  font-size: 12px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.pm-task-add-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
 .pm-add-wrap {
   margin-top: 16px;
   padding-top: 14px;
@@ -249,8 +329,15 @@ main {
 }
 .pm-add-label { margin-bottom: 10px; }
 .pm-add-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.pm-add-row .pm-input:first-child { flex: 2; }
+.pm-add-row .pm-input:last-child { flex: 1; }
+.pm-add-row2 {
   display: grid;
-  grid-template-columns: 1fr 140px 130px 90px;
+  grid-template-columns: 1fr 1fr 110px 110px 90px;
   gap: 6px;
   align-items: center;
 }
@@ -305,10 +392,9 @@ main {
 @media (max-width: 600px) {
   main { padding: 40px 16px 60px; }
   .pm-card { padding: 18px 16px 14px; }
-  .pm-item { grid-template-columns: 28px 1fr auto; gap: 8px; }
-  .pm-add-row { grid-template-columns: 1fr 1fr; }
-  .pm-add-row .pm-add-btn { grid-column: 1 / -1; }
-  .pm-add-row .pm-select { grid-column: 1 / -1; }
+  .pm-proj-body { padding-left: 12px; }
+  .pm-add-row2 { grid-template-columns: 1fr 1fr; }
+  .pm-add-row2 .pm-add-btn { grid-column: 1 / -1; }
 }
 
 ::selection { background: rgba(224, 118, 88, 0.3); color: var(--text-primary); }
@@ -720,9 +806,18 @@ main {
       <div class="pm-eyebrow pm-add-label">Add a project</div>
       <div class="pm-add-row">
         <input id="pmAddName" type="text" placeholder="Project name" class="pm-input" autocomplete="off" spellcheck="false" />
-        <input id="pmAddDue" type="date" class="pm-input" />
+        <input id="pmAddOwner" type="text" placeholder="Owner (optional)" class="pm-input" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="pm-add-row2">
+        <input id="pmAddStart" type="date" class="pm-input" title="Start date" />
+        <input id="pmAddEnd" type="date" class="pm-input" title="End date" />
+        <select id="pmAddPriority" class="pm-input pm-select">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
         <select id="pmAddStatus" class="pm-input pm-select">
-          <option value="not_started">Not started</option>
+          <option value="planning" selected>Planning</option>
           <option value="in_progress">In progress</option>
           <option value="done">Done</option>
         </select>
@@ -747,10 +842,26 @@ main {
   const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
   const STORE_KEY = 'pm:projects';
-  const STATUS_ORDER = ['not_started', 'in_progress', 'done'];
-  const STATUS_LABEL = { not_started: 'not started', in_progress: 'in progress', done: 'done' };
+  const PROJECT_STATUS_ORDER = ['planning', 'in_progress', 'done'];
+  const PROJECT_STATUS_LABEL = { planning: 'planning', in_progress: 'in progress', done: 'done' };
+  const TASK_STATUS_ORDER = ['not_started', 'in_progress', 'done'];
+  const TASK_STATUS_LABEL = { not_started: 'not started', in_progress: 'in progress', done: 'done' };
+  const PRIORITY_ORDER = ['low', 'medium', 'high'];
 
-  function getProjects() { return storeGet(STORE_KEY) || []; }
+  function getProjects() {
+    const list = storeGet(STORE_KEY);
+    if (!Array.isArray(list)) return [];
+    return list.map(p => ({
+      id: p.id, name: p.name || '',
+      status: PROJECT_STATUS_ORDER.includes(p.status) ? p.status : 'planning',
+      owner: p.owner || '',
+      startDate: p.startDate || '',
+      endDate: p.endDate || '',
+      priority: PRIORITY_ORDER.includes(p.priority) ? p.priority : 'medium',
+      tasks: Array.isArray(p.tasks) ? p.tasks : [],
+      createdAt: p.createdAt || 0
+    }));
+  }
   function setProjects(list) { storeSet(STORE_KEY, list); }
 
   function todayISO() {
@@ -760,63 +871,186 @@ main {
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-
-  function addProject(name, dueDate, status) {
-    const v = String(name || '').trim();
-    if (!v) return;
-    const items = getProjects();
-    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    items.push({
-      id, name: v,
-      status: STATUS_ORDER.includes(status) ? status : 'not_started',
-      dueDate: String(dueDate || '').trim(),
-      createdAt: Date.now()
-    });
-    setProjects(items);
-    render();
-  }
-  function completeProject(id) {
-    const items = getProjects();
-    const item = items.find(p => p.id === id);
-    if (!item) return;
-    item.status = item.status === 'done' ? 'not_started' : 'done';
-    setProjects(items);
-    render();
-  }
-  function cycleStatus(id) {
-    const items = getProjects();
-    const item = items.find(p => p.id === id);
-    if (!item) return;
-    const idx = STATUS_ORDER.indexOf(item.status);
-    item.status = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
-    setProjects(items);
-    render();
-  }
-  function deleteProject(id) {
-    setProjects(getProjects().filter(p => p.id !== id));
-    render();
-  }
-
-  function fmtDue(dueDate) {
-    if (!dueDate) return '';
-    const [y, m, d] = dueDate.split('-').map(Number);
+  function fmtShort(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  function completionPct(project) {
+    const total = project.tasks.length;
+    if (total === 0) return 0;
+    const done = project.tasks.filter(t => t.status === 'done').length;
+    return Math.round((done / total) * 100);
+  }
+
+  // ---- in-memory UI state (not persisted — resets to all-expanded on reload) ----
+  const expandedProjects = new Set();
+  const collapsedGroups = new Set();
+
+  // ---- project actions ----
+  function addProject(name, owner, startDate, endDate, priority, status) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    items.push({
+      id, name: v,
+      status: PROJECT_STATUS_ORDER.includes(status) ? status : 'planning',
+      owner: String(owner || '').trim(),
+      startDate: String(startDate || '').trim(),
+      endDate: String(endDate || '').trim(),
+      priority: PRIORITY_ORDER.includes(priority) ? priority : 'medium',
+      tasks: [],
+      createdAt: Date.now()
+    });
+    setProjects(items);
+    render();
+  }
+  function cycleProjectStatus(id) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    const idx = PROJECT_STATUS_ORDER.indexOf(p.status);
+    p.status = PROJECT_STATUS_ORDER[(idx + 1) % PROJECT_STATUS_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function cyclePriority(id) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    const idx = PRIORITY_ORDER.indexOf(p.priority);
+    p.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function deleteProject(id) {
+    setProjects(getProjects().filter(p => p.id !== id));
+    expandedProjects.delete(id);
+    render();
+  }
+  function toggleProjectExpand(id) {
+    if (expandedProjects.has(id)) expandedProjects.delete(id); else expandedProjects.add(id);
+    render();
+  }
+  function toggleGroupCollapse(status) {
+    if (collapsedGroups.has(status)) collapsedGroups.delete(status); else collapsedGroups.add(status);
+    render();
+  }
+
+  // ---- task actions ----
+  function addTask(projectId, name, dueDate) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    const id = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    p.tasks.push({ id, name: v, status: 'not_started', dueDate: String(dueDate || '').trim(), createdAt: Date.now() });
+    setProjects(items);
+    expandedProjects.add(projectId);
+    render();
+  }
+  function toggleTaskDone(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.status = t.status === 'done' ? 'not_started' : 'done';
+    setProjects(items);
+    render();
+  }
+  function cycleTaskStatus(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    const idx = TASK_STATUS_ORDER.indexOf(t.status);
+    t.status = TASK_STATUS_ORDER[(idx + 1) % TASK_STATUS_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function deleteTask(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    p.tasks = p.tasks.filter(t => t.id !== taskId);
+    setProjects(items);
+    render();
+  }
+
+  // ---- rendering ----
+  function renderTask(projectId, t, today) {
+    const isDone = t.status === 'done';
+    const isOverdue = !isDone && t.dueDate && t.dueDate < today;
+    const dueLabel = t.dueDate ? fmtShort(t.dueDate) : '';
+    return `
+      <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}">
+        <button class="pm-check sm ${isDone ? 'checked' : ''}" data-action="toggle-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Mark task complete">${isDone ? '✓' : ''}</button>
+        <div class="pm-task-name">${escapeHtml(t.name)}</div>
+        ${dueLabel ? `<div class="pm-task-due${isOverdue ? ' overdue' : ''}">${dueLabel}</div>` : ''}
+        <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
+        <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
+      </div>`;
+  }
+
+  function renderProject(p, today) {
+    const isExpanded = expandedProjects.has(p.id);
+    const isDone = p.status === 'done';
+    const isOverdue = !isDone && p.endDate && p.endDate < today;
+    const pct = completionPct(p);
+    const doneCount = p.tasks.filter(t => t.status === 'done').length;
+
+    let dateLabel = '';
+    if (p.startDate && p.endDate) dateLabel = fmtShort(p.startDate) + ' → ' + fmtShort(p.endDate);
+    else if (p.startDate) dateLabel = 'From ' + fmtShort(p.startDate);
+    else if (p.endDate) dateLabel = 'Due ' + fmtShort(p.endDate);
+
+    const tasksHtml = p.tasks.length
+      ? p.tasks.map(t => renderTask(p.id, t, today)).join('')
+      : `<div class="pm-list-empty">No tasks yet — add one below.</div>`;
+
+    return `
+      <div class="pm-proj${isExpanded ? ' expanded' : ''} status-${p.status}${isOverdue ? ' overdue' : ''}" data-id="${p.id}">
+        <div class="pm-proj-head" data-action="expand-project" data-id="${p.id}">
+          <span class="pm-proj-chevron">▶</span>
+          <div class="pm-proj-name">${escapeHtml(p.name)}</div>
+          <button class="pm-priority-pill priority-${p.priority}" data-action="cycle-priority" data-id="${p.id}">${p.priority}</button>
+          <button class="pm-item-del" data-action="del-project" data-id="${p.id}" aria-label="Delete project">×</button>
+        </div>
+        <div class="pm-proj-body">
+          <div class="pm-proj-meta">
+            <button class="pm-status-pill status-${p.status}" data-action="cycle-project-status" data-id="${p.id}">${PROJECT_STATUS_LABEL[p.status]}</button>
+            ${p.owner ? `<span>${escapeHtml(p.owner)}</span>` : ''}
+            <span${dateLabel ? '' : ' class="is-blank"'}>${dateLabel || 'No dates set'}</span>
+            <span>${pct}% · ${doneCount}/${p.tasks.length} tasks</span>
+          </div>
+          <div class="pm-progress-track small"><div class="pm-progress-fill" style="width:${pct}%"></div></div>
+          <div class="pm-proj-tasks">
+            ${tasksHtml}
+            <div class="pm-task-add-row">
+              <input type="text" class="pm-input pm-task-add-name" placeholder="Task name" autocomplete="off" spellcheck="false" />
+              <input type="date" class="pm-input pm-task-add-due" />
+              <button class="pm-task-add-btn" data-action="add-task" data-id="${p.id}">+ Add task</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
 
   function render() {
-    const items = getProjects();
-    const total = items.length;
-    const done = items.filter(p => p.status === 'done').length;
-    document.getElementById('pmProgressText').textContent = `${done} / ${total} done`;
+    const projects = getProjects();
+    const total = projects.length;
+    const done = projects.filter(p => p.status === 'done').length;
+    document.getElementById('pmProgressText').textContent = `${done} / ${total} projects done`;
     const pct = total === 0 ? 0 : (done / total) * 100;
     document.getElementById('pmProgressBar').style.width = pct + '%';
 
     const listEl = document.getElementById('pmList');
-    listEl.innerHTML = '';
 
     if (total === 0) {
       listEl.innerHTML = `<div class="pm-list-empty">No projects yet — add one below to get started.</div>`;
@@ -824,54 +1058,63 @@ main {
     }
 
     const today = todayISO();
-    const sorted = [...items].sort((a, b) => {
-      if ((a.status === 'done') !== (b.status === 'done')) return a.status === 'done' ? 1 : -1;
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return a.dueDate < b.dueDate ? -1 : 1;
-    });
-
-    sorted.forEach(item => {
-      const isDone = item.status === 'done';
-      const isOverdue = !isDone && item.dueDate && item.dueDate < today;
-
-      const row = document.createElement('div');
-      row.className = 'pm-item' + (isDone ? ' done' : '') + (isOverdue ? ' overdue' : '');
-
-      const dueLabel = item.dueDate ? 'Due ' + fmtDue(item.dueDate) : 'No due date';
-      row.innerHTML = `
-        <button class="pm-check ${isDone ? 'checked' : ''}" data-action="complete" data-id="${item.id}" aria-label="Mark complete">${isDone ? '✓' : ''}</button>
-        <div class="pm-item-body">
-          <div class="pm-item-name">${escapeHtml(item.name)}</div>
-          <div class="pm-item-meta${item.dueDate ? '' : ' is-blank'}">${dueLabel}${isOverdue ? ' · overdue' : ''}</div>
-        </div>
-        <button class="pm-status-pill status-${item.status}" data-action="cycle-status" data-id="${item.id}">${STATUS_LABEL[item.status]}</button>
-        <button class="pm-item-del" data-action="del" data-id="${item.id}" aria-label="Delete">×</button>`;
-
-      listEl.appendChild(row);
-    });
+    listEl.innerHTML = PROJECT_STATUS_ORDER.map(status => {
+      const groupItems = projects.filter(p => p.status === status).sort((a, b) => a.createdAt - b.createdAt);
+      const isCollapsed = collapsedGroups.has(status);
+      return `
+        <div class="pm-group${isCollapsed ? ' collapsed' : ''}" data-status="${status}">
+          <div class="pm-group-head" data-action="toggle-group" data-status="${status}">
+            <span class="pm-group-chevron">▼</span>
+            <span class="pm-status-pill status-${status}">${PROJECT_STATUS_LABEL[status]}</span>
+            <span class="pm-group-count">${groupItems.length}</span>
+          </div>
+          <div class="pm-group-body">${groupItems.map(p => renderProject(p, today)).join('')}</div>
+        </div>`;
+    }).join('');
   }
 
   document.getElementById('pmList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
-    const id = btn.dataset.id;
-    if (btn.dataset.action === 'complete') completeProject(id);
-    else if (btn.dataset.action === 'cycle-status') cycleStatus(id);
-    else if (btn.dataset.action === 'del') deleteProject(id);
+    const action = btn.dataset.action;
+    if (action === 'toggle-group') toggleGroupCollapse(btn.dataset.status);
+    else if (action === 'expand-project') toggleProjectExpand(btn.dataset.id);
+    else if (action === 'cycle-project-status') cycleProjectStatus(btn.dataset.id);
+    else if (action === 'cycle-priority') cyclePriority(btn.dataset.id);
+    else if (action === 'del-project') deleteProject(btn.dataset.id);
+    else if (action === 'toggle-task') toggleTaskDone(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'cycle-task-status') cycleTaskStatus(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'del-task') deleteTask(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'add-task') {
+      const row = btn.closest('.pm-task-add-row');
+      addTask(btn.dataset.id, row.querySelector('.pm-task-add-name').value, row.querySelector('.pm-task-add-due').value);
+    }
+  });
+
+  document.getElementById('pmList').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const row = e.target.closest('.pm-task-add-row');
+    if (!row) return;
+    e.preventDefault();
+    row.querySelector('.pm-task-add-btn').click();
   });
 
   const nameInput = document.getElementById('pmAddName');
-  const dueInput = document.getElementById('pmAddDue');
+  const ownerInput = document.getElementById('pmAddOwner');
+  const startInput = document.getElementById('pmAddStart');
+  const endInput = document.getElementById('pmAddEnd');
+  const prioritySelect = document.getElementById('pmAddPriority');
   const statusSelect = document.getElementById('pmAddStatus');
   const addBtn = document.getElementById('pmAddBtn');
 
   addBtn.addEventListener('click', () => {
-    addProject(nameInput.value, dueInput.value, statusSelect.value);
+    addProject(nameInput.value, ownerInput.value, startInput.value, endInput.value, prioritySelect.value, statusSelect.value);
     nameInput.value = '';
-    dueInput.value = '';
-    statusSelect.value = 'not_started';
+    ownerInput.value = '';
+    startInput.value = '';
+    endInput.value = '';
+    prioritySelect.value = 'medium';
+    statusSelect.value = 'planning';
     nameInput.focus();
   });
 
