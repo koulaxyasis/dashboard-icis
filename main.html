@@ -360,8 +360,8 @@ body::after {
   transition: background 0.3s, box-shadow 0.3s;
 }
 .gm-bar-seg-done {
-  background: var(--goal-color, #6BE3A4);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--goal-color, #6BE3A4) 40%, transparent);
+  background: #6BE3A4;
+  box-shadow: 0 0 6px rgba(107,227,164,0.40);
 }
 
 .goal-list { list-style: none; margin: 0; padding: 0; }
@@ -429,9 +429,9 @@ body::after {
   transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
 }
 .gm-check:checked {
-  background: var(--goal-color, #6BE3A4);
-  border-color: var(--goal-color, #6BE3A4);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--goal-color, #6BE3A4) 40%, transparent);
+  background: #6BE3A4;
+  border-color: #6BE3A4;
+  box-shadow: 0 0 12px rgba(107,227,164,0.40);
 }
 .gm-check:checked::after {
   content: '';
@@ -704,12 +704,6 @@ body::after {
 
   const WAKE_HOUR  = 7;
   const SLEEP_HOUR = 22;
-
-  // Cycled per goal (by position) so each completed goal reads as its own
-  // color instead of one flat green — reuses the same accent hues the
-  // hub's tiles already use, just applied per-goal instead of per-page.
-  const GOAL_COLORS = ['#6BE3A4', '#7DD3FC', '#A7F3D0', '#60A5FA', '#F2C063', '#C9A36B', '#A78BFA'];
-  function goalColor(idx) { return GOAL_COLORS[idx % GOAL_COLORS.length]; }
 
   // ---------- storage helpers ----------
   function storeGet(key) {
@@ -1057,7 +1051,6 @@ body::after {
     cb.type = 'checkbox';
     cb.className = 'gm-check';
     cb.checked = !!goal.done;
-    cb.style.setProperty('--goal-color', goalColor(idx));
     if (readOnly) { cb.disabled = true; cb.title = 'Activates at 6 AM tomorrow'; }
     cb.addEventListener('change', () => {
       const list = getGoals(key);
@@ -1126,10 +1119,9 @@ body::after {
 
     const bar = document.getElementById('gmBar');
     bar.innerHTML = '';
-    goals.forEach((g, i) => {
+    goals.forEach(g => {
       const seg = document.createElement('div');
       seg.className = 'gm-bar-seg' + (g.done ? ' gm-bar-seg-done' : '');
-      if (g.done) seg.style.setProperty('--goal-color', goalColor(i));
       bar.appendChild(seg);
     });
 
