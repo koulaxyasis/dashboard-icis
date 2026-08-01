@@ -186,7 +186,21 @@ main {
   gap: 6px 10px;
   font-size: 11px; color: var(--text-tertiary);
 }
-.pm-proj-meta .is-blank { color: var(--text-quaternary); font-style: italic; }
+.pm-date-edit-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.pm-date-edit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 1px 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.pm-date-edit:hover, .pm-date-edit:focus { border-color: var(--border-strong); background: var(--bg-input); color: var(--text-secondary); outline: none; }
+.pm-date-edit::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+.pm-date-arrow { color: var(--text-quaternary); }
 
 .pm-proj-tasks { margin-top: 12px; display: none; }
 .pm-proj.expanded .pm-proj-tasks { display: block; }
@@ -533,6 +547,14 @@ main {
     expandedProjects.delete(id);
     render();
   }
+  function updateProjectDate(id, field, value) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    p[field] = String(value || '').trim();
+    setProjects(items);
+    render();
+  }
   function toggleProjectExpand(id) {
     if (expandedProjects.has(id)) expandedProjects.delete(id); else expandedProjects.add(id);
     render();
@@ -605,11 +627,6 @@ main {
     const pct = completionPct(p);
     const doneCount = p.tasks.filter(t => t.status === 'done').length;
 
-    let dateLabel = '';
-    if (p.startDate && p.endDate) dateLabel = fmtShort(p.startDate) + ' → ' + fmtShort(p.endDate);
-    else if (p.startDate) dateLabel = 'From ' + fmtShort(p.startDate);
-    else if (p.endDate) dateLabel = 'Due ' + fmtShort(p.endDate);
-
     const tasksHtml = p.tasks.length
       ? p.tasks.map(t => renderTask(p.id, t, today)).join('')
       : `<div class="pm-list-empty">No tasks yet — add one below.</div>`;
@@ -626,7 +643,11 @@ main {
           <div class="pm-proj-meta">
             <button class="pm-status-pill status-${p.status}" data-action="cycle-project-status" data-id="${p.id}">${PROJECT_STATUS_LABEL[p.status]}</button>
             ${p.owner ? `<span>${escapeHtml(p.owner)}</span>` : ''}
-            <span${dateLabel ? '' : ' class="is-blank"'}>${dateLabel || 'No dates set'}</span>
+            <span class="pm-date-edit-wrap">
+              <input type="date" class="pm-date-edit" data-action="edit-start" data-id="${p.id}" value="${p.startDate || ''}" title="Start date" />
+              <span class="pm-date-arrow">→</span>
+              <input type="date" class="pm-date-edit" data-action="edit-end" data-id="${p.id}" value="${p.endDate || ''}" title="End date" />
+            </span>
             <span>${pct}% · ${doneCount}/${p.tasks.length} tasks</span>
           </div>
           <div class="pm-progress-track small"><div class="pm-progress-fill" style="width:${pct}%"></div></div>
@@ -689,6 +710,14 @@ main {
       const row = btn.closest('.pm-task-add-row');
       addTask(btn.dataset.id, row.querySelector('.pm-task-add-name').value, row.querySelector('.pm-task-add-due').value);
     }
+  });
+
+  document.getElementById('pmList').addEventListener('change', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    if (action === 'edit-start') updateProjectDate(el.dataset.id, 'startDate', el.value);
+    else if (action === 'edit-end') updateProjectDate(el.dataset.id, 'endDate', el.value);
   });
 
   document.getElementById('pmList').addEventListener('keydown', (e) => {
