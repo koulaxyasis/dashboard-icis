@@ -229,11 +229,30 @@ main {
   padding: 6px 8px;
   border-radius: 8px;
   margin-bottom: 4px;
-  transition: background 0.15s;
+  border-top: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
 }
 .pm-task:hover { background: rgba(255,255,255,0.04); }
+.pm-task.is-drag-over { border-top-color: var(--accent); }
 .pm-task.done .pm-task-name { text-decoration: line-through; color: var(--text-tertiary); }
-.pm-task-name { font-size: 13px; color: var(--text-primary); flex: 1; min-width: 0; }
+.pm-task-handle {
+  width: 12px; flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-weight: 700; font-size: 13px;
+  letter-spacing: -2px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+.pm-task:hover .pm-task-handle { opacity: 1; }
+.pm-task-handle:active { cursor: grabbing; }
+.pm-task-name { font-size: 13px; color: var(--text-primary); flex: 1; min-width: 0; cursor: text; }
+.pm-task-name[contenteditable="true"] {
+  outline: 1px solid rgba(255,255,255,0.25);
+  outline-offset: 4px; border-radius: 4px;
+  cursor: text;
+}
 .pm-task-due { font-size: 10px; color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
 .pm-task.overdue .pm-task-due { color: #FF8A8A; }
 
@@ -604,6 +623,30 @@ main {
     setProjects(items);
     render();
   }
+  function renameTask(projectId, taskId, name) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.name = v;
+    setProjects(items);
+    render();
+  }
+  function reorderTask(projectId, fromTaskId, toTaskId) {
+    if (fromTaskId === toTaskId) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    const fromIdx = p.tasks.findIndex(t => t.id === fromTaskId);
+    const toIdx = p.tasks.findIndex(t => t.id === toTaskId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = p.tasks.splice(fromIdx, 1);
+    p.tasks.splice(toIdx, 0, moved);
+    setProjects(items);
+    render();
+  }
 
   // ---- rendering ----
   function renderTask(projectId, t, today) {
@@ -611,9 +654,10 @@ main {
     const isOverdue = !isDone && t.dueDate && t.dueDate < today;
     const dueLabel = t.dueDate ? fmtShort(t.dueDate) : '';
     return `
-      <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}">
+      <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}" draggable="true" data-pid="${projectId}" data-tid="${t.id}">
+        <span class="pm-task-handle" aria-hidden="true">⋮⋮</span>
         <button class="pm-check sm ${isDone ? 'checked' : ''}" data-action="toggle-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Mark task complete">${isDone ? '✓' : ''}</button>
-        <div class="pm-task-name">${escapeHtml(t.name)}</div>
+        <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
         ${dueLabel ? `<div class="pm-task-due${isOverdue ? ' overdue' : ''}">${dueLabel}</div>` : ''}
         <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
         <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
@@ -694,7 +738,38 @@ main {
     }).join('');
   }
 
+  function startTaskNameEdit(el) {
+    const row = el.closest('.pm-task');
+    const pid = row.dataset.pid, tid = row.dataset.tid;
+    const original = el.textContent;
+    row.draggable = false;
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+
+    function commit() {
+      const next = el.textContent.trim();
+      if (next && next !== original) renameTask(pid, tid, next);
+      else render();
+    }
+    function cancel() { render(); }
+    el.addEventListener('blur', commit, { once: true });
+    el.addEventListener('keydown', function onKey(ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); el.removeEventListener('keydown', onKey); el.blur(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); el.removeEventListener('keydown', onKey); el.removeEventListener('blur', commit); cancel(); }
+    });
+  }
+
   document.getElementById('pmList').addEventListener('click', (e) => {
+    const nameEl = e.target.closest('.pm-task-name');
+    if (nameEl && nameEl.getAttribute('contenteditable') !== 'true') {
+      startTaskNameEdit(nameEl);
+      return;
+    }
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
@@ -710,6 +785,33 @@ main {
       const row = btn.closest('.pm-task-add-row');
       addTask(btn.dataset.id, row.querySelector('.pm-task-add-name').value, row.querySelector('.pm-task-add-due').value);
     }
+  });
+
+  let dragTask = null;
+  document.getElementById('pmList').addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row) return;
+    dragTask = { pid: row.dataset.pid, tid: row.dataset.tid };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dataset.tid);
+  });
+  document.getElementById('pmList').addEventListener('dragover', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row || !dragTask || row.dataset.pid !== dragTask.pid) return;
+    e.preventDefault();
+    row.classList.add('is-drag-over');
+  });
+  document.getElementById('pmList').addEventListener('dragleave', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (row) row.classList.remove('is-drag-over');
+  });
+  document.getElementById('pmList').addEventListener('drop', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row || !dragTask || row.dataset.pid !== dragTask.pid) return;
+    e.preventDefault();
+    row.classList.remove('is-drag-over');
+    reorderTask(dragTask.pid, dragTask.tid, row.dataset.tid);
+    dragTask = null;
   });
 
   document.getElementById('pmList').addEventListener('change', (e) => {
