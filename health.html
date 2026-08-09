@@ -253,7 +253,7 @@ main {
   outline-offset: 4px; border-radius: 4px;
   cursor: text;
 }
-.pm-task-due { font-size: 10px; color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
+.pm-task-due { flex-shrink: 0; }
 .pm-task.overdue .pm-task-due { color: #FF8A8A; }
 
 .pm-status-pill {
@@ -504,12 +504,6 @@ main {
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-  function fmtShort(dateStr) {
-    if (!dateStr) return '';
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
@@ -571,6 +565,15 @@ main {
     const p = items.find(p => p.id === id);
     if (!p) return;
     p[field] = String(value || '').trim();
+    setProjects(items);
+    render();
+  }
+  function updateTaskDate(projectId, taskId, value) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.dueDate = String(value || '').trim();
     setProjects(items);
     render();
   }
@@ -652,13 +655,12 @@ main {
   function renderTask(projectId, t, today) {
     const isDone = t.status === 'done';
     const isOverdue = !isDone && t.dueDate && t.dueDate < today;
-    const dueLabel = t.dueDate ? fmtShort(t.dueDate) : '';
     return `
       <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}" draggable="true" data-pid="${projectId}" data-tid="${t.id}">
         <span class="pm-task-handle" aria-hidden="true">⋮⋮</span>
         <button class="pm-check sm ${isDone ? 'checked' : ''}" data-action="toggle-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Mark task complete">${isDone ? '✓' : ''}</button>
         <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
-        ${dueLabel ? `<div class="pm-task-due${isOverdue ? ' overdue' : ''}">${dueLabel}</div>` : ''}
+        <input type="date" class="pm-date-edit pm-task-due" data-action="edit-task-due" data-pid="${projectId}" data-tid="${t.id}" value="${t.dueDate || ''}" title="Due date" />
         <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
         <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
       </div>`;
@@ -820,6 +822,7 @@ main {
     const action = el.dataset.action;
     if (action === 'edit-start') updateProjectDate(el.dataset.id, 'startDate', el.value);
     else if (action === 'edit-end') updateProjectDate(el.dataset.id, 'endDate', el.value);
+    else if (action === 'edit-task-due') updateTaskDate(el.dataset.pid, el.dataset.tid, el.value);
   });
 
   document.getElementById('pmList').addEventListener('keydown', (e) => {
