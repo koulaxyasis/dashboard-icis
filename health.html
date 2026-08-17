@@ -256,6 +256,59 @@ main {
 .pm-task-due { flex-shrink: 0; }
 .pm-task.overdue .pm-task-due { color: #FF8A8A; }
 
+.pm-task-notes-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-quaternary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 5px; border-radius: 6px;
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pm-task:hover .pm-task-notes-btn { opacity: 0.85; }
+.pm-task-notes-btn.has-notes { opacity: 1; color: var(--tag-stack); }
+.pm-task-notes-btn.is-open { opacity: 1; border-color: var(--border-strong); background: var(--bg-input); color: var(--text-secondary); }
+
+.pm-notes-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.pm-notes {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  transition: border-color 0.18s, background 0.18s;
+}
+.pm-notes::placeholder { color: var(--text-tertiary); }
+.pm-notes:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.40);
+  background: var(--bg-input-focus);
+  color: var(--text-primary);
+}
+.pm-task-notes {
+  min-height: 40px;
+  font-size: 12px;
+  margin: -2px 0 8px 34px;
+  width: calc(100% - 34px);
+}
+
 .pm-status-pill {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -491,7 +544,14 @@ main {
       startDate: p.startDate || '',
       endDate: p.endDate || '',
       priority: PRIORITY_ORDER.includes(p.priority) ? p.priority : 'medium',
-      tasks: Array.isArray(p.tasks) ? p.tasks : [],
+      notes: p.notes || '',
+      tasks: (Array.isArray(p.tasks) ? p.tasks : []).map(t => ({
+        id: t.id, name: t.name || '',
+        status: TASK_STATUS_ORDER.includes(t.status) ? t.status : 'not_started',
+        dueDate: t.dueDate || '',
+        notes: t.notes || '',
+        createdAt: t.createdAt || 0
+      })),
       createdAt: p.createdAt || 0
     }));
   }
@@ -517,6 +577,7 @@ main {
   // ---- in-memory UI state (not persisted — resets to all-expanded on reload) ----
   const expandedProjects = new Set();
   const collapsedGroups = new Set();
+  const expandedTaskNotes = new Set();
 
   // ---- project actions ----
   function addProject(name, owner, startDate, endDate, priority, status) {
@@ -531,9 +592,18 @@ main {
       startDate: String(startDate || '').trim(),
       endDate: String(endDate || '').trim(),
       priority: PRIORITY_ORDER.includes(priority) ? priority : 'medium',
+      notes: '',
       tasks: [],
       createdAt: Date.now()
     });
+    setProjects(items);
+    render();
+  }
+  function updateProjectNotes(id, notes) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    p.notes = String(notes || '');
     setProjects(items);
     render();
   }
@@ -585,6 +655,10 @@ main {
     if (collapsedGroups.has(status)) collapsedGroups.delete(status); else collapsedGroups.add(status);
     render();
   }
+  function toggleTaskNotes(taskId) {
+    if (expandedTaskNotes.has(taskId)) expandedTaskNotes.delete(taskId); else expandedTaskNotes.add(taskId);
+    render();
+  }
 
   // ---- task actions ----
   function addTask(projectId, name, dueDate) {
@@ -594,7 +668,7 @@ main {
     const p = items.find(p => p.id === projectId);
     if (!p) return;
     const id = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    p.tasks.push({ id, name: v, status: 'not_started', dueDate: String(dueDate || '').trim(), createdAt: Date.now() });
+    p.tasks.push({ id, name: v, status: 'not_started', dueDate: String(dueDate || '').trim(), notes: '', createdAt: Date.now() });
     setProjects(items);
     expandedProjects.add(projectId);
     render();
@@ -637,6 +711,15 @@ main {
     setProjects(items);
     render();
   }
+  function updateTaskNotes(projectId, taskId, notes) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.notes = String(notes || '');
+    setProjects(items);
+    render();
+  }
   function reorderTask(projectId, fromTaskId, toTaskId) {
     if (fromTaskId === toTaskId) return;
     const items = getProjects();
@@ -655,6 +738,8 @@ main {
   function renderTask(projectId, t, today) {
     const isDone = t.status === 'done';
     const isOverdue = !isDone && t.dueDate && t.dueDate < today;
+    const hasNotes = !!(t.notes && t.notes.trim());
+    const notesOpen = expandedTaskNotes.has(t.id);
     return `
       <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}" draggable="true" data-pid="${projectId}" data-tid="${t.id}">
         <span class="pm-task-handle" aria-hidden="true">⋮⋮</span>
@@ -662,8 +747,10 @@ main {
         <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
         <input type="date" class="pm-date-edit pm-task-due" data-action="edit-task-due" data-pid="${projectId}" data-tid="${t.id}" value="${t.dueDate || ''}" title="Due date" />
         <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
+        <button class="pm-task-notes-btn${hasNotes ? ' has-notes' : ''}${notesOpen ? ' is-open' : ''}" data-action="toggle-task-notes" data-tid="${t.id}" aria-label="Task notes" title="Notes">📝</button>
         <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
-      </div>`;
+      </div>
+      ${notesOpen ? `<textarea class="pm-notes pm-task-notes" data-action="edit-task-notes" data-pid="${projectId}" data-tid="${t.id}" placeholder="Notes…">${escapeHtml(t.notes || '')}</textarea>` : ''}`;
   }
 
   function renderProject(p, today) {
@@ -698,6 +785,8 @@ main {
           </div>
           <div class="pm-progress-track small"><div class="pm-progress-fill" style="width:${pct}%"></div></div>
           <div class="pm-proj-tasks">
+            <div class="pm-notes-label">Notes</div>
+            <textarea class="pm-notes" data-action="edit-project-notes" data-id="${p.id}" placeholder="Notes…">${escapeHtml(p.notes || '')}</textarea>
             ${tasksHtml}
             <div class="pm-task-add-row">
               <input type="text" class="pm-input pm-task-add-name" placeholder="Task name" autocomplete="off" spellcheck="false" />
@@ -782,6 +871,7 @@ main {
     else if (action === 'del-project') deleteProject(btn.dataset.id);
     else if (action === 'toggle-task') toggleTaskDone(btn.dataset.pid, btn.dataset.tid);
     else if (action === 'cycle-task-status') cycleTaskStatus(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'toggle-task-notes') toggleTaskNotes(btn.dataset.tid);
     else if (action === 'del-task') deleteTask(btn.dataset.pid, btn.dataset.tid);
     else if (action === 'add-task') {
       const row = btn.closest('.pm-task-add-row');
@@ -823,6 +913,8 @@ main {
     if (action === 'edit-start') updateProjectDate(el.dataset.id, 'startDate', el.value);
     else if (action === 'edit-end') updateProjectDate(el.dataset.id, 'endDate', el.value);
     else if (action === 'edit-task-due') updateTaskDate(el.dataset.pid, el.dataset.tid, el.value);
+    else if (action === 'edit-project-notes') updateProjectNotes(el.dataset.id, el.value);
+    else if (action === 'edit-task-notes') updateTaskNotes(el.dataset.pid, el.dataset.tid, el.value);
   });
 
   document.getElementById('pmList').addEventListener('keydown', (e) => {
