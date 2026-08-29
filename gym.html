@@ -30,26 +30,41 @@ const CONFIG = {
     { id: "comm",  name: "Commercial Gym" }
   ],
 
-  // Training split. Most people use Push/Pull/Legs but you can rename
-  // these to "Upper", "Lower", "Full Body", "Day A", anything.
+  // Training split — from the 16-week fat loss / V-taper / posture block.
   days: [
-    { id: "push", name: "Push" },
-    { id: "pull", name: "Pull" },
-    { id: "legs", name: "Legs" }
+    { id: "upperA", name: "Upper A" },
+    { id: "lowerA", name: "Lower A" },
+    { id: "upperB", name: "Upper B" },
+    { id: "lowerB", name: "Lower B" }
   ],
 
   // Split rotation — the order your training days cycle through. Use day
-  // ids from `days` above, plus "rest" for off-days. The pill at the top
-  // of the app reads this + splitAnchor to compute "what day is today".
-  splitRotation: ["push", "pull", "legs", "rest"],
+  // ids from `days` above, plus "rest" for off-days. Non-lifting entries
+  // like "cardio"/"walk" don't need to exist in `days` — they just show
+  // as a label in the day pill (paired with a dayNotes blurb below).
+  // The pill at the top of the app reads this + splitAnchor to compute
+  // "what day is today".
+  splitRotation: ["upperA", "lowerA", "cardio", "upperB", "lowerB", "walk", "rest"],
 
   // Anchor: pair a real calendar date with which split day fell on it.
   // The rotation advances from this point. Set `date` to a recent day
   // when you knew what split you were on, and `splitId` to that day.
-  // Edit this if your split drifts.
+  // Edit this if your split drifts. 2026-08-24 is a Monday = Upper A.
   splitAnchor: {
-    date: "2026-05-12",
-    splitId: "rest"
+    date: "2026-08-24",
+    splitId: "upperA"
+  },
+
+  // Short blurb shown under the day pill for each rotation entry —
+  // straight from the plan's weekly-schedule grid.
+  dayNotes: {
+    "Upper A": "Dorong + blok postur",
+    "Lower A": "Squat + Zone 2 25–30′",
+    "Cardio":  "Zone 2 40′ + mobilitas toraks",
+    "Upper B": "Tarik + blok postur",
+    "Lower B": "Hinge + core",
+    "Walk":    "45–60′ santai",
+    "Rest":    "Mobilitas, meal prep"
   },
 
   // Progression rule: hit this many reps on the top set → coach tells you
@@ -68,7 +83,12 @@ const CONFIG = {
   },
 
   // Starter exercise list. Each one needs:
-  //   name        — what shows in the dropdown
+  //   name        — what shows in the dropdown. "(priority)" in a name
+  //                 flags it as one the plan says most moves the shoulder-
+  //                 to-waist ratio — don't cut these first if time is short.
+  //                 (Note: the dropdown separately appends "★" to any
+  //                 exercise with gym:"both" to mean "works at either
+  //                 gym" — that's an unrelated, pre-existing indicator.)
   //   gym         — one of the gym ids above, or "both"
   //   day         — one of the day ids above
   //   repMin      — bottom of your target rep range
@@ -80,15 +100,30 @@ const CONFIG = {
   // First-run defaults. Once a user logs anything, they edit through
   // the in-app + / gear buttons; this block stays as the seed.
   defaultExercises: [
-    { name: "Bench press",     gym: "comm", day: "push", repMin: 5, repMax: 8,  step: 2.5, startWeight: 60 },
-    { name: "Overhead press",  gym: "comm", day: "push", repMin: 5, repMax: 8,  step: 2.5, startWeight: 35 },
-    { name: "Tricep pushdown", gym: "comm", day: "push", repMin: 8, repMax: 12, step: 2.5, startWeight: 25 },
-    { name: "Pull-ups",        gym: "both", day: "pull", repMin: 5, repMax: 10, step: 1,   startWeight: 0, bw: true },
-    { name: "Barbell row",     gym: "comm", day: "pull", repMin: 6, repMax: 10, step: 2.5, startWeight: 50 },
-    { name: "Bicep curl",      gym: "comm", day: "pull", repMin: 8, repMax: 12, step: 1.25,startWeight: 15 },
-    { name: "Back squat",      gym: "comm", day: "legs", repMin: 5, repMax: 8,  step: 5,   startWeight: 80 },
-    { name: "Romanian deadlift", gym: "comm", day: "legs", repMin: 6, repMax: 10, step: 5, startWeight: 60 },
-    { name: "Leg press",       gym: "comm", day: "legs", repMin: 8, repMax: 12, step: 5,   startWeight: 100 }
+    // Upper A — Senin
+    { name: "Incline dumbbell press",           gym: "both", day: "upperA", repMin: 6,  repMax: 10, step: 2,    startWeight: 20 },
+    { name: "Overhead press",                   gym: "both", day: "upperA", repMin: 6,  repMax: 10, step: 2.5,  startWeight: 30 },
+    { name: "Lateral raise (priority)",         gym: "both", day: "upperA", repMin: 12, repMax: 20, step: 1,    startWeight: 8 },
+    { name: "Cable lateral raise (lean-away)",  gym: "comm", day: "upperA", repMin: 12, repMax: 15, step: 1,    startWeight: 6 },
+    { name: "Triceps pushdown",                 gym: "comm", day: "upperA", repMin: 10, repMax: 15, step: 2,    startWeight: 20 },
+    // Lower A — Selasa
+    { name: "Back squat / goblet squat",        gym: "both", day: "lowerA", repMin: 5,  repMax: 8,  step: 5,    startWeight: 60 },
+    { name: "Bulgarian split squat",            gym: "both", day: "lowerA", repMin: 8,  repMax: 12, step: 2,    startWeight: 12 },
+    { name: "Leg curl",                         gym: "comm", day: "lowerA", repMin: 10, repMax: 15, step: 2.5,  startWeight: 20 },
+    { name: "Calf raise",                       gym: "both", day: "lowerA", repMin: 12, repMax: 15, step: 2.5,  startWeight: 20 },
+    // Upper B — Kamis
+    { name: "Wide-grip pull-up (priority)",     gym: "both", day: "upperB", repMin: 6,  repMax: 12, step: 1,    startWeight: 0, bw: true },
+    { name: "Chest-supported row",              gym: "both", day: "upperB", repMin: 8,  repMax: 12, step: 2,    startWeight: 20 },
+    { name: "Straight-arm pulldown (priority)", gym: "comm", day: "upperB", repMin: 12, repMax: 15, step: 2,    startWeight: 15 },
+    { name: "Lateral raise, 2nd session (priority)", gym: "both", day: "upperB", repMin: 12, repMax: 20, step: 1, startWeight: 8 },
+    { name: "Rear delt fly",                    gym: "both", day: "upperB", repMin: 12, repMax: 15, step: 1,    startWeight: 6 },
+    { name: "Biceps curl",                      gym: "both", day: "upperB", repMin: 10, repMax: 15, step: 1.25, startWeight: 10 },
+    // Lower B — Jumat
+    { name: "Romanian deadlift",                gym: "both", day: "lowerB", repMin: 6,  repMax: 10, step: 5,    startWeight: 50 },
+    { name: "Hip thrust",                       gym: "both", day: "lowerB", repMin: 8,  repMax: 12, step: 5,    startWeight: 40 },
+    { name: "Leg press / walking lunge",        gym: "comm", day: "lowerB", repMin: 10, repMax: 15, step: 5,    startWeight: 60 },
+    { name: "Hanging knee raise",               gym: "both", day: "lowerB", repMin: 10, repMax: 15, step: 1,    startWeight: 0, bw: true },
+    { name: "Plank / dead bug (sec)",           gym: "both", day: "lowerB", repMin: 30, repMax: 45, step: 5,    startWeight: 0, bw: true }
   ]
 };
 </script>
@@ -218,6 +253,10 @@ img, video, canvas, svg { max-width: 100%; }
 .po-day-sep { color: var(--text-4); }
 .po-day-split { color: var(--good); font-weight: 800; }
 .po-day-split.is-rest { color: #7DD3FC; }
+.po-day-note {
+  font-size: 12px; color: var(--text-3);
+  margin: -4px 0 14px 2px;
+}
 
 .po-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -865,6 +904,66 @@ img, video, canvas, svg { max-width: 100%; }
   color: var(--text-3); font-size: 12px; font-style: italic;
 }
 
+/* ----- Checklists (Posture, Habits) ----- */
+.po-check { list-style: none; margin: 0; padding: 0; }
+.po-check li {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+  font-size: 13.5px; line-height: 1.45; color: var(--text-2);
+}
+.po-check li:last-child { border-bottom: none; }
+.po-check input[type="checkbox"] {
+  margin: 2px 0 0; width: 16px; height: 16px; flex: 0 0 auto;
+  accent-color: var(--good); cursor: pointer;
+}
+.po-check li.is-done { color: var(--text-1); }
+.po-check em {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 11.5px; color: var(--good);
+}
+.po-check-note {
+  margin-top: 12px; padding: 10px 12px;
+  border-radius: 10px; background: rgba(255,255,255,0.03);
+  border-left: 2px solid var(--warn);
+  font-size: 12px; color: var(--text-2); line-height: 1.5;
+}
+
+/* ----- Program notes (collapsed reference content) ----- */
+.po-prog-notes { margin-top: 6px; }
+.po-prog-stats {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+}
+.po-prog-stat { background: var(--bg-card); padding: 12px; }
+.po-prog-stat .k { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.po-prog-stat .v { font-size: 15px; font-weight: 700; color: var(--text-1); margin-top: 4px; }
+.po-prog-p { font-size: 13px; line-height: 1.6; color: var(--text-2); margin: 0 0 0.8em; }
+.po-prog-p:last-child { margin-bottom: 0; }
+.po-prog-p b { color: var(--text-1); font-weight: 700; }
+.po-prog-rank { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: pr; }
+.po-prog-rank li {
+  counter-increment: pr; position: relative; padding-left: 28px;
+  margin-bottom: 10px; font-size: 13px; line-height: 1.55; color: var(--text-2);
+}
+.po-prog-rank li::before {
+  content: counter(pr); position: absolute; left: 0; top: 1px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  color: var(--good); border: 1px solid var(--good); border-radius: 50%;
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+}
+.po-prog-rank b { color: var(--text-1); font-weight: 700; }
+.po-prog-avoid {
+  border-left: 3px solid var(--warn); background: rgba(251,191,36,0.08);
+  padding: 12px 14px; margin: 18px 0; border-radius: 0 8px 8px 0;
+}
+.po-prog-avoid .k { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--warn); margin-bottom: 6px; }
+.po-prog-avoid p { font-size: 12.5px; color: var(--text-2); margin: 0; line-height: 1.55; }
+.po-prog-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.po-prog-table th, .po-prog-table td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+.po-prog-table th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 400; }
+.po-prog-table td:first-child { font-family: var(--font-mono); font-size: 11.5px; color: var(--good); white-space: nowrap; width: 1%; }
+
 /* ============================================================
    WEIGHT TRACKER + PROGRESS PHOTOS — scoped under .wt-* so the
    styles can't leak into the rest of the app.
@@ -1275,6 +1374,7 @@ img, video, canvas, svg { max-width: 100%; }
     <span class="po-day-sep">·</span>
     <span class="po-day-split" id="dayPillSplit">—</span>
   </button>
+  <div class="po-day-note" id="dayPillNote"></div>
 
   <!-- WEIGHT + PROGRESS PHOTOS -->
   <div class="wt-section">
@@ -1583,6 +1683,74 @@ img, video, canvas, svg { max-width: 100%; }
       </button>
       <div class="po-tw-past-body" id="poTwPastBody" style="display:none"></div>
     </div>
+
+    <!-- Posture block — 7 min, done after each training day. Resets daily. -->
+    <div class="po-sub-section">
+      <div class="po-sub-title">Posture — 7 min</div>
+      <ul class="po-check" id="postureList"></ul>
+      <div class="po-check-note">After week 4: add neck extension. Start with unloaded isometric holds for 2 weeks before adding any resistance — the neck progresses far slower than other muscles.</div>
+    </div>
+  </div>
+
+  <!-- HABITS — daily resets each calendar day, weekly resets each Monday. -->
+  <div class="wt-divider"><span>HABITS</span></div>
+  <div class="card">
+    <div class="po-sub-section" style="margin-top:0">
+      <div class="po-sub-title">Daily</div>
+      <ul class="po-check" id="habitsDailyList"></ul>
+    </div>
+    <div class="po-sub-section">
+      <div class="po-sub-title">Weekly</div>
+      <ul class="po-check" id="habitsWeeklyList"></ul>
+    </div>
+  </div>
+
+  <!-- PROGRAM NOTES — collapsed reference content from the 16-week plan. -->
+  <button type="button" class="po-tw-past-toggle" id="progNotesToggle" aria-expanded="false">
+    <span>Program notes</span>
+    <span class="po-tw-past-arrow" id="progNotesArrow">▾</span>
+  </button>
+  <div class="card po-prog-notes" id="progNotesBody" style="display:none">
+    <div class="po-prog-stats">
+      <div class="po-prog-stat"><div class="k">Defisit</div><div class="v">10–20%</div></div>
+      <div class="po-prog-stat"><div class="k">Laju turun</div><div class="v">0,5–0,75%/mgg</div></div>
+      <div class="po-prog-stat"><div class="k">Protein</div><div class="v">1,6–2,2 g/kg</div></div>
+    </div>
+
+    <div class="po-sub-section">
+      <div class="po-sub-title">Koreksi yang menghemat waktumu</div>
+      <p class="po-prog-p"><b>Double chin tidak bisa dihilangkan dengan latihan leher.</b> Spot reduction tidak ada. Latihan leher memperbaiki postur — itu nyata dan berguna — tapi tidak menghapus lemak di area submental.</p>
+      <p class="po-prog-p">Yang benar-benar mengubah tampilan area itu, berurutan dari dampak terbesar:</p>
+      <ol class="po-prog-rank">
+        <li><b>Turunnya lemak tubuh total.</b> Penyumbang terbesar, dan tidak ada jalan pintas ke satu area.</li>
+        <li><b>Postur.</b> Forward head posture memendekkan garis submental, jadi dagu terlihat menyatu ke leher walau lemaknya sedikit.</li>
+        <li><b>Retensi cairan wajah.</b> Tidur, natrium, alkohol. Efeknya harian, bukan struktural.</li>
+      </ol>
+      <p class="po-prog-p"><b>Face yoga dan mewing tidak punya bukti yang layak dipercaya.</b> Jangan alokasikan waktu ke situ.</p>
+    </div>
+
+    <div class="po-prog-avoid">
+      <div class="k">Jangan dimasukkan</div>
+      <p>Weighted side bend dan weighted oblique twist. Obliques yang menebal mempersempit rasio bahu–pinggang — persis kebalikan dari yang kamu kejar. Core dilatih lewat anti-rotasi dan anti-ekstensi, bukan fleksi lateral berbeban.</p>
+    </div>
+
+    <div class="po-sub-section">
+      <div class="po-sub-title">Ekspektasi waktu</div>
+      <table class="po-prog-table">
+        <tr><th>Rentang</th><th>Yang berubah</th></tr>
+        <tr><td>Mgg 4–8</td><td>Postur mulai terlihat berubah. Bahu duduk lebih ke belakang, garis leher memanjang.</td></tr>
+        <tr><td>Mgg 8–12</td><td>Pinggang menyempit lebih dulu daripada bahu melebar. Rasio membaik dari sisi bawah.</td></tr>
+        <tr><td>Mgg 10–16</td><td>Garis rahang mulai terdefinisi. Wajah biasanya area yang berubah paling akhir.</td></tr>
+        <tr><td>Setelah</td><td>Fase lean gaining pelan untuk benar-benar menambah lebar bahu dan lat.</td></tr>
+      </table>
+    </div>
+
+    <div class="po-sub-section">
+      <div class="po-sub-title">Realitas rasio</div>
+      <p class="po-prog-p"><b>V-taper adalah rasio, bukan otot.</b> Lingkar bahu dibagi lingkar pinggang. Sekitar 1,6 sudah terbaca sebagai taper yang kuat pada kebanyakan rangka.</p>
+      <p class="po-prog-p">Definisi perut yang terlihat pada kebanyakan pria muncul di kisaran <b>10–12% body fat</b>. Referensi dengan pencahayaan panggung biasanya lebih dekat ke 7–9% — itu kondisi untuk satu foto, bukan untuk dijalani.</p>
+      <p class="po-prog-p">Karena kamu sedang defisit, delt dan lat akan tumbuh lambat. 12–16 minggu ke depan mempertajam pinggang sementara bahu bertahan — itu saja sudah memperbaiki rasio. Membangun lebarnya adalah proyek <b>2–3 tahun</b>, bukan satu cut.</p>
+    </div>
   </div>
 </div>
 
@@ -1718,6 +1886,9 @@ img, video, canvas, svg { max-width: 100%; }
     s.days  = (Array.isArray(s.days)  && s.days.length)  ? s.days  : CONFIG.days.slice();
     s.exercises = Array.isArray(s.exercises) ? s.exercises : buildDefaultExercises();
     s.logs = (s.logs && typeof s.logs === 'object') ? s.logs : {};
+    s.posture = (s.posture && typeof s.posture === 'object') ? s.posture : {};
+    s.habitsDaily = (s.habitsDaily && typeof s.habitsDaily === 'object') ? s.habitsDaily : {};
+    s.habitsWeekly = (s.habitsWeekly && typeof s.habitsWeekly === 'object') ? s.habitsWeekly : {};
     s.filterGym = s.filterGym || s.gyms[0].id;
     s.filterDay = s.filterDay || s.days[0].id;
     // Split rotation lives in state so the user can edit it via the pill modal.
@@ -2024,6 +2195,8 @@ img, video, canvas, svg { max-width: 100%; }
     const splitEl = $('dayPillSplit');
     splitEl.textContent = splitLabel(split.name);
     splitEl.classList.toggle('is-rest', isRestName(split.name));
+    const noteEl = $('dayPillNote');
+    if (noteEl) noteEl.textContent = (CONFIG.dayNotes && CONFIG.dayNotes[split.name]) || '';
   }
 
   // Build the rep buttons based on the current exercise's repMin/repMax.
@@ -2066,6 +2239,8 @@ img, video, canvas, svg { max-width: 100%; }
     renderRx(); renderStats(); renderSparkline(); renderHistory();
     renderTodaysWorkout();
     renderPastWorkouts();
+    renderPosture();
+    renderHabits();
     // Pre-fill weight input with last logged weight (or starting weight)
     const ex = getCurrentEx();
     if (ex && !ex.bw) {
@@ -2074,6 +2249,87 @@ img, video, canvas, svg { max-width: 100%; }
       $('weightInput').value = w;
     }
   }
+
+  // ============================================================
+  // POSTURE + HABITS — simple date-keyed checklists. Posture and
+  // "Daily" habits reset every calendar day; "Weekly" habits reset
+  // every Monday. All three live inside the same po_coach_v1 blob.
+  // ============================================================
+  const POSTURE_ITEMS = [
+    { label: 'Chin tuck telentang', detail: 'tarik dagu ke dalam, tahan 5 detik × 10 — melatih deep neck flexor yang lemah karena membungkuk' },
+    { label: 'Band pull-apart', detail: '2 × 20' },
+    { label: 'Face pull', detail: '2 × 15' },
+    { label: 'Wall slide', detail: '2 × 10' },
+    { label: 'Doorway pec stretch', detail: '2 × 30 detik' },
+    { label: 'Ekstensi toraks di foam roller', detail: '10 rep' }
+  ];
+  const HABITS_DAILY_ITEMS = [
+    'Protein di tiap makan besar — target 1,6–2,2 g/kg per hari',
+    'Jalan 10–15 menit setelah makan',
+    'Tidur 7–9 jam, jam bangun konsisten',
+    'Layar sejajar mata; berdiri tiap 45–60 menit',
+    'Air konsisten, natrium konsisten — jangan pangkas garam ekstrem'
+  ];
+  const HABITS_WEEKLY_ITEMS = [
+    'Timbang harian, baca rata-rata mingguan',
+    'Naikkan beban atau repetisi di minimal satu latihan per sesi',
+    'Naikkan serat bertahap, jangan sekaligus',
+    'Batasi alkohol dan minuman berkarbonasi',
+    'Foto progres tiap 2 minggu — pencahayaan dan sudut sama'
+  ];
+
+  function mondayKey(d) {
+    const dow = d.getDay(); // 0=Sun..6=Sat
+    const diffToMonday = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diffToMonday);
+    return wtDateKey(monday);
+  }
+  function renderCheckList(listEl, items, done, onToggle) {
+    listEl.innerHTML = items.map((item, i) => {
+      const label = typeof item === 'string' ? item : item.label;
+      const detail = typeof item === 'string' ? '' : (item.detail ? ' <em>' + escape(item.detail) + '</em>' : '');
+      const isDone = !!done[i];
+      return '<li class="' + (isDone ? 'is-done' : '') + '">'
+        + '<input type="checkbox" data-i="' + i + '"' + (isDone ? ' checked' : '') + '>'
+        + '<span>' + escape(label) + detail + '</span>'
+        + '</li>';
+    }).join('');
+    listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => onToggle(parseInt(cb.dataset.i, 10), cb.checked));
+    });
+  }
+  function renderPosture() {
+    const key = wtDateKey(new Date());
+    const done = state.posture[key] || {};
+    renderCheckList($('postureList'), POSTURE_ITEMS, done, (i, checked) => {
+      const day = state.posture[key] || (state.posture[key] = {});
+      if (checked) day[i] = true; else delete day[i];
+      saveState();
+    });
+  }
+  function renderHabits() {
+    const dKey = wtDateKey(new Date());
+    const wKey = mondayKey(new Date());
+    const doneDaily = state.habitsDaily[dKey] || {};
+    const doneWeekly = state.habitsWeekly[wKey] || {};
+    renderCheckList($('habitsDailyList'), HABITS_DAILY_ITEMS, doneDaily, (i, checked) => {
+      const day = state.habitsDaily[dKey] || (state.habitsDaily[dKey] = {});
+      if (checked) day[i] = true; else delete day[i];
+      saveState();
+    });
+    renderCheckList($('habitsWeeklyList'), HABITS_WEEKLY_ITEMS, doneWeekly, (i, checked) => {
+      const week = state.habitsWeekly[wKey] || (state.habitsWeekly[wKey] = {});
+      if (checked) week[i] = true; else delete week[i];
+      saveState();
+    });
+  }
+  $('progNotesToggle').addEventListener('click', () => {
+    const body = $('progNotesBody');
+    const expanded = $('progNotesToggle').getAttribute('aria-expanded') === 'true';
+    $('progNotesToggle').setAttribute('aria-expanded', String(!expanded));
+    body.style.display = expanded ? 'none' : 'block';
+  });
 
   // ============================================================
   // TODAY'S WORKOUT + PAST WORKOUTS
