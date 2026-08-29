@@ -588,9 +588,10 @@ body::after {
   function logDrink(item){ logs.push({id:'c'+Date.now()+Math.floor(Math.random()*1000), n:item.n, mg:Math.round(item.mg), e:item.e||'☕', ts:Date.now()}); saveJSON(LOGS_KEY,logs); renderAll(); }
   function allDrinks(){ return DB.concat(custom.map(c=>({n:c.n,mg:c.mg,c:'Custom',e:'➕'}))); }
   function renderResults(q){
-    const el=$('results'); const query=(q||'').trim().toLowerCase(); let items=allDrinks();
-    if(query) items=items.filter(d=>d.n.toLowerCase().includes(query)||d.c.toLowerCase().includes(query));
-    items=items.slice(0, query?40:12); el.innerHTML='';
+    const el=$('results'); const query=(q||'').trim().toLowerCase(); el.innerHTML='';
+    if(!query) return; // default state — no query yet, keep the list collapsed
+    let items=allDrinks().filter(d=>d.n.toLowerCase().includes(query)||d.c.toLowerCase().includes(query));
+    items=items.slice(0, 40);
     if(items.length===0){ const li=document.createElement('li'); li.className='results-empty'; li.textContent='No match — add it as a custom drink below.'; el.appendChild(li); return; }
     items.forEach(d=>{ const li=document.createElement('li'); li.className='result';
       li.innerHTML='<span class="result-emoji">'+(d.e||'☕')+'</span><span class="result-name">'+escapeHtml(d.n)+' <span class="result-cat">· '+d.c+'</span></span><span class="result-mg">'+d.mg+'<small> mg</small></span>';
