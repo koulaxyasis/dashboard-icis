@@ -1164,6 +1164,23 @@ img, video, canvas, svg { max-width: 100%; }
 .wt-progress-count { font-size: 14px; font-weight: 500; }
 .wt-progress-arrow { color: var(--good); font-size: 20px; }
 
+.wt-goal-card {
+  margin-top: 10px;
+  background: var(--bg-card);
+  border: 1px solid rgba(110,231,183,0.10);
+  border-radius: 16px;
+  padding: 14px;
+}
+.wt-goal-label {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3); font-weight: 700; margin-bottom: 10px;
+}
+.wt-goal-img {
+  display: block; width: 100%; max-height: 420px;
+  object-fit: cover; object-position: top center;
+  border-radius: 12px;
+}
+
 /* Overlay */
 .wt-overlay {
   position: fixed; inset: 0;
@@ -1455,6 +1472,12 @@ img, video, canvas, svg { max-width: 100%; }
       </div>
       <span class="wt-progress-arrow">→</span>
     </button>
+
+    <!-- BODY GOAL — a static aspirational reference image, purely visual. -->
+    <div class="wt-goal-card">
+      <div class="wt-goal-label">BODY GOAL</div>
+      <img src="body-goal.jpg" alt="Body goal reference" class="wt-goal-img" loading="lazy">
+    </div>
   </div>
 
   <!-- Progress photos overlay -->
