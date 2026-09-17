@@ -134,10 +134,19 @@
 
     (async function init() {
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // Snapshot local state before the network round-trip. If the user
+      // edits something (e.g. adds a project) while this fetch is in
+      // flight, applying the fetched snapshot below would silently wipe
+      // out that edit — it reflects the world from before the edit
+      // happened. Detect that by re-checking local state once the fetch
+      // resolves: if it moved, local wins and gets pushed up instead.
+      const beforeFetchJson = JSON.stringify(collect());
       try {
         const { data, error } = await supa
           .from('app_state').select('data').eq('key', appKey).maybeSingle();
-        if (!error && data && data.data && Object.keys(data.data).length > 0) {
+        if (JSON.stringify(collect()) !== beforeFetchJson) {
+          schedulePush();
+        } else if (!error && data && data.data && Object.keys(data.data).length > 0) {
           lastSyncedJson = JSON.stringify(data.data);
           applyRemote(data.data);
         } else if (Object.keys(collect()).length > 0) {

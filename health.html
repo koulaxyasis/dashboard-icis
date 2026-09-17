@@ -1103,6 +1103,12 @@ main {
   importFpnaLedgerOnce();
 
   render();
+
+  // Re-render when a cloud sync pull actually changes pm:projects (e.g.
+  // an edit made on another device, or the initial pull resolving after
+  // this page already rendered) — otherwise the UI can silently go
+  // stale until the next manual reload.
+  window.addEventListener('storage', render);
 })();
 </script>
 
