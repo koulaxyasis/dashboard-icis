@@ -225,8 +225,8 @@ main {
 .pm-check.sm { width: 22px; height: 22px; font-size: 11px; }
 
 .pm-task {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 8px;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 8px;
   border-radius: 8px;
   margin-bottom: 4px;
   border-top: 2px solid transparent;
@@ -237,6 +237,7 @@ main {
 .pm-task.done .pm-task-name { text-decoration: line-through; color: var(--text-tertiary); }
 .pm-task-handle {
   width: 12px; flex-shrink: 0;
+  margin-top: 5px;
   color: var(--text-tertiary);
   font-weight: 700; font-size: 13px;
   letter-spacing: -2px;
@@ -247,12 +248,15 @@ main {
 }
 .pm-task:hover .pm-task-handle { opacity: 1; }
 .pm-task-handle:active { cursor: grabbing; }
-.pm-task-name { font-size: 13px; color: var(--text-primary); flex: 1; min-width: 0; cursor: text; }
+.pm-task .pm-check.sm { margin-top: 2px; }
+.pm-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pm-task-name { font-size: 13px; line-height: 1.45; color: var(--text-primary); cursor: text; }
 .pm-task-name[contenteditable="true"] {
   outline: 1px solid rgba(255,255,255,0.25);
   outline-offset: 4px; border-radius: 4px;
   cursor: text;
 }
+.pm-task-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pm-task-due { flex-shrink: 0; }
 .pm-task.overdue .pm-task-due { color: #FF8A8A; }
 
@@ -361,7 +365,7 @@ main {
   background: rgba(239, 68, 68, 0.08);
   opacity: 1;
 }
-.pm-item-del.sm { min-width: 22px; min-height: 22px; font-size: 13px; padding: 2px 6px; opacity: 0.5; }
+.pm-item-del.sm { min-width: 22px; min-height: 22px; font-size: 13px; padding: 2px 6px; opacity: 0.5; margin-top: 2px; flex-shrink: 0; }
 .pm-task:hover .pm-item-del.sm { opacity: 1; }
 
 .pm-list-empty {
@@ -450,6 +454,44 @@ main {
 }
 .pm-add-btn:active { transform: translateY(0) scale(0.97); }
 
+.pm-ref { margin-top: 14px; }
+.pm-ref-toggle {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, color 0.15s;
+}
+.pm-ref-toggle:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.pm-ref-toggle .pm-group-chevron { transform: rotate(-90deg); }
+.pm-ref-toggle[aria-expanded="true"] .pm-group-chevron { transform: rotate(0deg); }
+.pm-ref-body {
+  margin-top: 10px;
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 18px 20px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+.pm-ref-rules { margin: 8px 0 0; padding-left: 18px; }
+.pm-ref-rules li { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 8px; }
+.pm-ref-rules li:last-child { margin-bottom: 0; }
+.pm-ref-table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 8px; }
+.pm-ref-table th, .pm-ref-table td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); }
+.pm-ref-table th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 400; }
+.pm-ref-pill {
+  display: inline-block; font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 99px; font-weight: 600; letter-spacing: 0.04em;
+}
+.pm-ref-pill.core { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-ref-pill.wide { background: var(--accent-glow); color: var(--accent); }
+
 .attribution {
   text-align: center; margin-top: 28px;
   font-family: var(--font-mono);
@@ -514,6 +556,34 @@ main {
         </select>
         <button id="pmAddBtn" class="pm-add-btn">+ Add</button>
       </div>
+    </div>
+  </div>
+
+  <!-- FP&A ledger reference — ground rules + skill ledger, collapsed by default. -->
+  <div class="pm-ref">
+    <button type="button" class="pm-ref-toggle" id="pmRefToggle" aria-expanded="false">
+      <span class="pm-group-chevron" id="pmRefChevron">▼</span>
+      <span>Reference — ground rules &amp; skill ledger</span>
+    </button>
+    <div class="pm-ref-body" id="pmRefBody" style="display:none">
+      <div class="pm-eyebrow">Ground rules</div>
+      <ul class="pm-ref-rules">
+        <li>Don't apply broadly — go narrow into finance-modeling/FP&amp;A/data postings only, and prefer listings with under ~10 proposals already in.</li>
+        <li>First 2–3 contracts are priced to get reviews, not income: $12–18/hr, or $50–150 fixed for a tightly scoped deliverable. Raise rates every 5–10 completed projects after that.</li>
+        <li>Every finished project gets a link — Contra portfolio, LinkedIn post, or file on request. No proof, no credibility.</li>
+        <li>Learning and applying run in parallel from Phase 4 onward — don't wait to "finish learning" before applying.</li>
+      </ul>
+      <div class="pm-eyebrow" style="margin-top:18px">Skill ledger</div>
+      <table class="pm-ref-table">
+        <tr><th>Skill</th><th>Track</th><th>Proven in</th></tr>
+        <tr><td>3-statement &amp; SOTP/DCF modeling</td><td><span class="pm-ref-pill core">core</span></td><td>INCO equity research</td></tr>
+        <tr><td>Variance analysis &amp; rolling forecasts</td><td><span class="pm-ref-pill core">core</span></td><td>FP&amp;A flagship project</td></tr>
+        <tr><td>Advanced Excel (XLOOKUP, pivots, dynamic arrays)</td><td><span class="pm-ref-pill core">core</span></td><td>Both flagship projects</td></tr>
+        <tr><td>FMVA certification</td><td><span class="pm-ref-pill core">core</span></td><td>Credential — Phase 1</td></tr>
+        <tr><td>SQL (joins → window functions)</td><td><span class="pm-ref-pill wide">wide</span></td><td>Dashboard project</td></tr>
+        <tr><td>Power BI / Tableau</td><td><span class="pm-ref-pill wide">wide</span></td><td>Dashboard project</td></tr>
+        <tr><td>Investor-grade design/presentation</td><td><span class="pm-ref-pill wide">wide</span></td><td>Every deliverable, going forward</td></tr>
+      </table>
     </div>
   </div>
 
@@ -744,10 +814,14 @@ main {
       <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}" draggable="true" data-pid="${projectId}" data-tid="${t.id}">
         <span class="pm-task-handle" aria-hidden="true">⋮⋮</span>
         <button class="pm-check sm ${isDone ? 'checked' : ''}" data-action="toggle-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Mark task complete">${isDone ? '✓' : ''}</button>
-        <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
-        <input type="date" class="pm-date-edit pm-task-due" data-action="edit-task-due" data-pid="${projectId}" data-tid="${t.id}" value="${t.dueDate || ''}" title="Due date" />
-        <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
-        <button class="pm-task-notes-btn${hasNotes ? ' has-notes' : ''}${notesOpen ? ' is-open' : ''}" data-action="toggle-task-notes" data-tid="${t.id}" aria-label="Task notes" title="Notes">📝</button>
+        <div class="pm-task-body">
+          <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
+          <div class="pm-task-meta">
+            <input type="date" class="pm-date-edit pm-task-due" data-action="edit-task-due" data-pid="${projectId}" data-tid="${t.id}" value="${t.dueDate || ''}" title="Due date" />
+            <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
+            <button class="pm-task-notes-btn${hasNotes ? ' has-notes' : ''}${notesOpen ? ' is-open' : ''}" data-action="toggle-task-notes" data-tid="${t.id}" aria-label="Task notes" title="Notes">📝</button>
+          </div>
+        </div>
         <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
       </div>
       ${notesOpen ? `<textarea class="pm-notes pm-task-notes" data-action="edit-task-notes" data-pid="${projectId}" data-tid="${t.id}" placeholder="Notes…">${escapeHtml(t.notes || '')}</textarea>` : ''}`;
@@ -945,6 +1019,88 @@ main {
   });
 
   nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click(); });
+
+  const refToggle = document.getElementById('pmRefToggle');
+  refToggle.addEventListener('click', () => {
+    const expanded = refToggle.getAttribute('aria-expanded') === 'true';
+    refToggle.setAttribute('aria-expanded', String(!expanded));
+    document.getElementById('pmRefBody').style.display = expanded ? 'none' : 'block';
+  });
+
+  // ---- one-time import: FP&A Freelance Ledger (12-week plan) ----
+  // Adds these as real projects the first time this loads after the
+  // update that introduced them; never re-adds on later visits, and
+  // never touches whatever projects already exist.
+  function importFpnaLedgerOnce() {
+    const FLAG_KEY = 'pm:fpna_imported_v1';
+    if (storeGet(FLAG_KEY)) return;
+    const now = Date.now();
+    const mkTask = (name, notes) => ({
+      id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7),
+      name, status: 'not_started', dueDate: '', notes: notes || '', createdAt: now
+    });
+    const mkProject = (name, notes, tasks) => ({
+      id: 'p_' + now + '_' + Math.random().toString(36).slice(2, 7),
+      name, status: 'planning', owner: '', startDate: '', endDate: '',
+      priority: 'medium', notes, tasks, createdAt: now
+    });
+    const fpnaProjects = [
+      mkProject(
+        'Foundation sprint',
+        "Wk 1–3. Close the FMVA out and build the specific Excel muscles FP&A tests that valuation work doesn't — variance analysis, rolling forecasts, budget-vs-actual — not more modeling depth, which you already have.",
+        [
+          mkTask('Finish remaining FMVA modules + sit the exam', 'Target: certificate in hand by end of week 3'),
+          mkTask('Excel: XLOOKUP / INDEX-MATCH, pivot tables, dynamic arrays, data validation', "Drill until it's reflexive, not looked-up"),
+          mkTask('Build one budget-vs-actual variance template from scratch', 'Line-item actuals vs. budget, %/abs variance, flagged thresholds'),
+          mkTask('Build one rolling 12-month forecast template', 'Roll-forward logic, not a static annual budget')
+        ]
+      ),
+      mkProject(
+        'Versatility build',
+        "Wk 3–5. The two tools that let one profile serve FP&A and data-analyst postings. Overlaps with the tail of Phase 1 — don't wait for a clean handoff.",
+        [
+          mkTask('SQL: joins, group by, subqueries', 'Mode Analytics or SQLZoo, daily practice problems'),
+          mkTask('SQL: window functions + CTEs', 'The part that separates "took a course" from "can actually query"'),
+          mkTask("Pick one: Power BI or Tableau — commit, don't split time", 'Power BI if targeting Microsoft-stack corporates; Tableau if more analytics-first employers'),
+          mkTask('Build one real dashboard end-to-end, not a tutorial clone', 'Own dataset, own question, own conclusion')
+        ]
+      ),
+      mkProject(
+        'Flagship FP&A project',
+        'Wk 5–7. The second portfolio piece, at the same caliber as the INCO work — but proving FP&A judgment (an internal decision-support artifact) instead of a sell-side thesis.',
+        [
+          mkTask('Pick a public Indonesian company with clean quarterly disclosures', 'F&B, retail, or telco — something with real line-item detail'),
+          mkTask('Build the budget-vs-actual variance analysis on real disclosed figures', 'Apply the Phase 1 template to real numbers, not a mock dataset'),
+          mkTask('Build the rolling 12-month forecast on top of it', ''),
+          mkTask('Write the 1–2 page management commentary', 'Explain the "why" — FX, input costs, volume/price mix — not just the numbers'),
+          mkTask('Design it as a one-pager reporting pack and publish (Contra + LinkedIn)', '')
+        ]
+      ),
+      mkProject(
+        'Upwork launch',
+        'Wk 7–9. Go live with two finished, linked portfolio pieces behind you. Volume and targeting both matter — the market is genuinely competitive, so this phase is about discipline, not luck.',
+        [
+          mkTask('Build the Upwork profile: niche headline, both projects linked, FMVA listed', ''),
+          mkTask('Draft 3 reusable proposal templates', "Financial modeling / variance-forecast / dashboard-build — tailor each, don't send blind"),
+          mkTask('Apply daily: 5–10 tailored proposals, niche-only, <10 existing proposals preferred', ''),
+          mkTask('Land and deliver first 2–3 contracts at rep-building price', '$12–18/hr or $50–150 fixed — treat each as disproportionately important')
+        ]
+      ),
+      mkProject(
+        'Scale & diversify',
+        'Wk 9–12. Reviews are in hand or close to it. Widen the pipeline and start behaving like someone with a track record, not someone still auditioning.',
+        [
+          mkTask('Raise rates a few dollars every 5–10 completed projects', ''),
+          mkTask('Start the SQL+BI dashboard flagship project (third portfolio piece)', ''),
+          mkTask('Widen applications to We Work Remotely once SQL/BI + reviews are in hand', ''),
+          mkTask('Revisit CFA Level 1 as a next step — only once income is flowing', '')
+        ]
+      )
+    ];
+    setProjects(getProjects().concat(fpnaProjects));
+    storeSet(FLAG_KEY, true);
+  }
+  importFpnaLedgerOnce();
 
   render();
 })();
