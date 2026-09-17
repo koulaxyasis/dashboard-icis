@@ -1033,7 +1033,17 @@ main {
   // never touches whatever projects already exist.
   function importFpnaLedgerOnce() {
     const FLAG_KEY = 'pm:fpna_imported_v1';
-    if (storeGet(FLAG_KEY)) return;
+    const EXPECTED_NAMES = ['Foundation sprint', 'Versatility build', 'Flagship FP&A project', 'Upwork launch', 'Scale & diversify'];
+    // The flag alone isn't reliable proof the import actually stuck: on
+    // an older build, the sync-race bug (now fixed) could set this flag
+    // and then get the freshly-imported projects wiped out by a stale
+    // cloud pull moments later, since the flag itself isn't a synced
+    // key. So also check the projects are actually present — if the
+    // flag says "done" but none of them exist, treat it as not done.
+    if (storeGet(FLAG_KEY)) {
+      const existingNames = getProjects().map(p => p.name);
+      if (EXPECTED_NAMES.some(n => existingNames.includes(n))) return;
+    }
     const now = Date.now();
     const mkTask = (name, notes) => ({
       id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7),
