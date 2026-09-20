@@ -147,27 +147,39 @@
     var el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
     if (!el) return;
 
+    // Shell once, controls stay put; only the list and the counters redraw.
+    el.innerHTML =
+      '<div class="qsec">' +
+        '<span class="qsec-t">Daily Quests</span>' +
+        '<span class="row" style="gap:8px">' +
+          '<span class="qmode" data-qmode>' +
+            ['light', 'normal', 'ambitious'].map(function (m) {
+              return '<button data-mode="' + m + '">' + m.charAt(0).toUpperCase() + m.slice(1) + '</button>';
+            }).join('') +
+          '</span>' +
+          '<button class="btn sm" data-reroll></button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="qsec-note" style="margin:-6px 0 10px">Chosen for you each day. Resets at midnight.</div>' +
+      '<div data-dqlist></div>' +
+      '<div class="qsec-m" style="margin-top:6px" data-dqfoot></div>';
+
+    var listEl = el.querySelector('[data-dqlist]');
+    var footEl = el.querySelector('[data-dqfoot]');
+    var rerollEl = el.querySelector('[data-reroll]');
+    var modeEls = el.querySelectorAll('[data-mode]');
+
     function draw() {
       var r = dailyHtml(opts);
       var v = r.view;
-      el.innerHTML =
-        '<div class="qsec">' +
-          '<span class="qsec-t">Daily Quests</span>' +
-          '<span class="row" style="gap:8px">' +
-            '<span class="qmode" data-qmode>' +
-              ['light', 'normal', 'ambitious'].map(function (m) {
-                return '<button data-mode="' + m + '"' + (v.mode === m ? ' class="on"' : '') + '>' +
-                  m.charAt(0).toUpperCase() + m.slice(1) + '</button>';
-              }).join('') +
-            '</span>' +
-            '<button class="btn sm" data-reroll' + (v.rerollUsed ? ' disabled' : '') + '>' +
-              UI.icon('dice', 14) + (v.rerollUsed ? ' Used' : ' Reroll') + '</button>' +
-          '</span>' +
-        '</div>' +
-        '<div class="qsec-note" style="margin:-6px 0 10px">Chosen for you each day. Resets at midnight.</div>' +
-        r.html +
-        '<div class="qsec-m" style="margin-top:6px">' + v.done + ' of ' + v.total + ' complete' +
-          (v.minutes ? ' · about ' + v.minutes + ' minutes left' : ' · board cleared') + '</div>';
+      listEl.innerHTML = r.html;
+      footEl.textContent = v.done + ' of ' + v.total + ' complete' +
+        (v.minutes ? ' · about ' + v.minutes + ' minutes left' : ' · board cleared');
+      Array.prototype.forEach.call(modeEls, function (b) {
+        b.classList.toggle('on', b.getAttribute('data-mode') === v.mode);
+      });
+      rerollEl.disabled = !!v.rerollUsed;
+      rerollEl.innerHTML = UI.icon('dice', 14) + (v.rerollUsed ? ' Used' : ' Reroll');
     }
 
     el.addEventListener('click', function (e) {
@@ -210,10 +222,34 @@
     var el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
     if (!el) return;
 
+    // The shell — including the text input — is built ONCE. Redrawing
+    // replaces only the list and the counter, never the input.
+    //
+    // Rebuilding the whole container on every draw meant any re-render
+    // (a cloud-sync apply, another surface editing the same list) tore out
+    // the <input> mid-keystroke: focus lost, half-typed text gone. Whatever
+    // triggers a redraw, what you are typing must survive it.
+    el.innerHTML =
+      '<div class="qsec">' +
+        '<span class="qsec-t">My Quests</span>' +
+        '<span class="qsec-m" data-pqcount></span>' +
+      '</div>' +
+      '<div class="qsec-note" style="margin:-6px 0 10px">Written by you. Every one kept counts toward your streak.</div>' +
+      '<div data-pqlist></div>' +
+      (opts.readOnly ? '' :
+        '<div class="q-add">' +
+          '<input data-pqin placeholder="Add a quest of your own…" maxlength="160" autocomplete="off">' +
+          '<button class="btn gold" data-pqadd>Add</button>' +
+        '</div>');
+
+    var listEl = el.querySelector('[data-pqlist]');
+    var countEl = el.querySelector('[data-pqcount]');
+
     function draw() {
       var list = readPersonal();
       var done = list.filter(function (g) { return g && g.done; }).length;
-      var rows = list.length ? list.map(function (g, i) {
+      countEl.textContent = done + ' / ' + list.length;
+      listEl.innerHTML = list.length ? list.map(function (g, i) {
         return '<div class="q' + (g.done ? ' done' : '') + '">' +
           '<button class="q-box' + (g.done ? ' on' : '') + '" data-pq="' + i + '" ' +
             'aria-label="Toggle quest">' + UI.icon('check', 14) + '</button>' +
@@ -225,19 +261,6 @@
           '</div>' +
         '</div>';
       }).join('') : '<div class="empty">Nothing of your own yet. Add the thing you actually need to do today.</div>';
-
-      el.innerHTML =
-        '<div class="qsec">' +
-          '<span class="qsec-t">My Quests</span>' +
-          '<span class="qsec-m">' + done + ' / ' + list.length + '</span>' +
-        '</div>' +
-        '<div class="qsec-note" style="margin:-6px 0 10px">Written by you. Every one kept counts toward your streak.</div>' +
-        rows +
-        (opts.readOnly ? '' :
-          '<div class="q-add">' +
-            '<input data-pqin placeholder="Add a quest of your own…" maxlength="160" autocomplete="off">' +
-            '<button class="btn gold" data-pqadd>Add</button>' +
-          '</div>');
     }
 
     el.addEventListener('click', function (e) {

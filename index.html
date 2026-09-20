@@ -411,7 +411,7 @@
     initCloudSync({
       appKey: 'icis',
       syncedKeys: [GS.KEY],
-      onApplied: function () { GS.onRemoteApplied(); renderAll(); }
+      onApplied: function () { if (GS.onRemoteApplied() === "adopted" && !UI.isTyping()) renderAll(); }
     });
   });
 })();

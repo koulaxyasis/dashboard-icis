@@ -609,6 +609,16 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
     rankBadge: function (rank) {
       return '<span class="rank r-' + esc(rank.sigil) + '">' + esc(rank.sigil) + '</span>';
     },
+    // True while the user is in a text field. Re-rendering a container
+    // that holds the focused input destroys it mid-keystroke, so callers
+    // driven by outside events (cloud sync) skip the redraw and pick the
+    // change up on their next natural render.
+    isTyping: function () {
+      var a = document.activeElement;
+      if (!a) return false;
+      var tag = (a.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || a.isContentEditable === true;
+    },
     fmt: function (n) { return Math.round(Number(n) || 0).toLocaleString(); },
     ago: function (ts) {
       var s = Math.max(0, (Date.now() - ts) / 1000);

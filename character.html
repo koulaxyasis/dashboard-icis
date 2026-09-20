@@ -705,7 +705,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.onRemoteApplied(); renderBanner(); show(currentTab); } });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { if (GS.onRemoteApplied() === "adopted" && !UI.isTyping()) { renderBanner(); show(currentTab); } } });
   });
 })();
 </script>
