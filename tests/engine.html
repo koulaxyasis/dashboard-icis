@@ -570,6 +570,43 @@ try {
   chk('  seeds the legacy streak baseline', migrated.streak.legacyBaseline, 12);
 
   // =============================================================
+  // STALE SYNC WRITES must not undo what you just did.
+  //
+  // Reproduces the real failure: you tick a quest, then cloud-sync
+  // applies a snapshot captured BEFORE the tick. Without arbitration the
+  // tick is overwritten and the re-render shows it unchecked again.
+  // =============================================================
+  QE.ensureToday();
+  var board = QE.todayView().list;
+  var target = board.filter(function(q){ return !q.done; })[0];
+  // snapshot of the world BEFORE the tick — this is what sync will replay
+  var staleBlob = localStorage.getItem('icisGameStateV2');
+  var staleRev = JSON.parse(staleBlob).rev;
+
+  QE.complete(target.id);
+  chk('quest ticked locally', QE.todayView().list.filter(function(q){return q.id===target.id;})[0].done, 'true');
+  var freshRev = GS.get().rev;
+  chk('rev advanced past the stale snapshot (' + staleRev + ' -> ' + freshRev + ')', freshRev > staleRev, 'true');
+
+  // sync.js applies a remote snapshot by writing straight to localStorage,
+  // bypassing GameState entirely. Simulate exactly that.
+  localStorage.setItem('icisGameStateV2', staleBlob);
+  var verdict = GS.onRemoteApplied();
+  chk('stale snapshot is rejected', verdict, 'kept-local');
+  chk('the tick survived', QE.todayView().list.filter(function(q){return q.id===target.id;})[0].done, 'true');
+  chk('local state was written back', JSON.parse(localStorage.getItem('icisGameStateV2')).rev, freshRev);
+
+  // ...but a genuinely NEWER snapshot is still adopted.
+  var newer = JSON.parse(localStorage.getItem('icisGameStateV2'));
+  newer.rev = freshRev + 5;
+  newer.player.name = 'From Another Device';
+  localStorage.setItem('icisGameStateV2', JSON.stringify(newer));
+  chk('newer snapshot is adopted', GS.onRemoteApplied(), 'adopted');
+  chk('  and its content is taken', GS.get().player.name, 'From Another Device');
+  GS.update(function(st){ st.player.name = 'Rizky'; });
+  QE.uncomplete(target.id);
+
+  // =============================================================
   // DEVICE-LOCAL STATE must never live in the synced blob.
   // Sync replaces that blob wholesale, so anything answering "what has
   // THIS screen already shown me" gets clobbered by another device and

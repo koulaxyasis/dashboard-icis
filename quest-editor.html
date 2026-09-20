@@ -404,7 +404,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.reload(); render(); } });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.onRemoteApplied(); render(); } });
   });
 })();
 </script>

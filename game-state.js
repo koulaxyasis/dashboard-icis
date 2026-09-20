@@ -160,6 +160,8 @@
   function blank() {
     return {
       v: SCHEMA,
+      rev: 0,               // bumped on every save; arbitrates stale sync writes
+      updatedAt: 0,
       createdAt: Date.now(),
       player: {
         name: 'Icis',
@@ -347,10 +349,41 @@
     return cache;
   }
 
+  // Every save bumps a revision. `rev` is what lets us tell "the server
+  // sent us something newer" apart from "the server echoed a snapshot
+  // older than what the user just did".
   function save() {
     if (!cache) return;
+    cache.rev = (num(cache.rev) || 0) + 1;
+    cache.updatedAt = Date.now();
     writeJSON(KEY, cache);
     notify();
+  }
+
+  // Called by every page from cloud-sync's onApplied.
+  //
+  // sync.js applies a remote snapshot by writing straight to localStorage,
+  // with no idea whether it is older than what this tab just did. Its only
+  // guard is "did I just push exactly this", which misses whenever the
+  // realtime echo of an EARLIER snapshot lands before our own upsert
+  // resolves — so ticking a quest could be overwritten and the re-render
+  // would show it unchecked again.
+  //
+  // We still hold the newer state in memory, so compare revisions: if the
+  // snapshot that just landed is older, write ours back (which re-queues a
+  // push) instead of adopting it.
+  function onRemoteApplied() {
+    var incoming = readJSON(KEY, null);
+    var mine = cache;
+    if (mine && incoming && num(incoming.rev) < num(mine.rev)) {
+      writeJSON(KEY, mine);
+      notify();
+      return 'kept-local';
+    }
+    cache = null;
+    load();
+    notify();
+    return 'adopted';
   }
 
   // ---------------------------------------------------------------
@@ -779,6 +812,7 @@
     // Drop the in-memory copy and re-read from storage, running migration
     // again. This is what a fresh page load does.
     reload: function () { cache = null; return load(); },
+    onRemoteApplied: onRemoteApplied,
     update: function (fn) { var s = load(); fn(s); save(); return s; },
     reset: function () { cache = blank(); save(); },
 
