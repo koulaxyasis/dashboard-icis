@@ -194,15 +194,31 @@
       projects: {},              // pm project id -> { bossName, difficulty, phases:[…] }
       achievements: {},          // id -> unlockedAt
       social: { people: [], plans: [], memories: [] },
-      nova: { enabled: true, recent: [], dismissedAt: 0 },
+      nova: { enabled: true, recent: [] },
       rewards: { claimed: [] },
       settings: { reducedMotion: false, novaEnabled: true, showPractical: true },
       ledger: {},                // dedupeKey -> { xp, disc, at }
       goalArchive: {},           // date -> { d, t }  (survives main.html's sweep)
-      streakShields: 0,
-      lastSeen: { level: 0, disciplines: {}, achievements: [] }
+      streakShields: 0
     };
   }
+
+  // ---------------------------------------------------------------
+  // Device-local keys.
+  //
+  // These answer "what has THIS screen already shown me", so they must
+  // never sit inside the synced blob — sync replaces that wholesale, and
+  // another device's copy would resurrect a notification you already saw
+  // or a card you already dismissed.
+  //
+  // Everything else stays shared on purpose. In particular `rerollUsed`
+  // is one reroll per DAY (not per device), and `questSalt` must match
+  // everywhere or each device would draw a different quest board.
+  // ---------------------------------------------------------------
+  var DEVICE_KEYS = {
+    seen: 'icis:seen',                     // last announced level / discipline levels
+    novaDismissed: 'icis:novaDismissed'    // Nova's card dismissed for the day
+  };
 
   // ---------------------------------------------------------------
   // Load + migrate. Never destructive: the tracker pages keep owning
@@ -286,6 +302,27 @@
 
     if (!Array.isArray(s.questCustom)) { s.questCustom = []; changed = true; }
     if (!s.questOverrides || typeof s.questOverrides !== 'object') { s.questOverrides = {}; changed = true; }
+
+    // Lift device-local UI state out of the synced blob, once, before
+    // anything reads it. Both of these caused repeat notifications while
+    // they were synced.
+    if (s.lastSeen && typeof s.lastSeen.level === 'number') {
+      if (s.lastSeen.level > 0 && !readJSON(DEVICE_KEYS.seen, null)) {
+        writeJSON(DEVICE_KEYS.seen, s.lastSeen);
+      }
+      delete s.lastSeen;
+      changed = true;
+    }
+    if (s.nova && s.nova.dismissedAt) {
+      if (!readJSON(DEVICE_KEYS.novaDismissed, null)) {
+        writeJSON(DEVICE_KEYS.novaDismissed, {
+          at: s.nova.dismissedAt,
+          date: dateKey(new Date(num(s.nova.dismissedAt)))
+        });
+      }
+      delete s.nova.dismissedAt;
+      changed = true;
+    }
 
     if (s.v !== SCHEMA) { s.v = SCHEMA; changed = true; }
     return { state: s, changed: changed };
@@ -721,6 +758,7 @@
   // ---------------------------------------------------------------
   window.GameState = {
     KEY: KEY,
+    DEVICE_KEYS: DEVICE_KEYS,
     DISCIPLINES: DISCIPLINES,
     RANKS: RANKS,
     CLASSES: CLASSES,

@@ -469,18 +469,13 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
   // the synced blob. When it was inside the synced state, cloud sync kept
   // restoring another device's older copy and every page load re-announced
   // the same level-up.
-  var SEEN_KEY = 'icis:seen';
+  // game-state lifts any pre-existing value out of the synced blob during
+  // migration, so this only ever reads the device-local key.
+  var SEEN_KEY = GS.DEVICE_KEYS.seen;
 
   function loadSeen() {
     var seen = GS.readJSON(SEEN_KEY, null);
-    if (seen && typeof seen.level === 'number') return seen;
-    // One-time migration out of the synced state.
-    var legacy = GS.get().lastSeen;
-    if (legacy && typeof legacy.level === 'number' && legacy.level > 0) {
-      GS.writeJSON(SEEN_KEY, legacy);
-      return legacy;
-    }
-    return null;
+    return (seen && typeof seen.level === 'number') ? seen : null;
   }
 
   function checkMilestones(t) {

@@ -548,16 +548,16 @@
     return m;
   }
 
+  // Dismissal is per-screen, so it lives in a device-local key rather than
+  // the synced blob. Swiping the card away on your phone should not blank
+  // it on your laptop, and a synced copy used to bring it back at random.
   function dismiss() {
-    var s = GS.get();
-    s.nova.dismissedAt = Date.now();
-    GS.save();
+    GS.writeJSON(GS.DEVICE_KEYS.novaDismissed, { at: Date.now(), date: GS.todayKey() });
   }
   function isDismissed() {
-    var s = GS.get();
     // A dismissal lasts until the next local day.
-    if (!s.nova.dismissedAt) return false;
-    return GS.dateKey(new Date(s.nova.dismissedAt)) === GS.todayKey();
+    var d = GS.readJSON(GS.DEVICE_KEYS.novaDismissed, null);
+    return !!(d && d.date === GS.todayKey());
   }
   function setEnabled(on) {
     var s = GS.get();

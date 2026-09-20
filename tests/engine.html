@@ -569,6 +569,45 @@ try {
   chk('  rebuilds questCustom', Array.isArray(migrated.questCustom), 'true');
   chk('  seeds the legacy streak baseline', migrated.streak.legacyBaseline, 12);
 
+  // =============================================================
+  // DEVICE-LOCAL STATE must never live in the synced blob.
+  // Sync replaces that blob wholesale, so anything answering "what has
+  // THIS screen already shown me" gets clobbered by another device and
+  // the notification fires again.
+  // =============================================================
+  localStorage.removeItem(GS.DEVICE_KEYS.seen);
+  localStorage.removeItem(GS.DEVICE_KEYS.novaDismissed);
+  var withLocal = JSON.parse(localStorage.getItem('icisGameStateV2'));
+  withLocal.lastSeen = { level: 6, disciplines: { resolve: 3 }, achievements: ['q25'] };
+  withLocal.nova = withLocal.nova || {};
+  withLocal.nova.dismissedAt = Date.now();
+  localStorage.setItem('icisGameStateV2', JSON.stringify(withLocal));
+
+  var lifted = GS.reload();
+  chk('migration removes lastSeen from the synced blob', lifted.lastSeen, 'undefined');
+  chk('migration removes nova.dismissedAt from the synced blob', lifted.nova.dismissedAt, 'undefined');
+  chk('  seen marker lifted to a device-local key',
+    (GS.readJSON(GS.DEVICE_KEYS.seen, {}) || {}).level, 6);
+  chk('  seen marker keeps discipline levels',
+    (GS.readJSON(GS.DEVICE_KEYS.seen, {}) || {}).disciplines.resolve, 3);
+  chk('  nova dismissal lifted to a device-local key',
+    (GS.readJSON(GS.DEVICE_KEYS.novaDismissed, {}) || {}).date, GS.todayKey());
+
+  // and it stays out on every subsequent load
+  GS.reload(); GS.reload();
+  var raw2 = JSON.parse(localStorage.getItem('icisGameStateV2'));
+  chk('stays out after repeated loads', ('lastSeen' in raw2) || ('dismissedAt' in (raw2.nova||{})), 'false');
+  chk('device keys are not inside the synced payload',
+    JSON.stringify(raw2).indexOf('icis:seen') === -1, 'true');
+
+  // the genuinely shared ones must NOT be lifted
+  chk('rerollUsed stays shared (one reroll per day, not per device)',
+    typeof raw2.quests.rerollUsed, 'boolean');
+  chk('questSalt stays shared (or devices draw different boards)',
+    typeof raw2.questSalt, 'string');
+  chk('novaEnabled stays shared (it is a preference)',
+    typeof raw2.settings.novaEnabled, 'boolean');
+
 } catch (e) {
   L.push('FAIL threw: '+e.message+'\n'+e.stack);
 }
