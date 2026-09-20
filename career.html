@@ -313,7 +313,7 @@
     if (typeof initCloudSync !== 'function') return;
     initCloudSync({
       appKey: 'icis', syncedKeys: [GS.KEY],
-      onApplied: function () { location.reload(); }
+      onApplied: function () { GS.reload(); render(); }
     });
   });
 })();

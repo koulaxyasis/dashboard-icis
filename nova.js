@@ -494,9 +494,58 @@
     if (!msg) return;
     var s = GS.get();
     if (!s.nova.recent) s.nova.recent = [];
+    var last = s.nova.recent[0];
+    if (last && last.id === msg.id && last.date === GS.todayKey()) return;
     s.nova.recent.unshift({ id: msg.id, date: GS.todayKey(), at: Date.now(), text: msg.message });
     s.nova.recent = s.nova.recent.slice(0, 40);
     GS.save();
+  }
+
+  // The message every surface should show.
+  //
+  // Nova holds ONE message per day rather than re-picking on each view.
+  // Re-picking looked stable in isolation, but combined with the 3-day
+  // no-repeat rule it meant each view chose a *different* message and
+  // wrote it — so opening the hub mutated state, cloud-sync pushed it,
+  // and any other open surface reacted. Holding the choice makes an
+  // ordinary page load a pure read, and makes Nova less twitchy to read.
+  //
+  // The stored rule is re-evaluated on every call, so the wording stays
+  // current and a rule that stops applying is replaced. `force` (the
+  // "Another" button) deliberately advances to the next one.
+  function message(opts) {
+    var s = GS.get();
+    if (s.settings && s.settings.novaEnabled === false) return null;
+    var today = GS.todayKey();
+    var cur = s.nova.current;
+
+    if (!(opts && opts.force) && cur && cur.date === today && cur.id) {
+      var rule = RULES.filter(function (r) { return r.id === cur.id; })[0];
+      if (rule) {
+        var c = buildContext();
+        var ok = false;
+        try { ok = rule.when(c); } catch (e) { ok = false; }
+        if (ok) {
+          var text;
+          try { text = rule.msg(c); } catch (e) { text = cur.message; }
+          return { id: rule.id, tier: rule.tier, expression: rule.expr,
+                   message: text, action: rule.act, context: c, held: true };
+        }
+      }
+    }
+
+    var m = pick(opts);
+    if (!m) return null;
+    // One write covers both the held choice and the history entry.
+    var recent = s.nova.recent || [];
+    var last = recent[0];
+    if (!(last && last.id === m.id && last.date === today)) {
+      recent.unshift({ id: m.id, date: today, at: Date.now(), text: m.message });
+      s.nova.recent = recent.slice(0, 40);
+    }
+    s.nova.current = { id: m.id, date: today, message: m.message };
+    GS.save();
+    return m;
   }
 
   function dismiss() {
@@ -525,9 +574,8 @@
     var s = GS.get();
     if (s.settings && s.settings.novaEnabled === false) return '';
     if (opts.respectDismiss && isDismissed()) return '';
-    var m = pick();
+    var m = message();
     if (!m) return '';
-    if (!opts.noRemember) remember(m);
     var UI = window.UI;
     return '<section class="card ornate pad nova-card" id="novaCard" data-nova="' + UI.esc(m.id) + '">' +
       '<div class="nova-row">' +
@@ -577,6 +625,7 @@
     expressions: Object.keys(EYES),
     context: buildContext,
     pick: pick,
+    message: message,
     remember: remember,
     dismiss: dismiss,
     isDismissed: isDismissed,

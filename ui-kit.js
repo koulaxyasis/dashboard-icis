@@ -478,8 +478,13 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
         if (d.level > before) toast('star', d.lore, d.name + ' reached level ' + d.level, d.practical);
       });
     }
-    s.lastSeen = next;
-    GS.save();
+    // Only write when something actually moved. An unconditional save here
+    // meant every page load mutated the shared state, which cloud-sync then
+    // pushed — and any other open surface reloaded in response, forever.
+    if (JSON.stringify(seen) !== JSON.stringify(next)) {
+      s.lastSeen = next;
+      GS.save();
+    }
   }
 
   // ---------------------------------------------------------------

@@ -331,7 +331,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.reload(); render(); } });
   });
 })();
 </script>

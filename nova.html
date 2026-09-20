@@ -74,15 +74,16 @@
   var $ = function (id) { return document.getElementById(id); };
   var forced = null;   // expression preview override
 
-  function renderMain() {
+  // `force` advances to a new message; a plain render reuses the one Nova
+  // is already holding for today, so opening the page writes nothing.
+  function renderMain(force) {
     var s = GS.get();
     if (s.settings.novaEnabled === false) {
       $('novaMain').innerHTML = '<div class="empty">Nova is turned off. Enable her below to see hints again.</div>';
       return;
     }
-    var m = N.pick();
+    var m = N.message(force ? { force: true } : null);
     if (!m) { $('novaMain').innerHTML = '<div class="empty">Nothing to say right now.</div>'; return; }
-    N.remember(m);
     var expr = forced || m.expression;
     $('novaMain').innerHTML =
       N.portrait(expr, 148) +
@@ -141,8 +142,7 @@
 
   document.addEventListener('click', function (e) {
     if (e.target.closest('#nextMsg')) {
-      // Mark the current one as seen so "Another" genuinely moves on.
-      forced = null; renderMain(); renderHistory(); return;
+      forced = null; renderMain(true); renderHistory(); return;
     }
     var ex = e.target.closest('[data-expr]');
     if (ex) { forced = ex.getAttribute('data-expr'); renderMain(); return; }
@@ -157,7 +157,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.reload(); renderMain(); renderHistory(); renderToggle(); } });
   });
 })();
 </script>

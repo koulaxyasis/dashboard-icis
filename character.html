@@ -605,8 +605,10 @@
     overview: renderOverview, disciplines: renderDisciplines, quests: renderQuests,
     achievements: renderAchievements, chronicle: renderChronicle, settings: renderSettings
   };
+  var currentTab = 'overview';
   function show(tab) {
     if (!RENDER[tab]) tab = 'overview';
+    currentTab = tab;
     Array.prototype.forEach.call($('tabs').children, function (b) {
       b.classList.toggle('on', b.getAttribute('data-tab') === tab);
     });
@@ -703,7 +705,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { GS.reload(); renderBanner(); show(currentTab); } });
   });
 })();
 </script>
