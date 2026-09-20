@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Character</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="rpg.js" defer></script>
+<script src="topbar.js" defer></script>
+
+<style>
+:root {
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --gold: #E9BE6E;
+  --gold-dim: #C99B4E;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #050506;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  min-height: 100vh; position: relative; overflow-x: hidden;
+  padding: max(24px, env(safe-area-inset-top)) 20px 60px;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 80% 8%, rgba(233,190,110,0.14), transparent 46%),
+    radial-gradient(circle at 12% 88%, rgba(167,139,250,0.08), transparent 52%);
+  filter: blur(46px); pointer-events: none; z-index: -2;
+  animation: drift 40s ease-in-out infinite alternate;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px; pointer-events: none; z-index: -1;
+}
+@keyframes drift { 0%{transform:translate3d(0,0,0)} 100%{transform:translate3d(-20px,14px,0)} }
+
+.page { max-width: 1100px; margin: 0 auto; }
+
+/* ===== Shared card ===== */
+.card {
+  position: relative; overflow: hidden;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.sec-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin: 30px 0 13px;
+}
+.sec-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--gold);
+}
+.sec-meta {
+  font-size: 11px; color: var(--text-tertiary);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}
+
+/* ===== Hero banner ===== */
+.hero {
+  padding: 24px;
+  border-color: rgba(233,190,110,0.20);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(233,190,110,0.14), transparent 55%),
+    rgba(255,255,255,0.04);
+}
+.hero-row { display: flex; align-items: center; gap: 20px; }
+.orb {
+  width: 92px; height: 92px; flex: none; position: relative;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #F9E6BE, #C99B4E 58%, #5E3F17);
+  box-shadow: 0 0 34px rgba(233,190,110,0.35), inset 0 2px 0 rgba(255,255,255,0.55);
+}
+.orb-lvl {
+  font-size: 34px; font-weight: 800; color: #2A1B06;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1;
+}
+.orb-cap {
+  position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
+  padding: 2px 9px; border-radius: 999px;
+  background: #100D08; border: 1px solid rgba(233,190,110,0.4);
+  font-size: 8px; font-weight: 800; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--gold); white-space: nowrap;
+}
+.hero-id { flex: 1; min-width: 0; }
+.hero-name {
+  margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.028em;
+  color: var(--text-primary);
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.hero-edit {
+  border: 0; background: transparent; cursor: pointer; padding: 3px;
+  color: var(--text-tertiary); font-size: 14px; line-height: 1;
+  border-radius: 6px; transition: color .15s;
+}
+.hero-edit:hover { color: var(--gold); }
+.hero-class {
+  margin-top: 3px; font-size: 13px; color: var(--text-tertiary);
+}
+.hero-class b { color: var(--gold); font-weight: 600; }
+.hero-xp { margin-top: 16px; }
+.xp-line {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px;
+}
+.xp-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-tertiary);
+}
+.xp-nums {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+.xp-track {
+  height: 10px; border-radius: 6px; overflow: hidden;
+  background: rgba(0,0,0,0.42);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.xp-fill {
+  height: 100%; border-radius: 5px; width: 0;
+  background: linear-gradient(90deg, #A8752B, #E9BE6E 60%, #FBEBC6);
+  box-shadow: 0 0 14px rgba(233,190,110,0.55);
+  transition: width .7s cubic-bezier(.22,1,.36,1);
+  position: relative;
+}
+.xp-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
+  animation: sheen 2.6s ease-in-out infinite;
+}
+@keyframes sheen { 0%,100% { transform: translateX(-100%); } 55% { transform: translateX(100%); } }
+
+/* ===== Stat strip ===== */
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px;
+}
+.stat { padding: 14px; text-align: center; }
+.stat-val {
+  font-family: var(--font-mono); font-size: 21px; font-weight: 700;
+  color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.stat-key {
+  margin-top: 5px; font-size: 9px; font-weight: 700; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--text-tertiary);
+}
+
+/* ===== Skills ===== */
+.skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.skill {
+  --c: var(--gold);
+  display: block; padding: 17px; text-decoration: none;
+  transition: transform .18s ease, border-color .18s ease;
+}
+.skill::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 84% 12%, color-mix(in srgb, var(--c) 18%, transparent), transparent 58%);
+}
+.skill:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--c) 42%, transparent); }
+.skill-top { display: flex; align-items: center; gap: 11px; position: relative; }
+.skill-glyph {
+  font-size: 22px; line-height: 1;
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--c) 65%, transparent));
+}
+.skill-name {
+  flex: 1; font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.skill-lvl {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.skill-track {
+  height: 6px; margin: 13px 0 9px; border-radius: 4px; overflow: hidden;
+  background: rgba(0,0,0,0.38); position: relative;
+}
+.skill-fill {
+  height: 100%; border-radius: 4px; width: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, #000), var(--c));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent);
+  transition: width .7s cubic-bezier(.22,1,.36,1);
+}
+.skill-foot {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  position: relative;
+}
+.skill-stat { font-size: 12px; color: var(--text-tertiary); }
+.skill-xp {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums; flex: none;
+}
+
+/* ===== Quests ===== */
+.quests { display: grid; gap: 9px; }
+.quest {
+  display: flex; align-items: center; gap: 13px;
+  padding: 13px 15px;
+  transition: border-color .18s;
+}
+.quest.done { border-color: rgba(107,227,164,0.28); background: rgba(107,227,164,0.05); }
+.quest-mark {
+  width: 25px; height: 25px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%; font-size: 12px; font-weight: 800;
+  border: 1.5px solid rgba(255,255,255,0.14);
+  color: var(--text-tertiary);
+}
+.quest.done .quest-mark {
+  border-color: #6BE3A4; color: #0A0A0B; background: #6BE3A4;
+  box-shadow: 0 0 14px rgba(107,227,164,0.45);
+}
+.quest-body { flex: 1; min-width: 0; }
+.quest-name {
+  font-size: 14px; font-weight: 650; color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.quest.done .quest-name { color: #6BE3A4; }
+.quest-desc { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.quest-track {
+  height: 3px; margin-top: 8px; border-radius: 2px; overflow: hidden;
+  background: rgba(255,255,255,0.08);
+}
+.quest-fill {
+  height: 100%; border-radius: 2px; width: 0;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  transition: width .6s cubic-bezier(.22,1,.36,1);
+}
+.quest.done .quest-fill { background: #6BE3A4; }
+.quest-reward {
+  flex: none; text-align: right;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.quest.done .quest-reward { color: #6BE3A4; }
+.quest-reward small {
+  display: block; font-size: 8px; letter-spacing: 0.12em;
+  color: var(--text-tertiary); font-weight: 700; margin-top: 1px;
+}
+
+/* ===== Trophies ===== */
+.trophies {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px;
+}
+.trophy {
+  padding: 14px 8px; text-align: center;
+  opacity: 0.38; filter: grayscale(100%);
+  transition: opacity .2s, filter .2s, transform .18s;
+}
+.trophy.got {
+  opacity: 1; filter: none;
+  border-color: rgba(233,190,110,0.28);
+  background: linear-gradient(180deg, rgba(233,190,110,0.09), rgba(255,255,255,0.03));
+}
+.trophy:hover { transform: translateY(-2px); }
+.trophy-glyph { font-size: 25px; line-height: 1; }
+.trophy.got .trophy-glyph { filter: drop-shadow(0 0 9px rgba(233,190,110,0.55)); }
+.trophy-name {
+  margin-top: 7px; font-size: 10px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: -0.005em; line-height: 1.25;
+}
+.trophy-desc {
+  margin-top: 3px; font-size: 9px; color: var(--text-tertiary); line-height: 1.3;
+}
+.trophy-prog {
+  margin-top: 5px; font-family: var(--font-mono); font-size: 8px;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+}
+
+/* ===== Combat log ===== */
+.log { padding: 6px 4px; }
+.log-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 13px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.log-row:last-child { border-bottom: 0; }
+.log-glyph { font-size: 15px; line-height: 1; flex: none; }
+.log-text {
+  flex: 1; min-width: 0; font-size: 13px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-xp {
+  flex: none; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.log-when {
+  flex: none; width: 54px; text-align: right;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
+}
+.empty {
+  padding: 26px 16px; text-align: center;
+  font-size: 13px; color: var(--text-tertiary);
+}
+
+/* ===== Name modal ===== */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 120; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.modal-bg.show { display: flex; }
+.modal {
+  width: 100%; max-width: 400px;
+  background: #0e0e10; border: 1px solid rgba(233,190,110,0.18);
+  border-radius: 18px; padding: 22px; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.modal-title { font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.modal-close {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.modal-close:hover { color: var(--text-primary); }
+.field { margin-bottom: 14px; }
+.field-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 7px; display: block;
+}
+.set-input {
+  width: 100%; padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 11px;
+  background: rgba(0,0,0,0.3); color: var(--text-primary);
+  font-family: inherit; font-size: 14px; outline: none; transition: border-color .2s;
+}
+.set-input:focus { border-color: rgba(233,190,110,0.45); }
+.hint { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
+.set-save {
+  width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 12px;
+  background: linear-gradient(180deg, #F6DCA8, #C99B4E); color: #2A1B06;
+  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 8px 22px rgba(0,0,0,0.3);
+}
+.set-save:active { transform: translateY(1px); }
+
+@media (max-width: 560px) {
+  body { padding-left: 14px; padding-right: 14px; }
+  .hero { padding: 19px; }
+  .hero-row { gap: 15px; }
+  .orb { width: 74px; height: 74px; }
+  .orb-lvl { font-size: 27px; }
+  .hero-name { font-size: 24px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .log-when { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xp-fill::after { animation: none; }
+  .xp-fill, .skill-fill, .quest-fill { transition: none; }
+  body::before { animation: none; }
+}
+</style>
+</head>
+<body data-rpg-no-plate>
+<div class="page">
+
+  <!-- ===== Hero banner ===== -->
+  <section class="card hero">
+    <div class="hero-row">
+      <div class="orb">
+        <span class="orb-lvl" id="heroLevel">1</span>
+        <span class="orb-cap" id="heroRank">Wanderer</span>
+      </div>
+      <div class="hero-id">
+        <h1 class="hero-name">
+          <span id="heroName">Icis</span>
+          <button class="hero-edit" id="heroEdit" type="button" aria-label="Rename character">✎</button>
+        </h1>
+        <div class="hero-class" id="heroClass"></div>
+      </div>
+    </div>
+    <div class="hero-xp">
+      <div class="xp-line">
+        <span class="xp-label" id="heroNext">Experience</span>
+        <span class="xp-nums" id="heroXp">0 / 100</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="heroFill"></div></div>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="card stat"><div class="stat-val" id="statPower">0</div><div class="stat-key">Power</div></div>
+    <div class="card stat"><div class="stat-val" id="statStreak">0</div><div class="stat-key">Streak</div></div>
+    <div class="card stat"><div class="stat-val" id="statQuests">0/5</div><div class="stat-key">Quests</div></div>
+    <div class="card stat"><div class="stat-val" id="statTrophies">0</div><div class="stat-key">Trophies</div></div>
+  </div>
+
+  <!-- ===== Skills ===== -->
+  <div class="sec-head">
+    <span class="sec-title">Disciplines</span>
+    <span class="sec-meta" id="skillMeta"></span>
+  </div>
+  <div class="skills" id="skills"></div>
+
+  <!-- ===== Daily quests ===== -->
+  <div class="sec-head">
+    <span class="sec-title">Daily Quests</span>
+    <span class="sec-meta" id="dailyMeta"></span>
+  </div>
+  <div class="quests" id="dailyQuests"></div>
+
+  <!-- ===== Weekly quests ===== -->
+  <div class="sec-head">
+    <span class="sec-title">Weekly Contracts</span>
+    <span class="sec-meta" id="weeklyMeta"></span>
+  </div>
+  <div class="quests" id="weeklyQuests"></div>
+
+  <!-- ===== Trophies ===== -->
+  <div class="sec-head">
+    <span class="sec-title">Hall of Trophies</span>
+    <span class="sec-meta" id="trophyMeta"></span>
+  </div>
+  <div class="trophies" id="trophies"></div>
+
+  <!-- ===== Combat log ===== -->
+  <div class="sec-head">
+    <span class="sec-title">Chronicle</span>
+    <span class="sec-meta">most recent first</span>
+  </div>
+  <section class="card log" id="log"></section>
+
+</div>
+
+<!-- ===== Rename ===== -->
+<div class="modal-bg" id="nameBg">
+  <div class="modal" role="dialog" aria-label="Character">
+    <div class="modal-head">
+      <span class="modal-title">Your Character</span>
+      <button class="modal-close" id="nameClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="field">
+      <label class="field-label" for="nameInput">Name</label>
+      <input class="set-input" id="nameInput" type="text" maxlength="24" placeholder="Icis" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="field-label" for="classInput">Class</label>
+      <input class="set-input" id="classInput" type="text" maxlength="24" placeholder="auto" autocomplete="off">
+      <div class="hint" id="classHint"></div>
+    </div>
+    <button class="set-save" id="nameSave" type="button">Save</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  function fmt(n) { return Math.round(Number(n) || 0).toLocaleString(); }
+
+  function ago(ts) {
+    const s = Math.max(0, (Date.now() - ts) / 1000);
+    if (s < 3600) return Math.floor(s / 60) + 'm';
+    if (s < 86400) return Math.floor(s / 3600) + 'h';
+    const d = Math.floor(s / 86400);
+    if (d < 7) return d + 'd';
+    if (d < 365) return Math.floor(d / 7) + 'w';
+    return Math.floor(d / 365) + 'y';
+  }
+
+  // Build a node tree rather than innerHTML — goal text and project names are
+  // user input and must never be parsed as markup.
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function renderHero(s) {
+    $('heroLevel').textContent = s.level;
+    $('heroRank').textContent = s.rank.sigil + ' ' + s.rank.name;
+    $('heroName').textContent = s.name;
+    $('heroXp').textContent = fmt(s.into) + ' / ' + fmt(s.need);
+    $('heroFill').style.width = (s.pct * 100).toFixed(1) + '%';
+    $('heroNext').textContent = s.nextRank
+      ? 'Next rank · ' + s.nextRank.name + ' at ' + s.nextRank.at
+      : 'Maximum rank reached';
+
+    const cls = $('heroClass');
+    cls.textContent = '';
+    cls.appendChild(el('b', null, s.className));
+    cls.appendChild(document.createTextNode(' · ' + fmt(s.totalXp) + ' total XP earned'));
+
+    $('statPower').textContent = fmt(s.power);
+    $('statStreak').textContent = s.skills.resolve.stats.streak;
+    $('statQuests').textContent = s.questsDone + '/' + s.quests.daily.length;
+    $('statTrophies').textContent = s.trophies + '/' + s.achievements.length;
+  }
+
+  // One line of headline detail per discipline, pulled from that page's data.
+  function skillLine(sk) {
+    const st = sk.stats;
+    switch (sk.id) {
+      case 'resolve':  return fmt(st.goalsDone) + ' goals · ' + fmt(st.perfectDays) + ' perfect days';
+      case 'might':    return fmt(st.sessions) + ' sessions · ' + fmt(st.volume) + ' ' + st.units;
+      case 'vitality': return fmt(st.hitDays) + ' hydrated days · ' + fmt(st.cleanDays) + ' clean days';
+      case 'arcana':   return fmt(st.tasksDone) + ' tasks · ' + fmt(st.projectsDone) + ' shipped';
+      case 'fortune':  return fmt(st.snapshots) + ' snapshots · ' + fmt(st.moves) + ' moves';
+      default:         return '';
+    }
+  }
+
+  function renderSkills(s) {
+    const wrap = $('skills');
+    wrap.textContent = '';
+    s.skillList.forEach(sk => {
+      const a = el('a', 'card skill');
+      a.href = sk.page;
+      a.style.setProperty('--c', sk.color);
+
+      const top = el('div', 'skill-top');
+      top.appendChild(el('span', 'skill-glyph', sk.glyph));
+      top.appendChild(el('span', 'skill-name', sk.name));
+      top.appendChild(el('span', 'skill-lvl', 'LV ' + sk.level));
+      a.appendChild(top);
+
+      const track = el('div', 'skill-track');
+      const fill = el('div', 'skill-fill');
+      track.appendChild(fill);
+      a.appendChild(track);
+
+      const foot = el('div', 'skill-foot');
+      foot.appendChild(el('span', 'skill-stat', skillLine(sk)));
+      foot.appendChild(el('span', 'skill-xp', fmt(sk.into) + '/' + fmt(sk.need)));
+      a.appendChild(foot);
+
+      wrap.appendChild(a);
+      requestAnimationFrame(() => { fill.style.width = (sk.pct * 100).toFixed(1) + '%'; });
+    });
+
+    const top = s.skillList.slice().sort((a, b) => b.level - a.level)[0];
+    $('skillMeta').textContent = top ? 'highest · ' + top.name + ' LV ' + top.level : '';
+  }
+
+  function renderQuests(list, mountId, metaId, label) {
+    const wrap = $(mountId);
+    wrap.textContent = '';
+    list.forEach(q => {
+      const row = el('div', 'card quest' + (q.complete ? ' done' : ''));
+      row.appendChild(el('div', 'quest-mark', q.complete ? '✓' : '·'));
+
+      const body = el('div', 'quest-body');
+      body.appendChild(el('div', 'quest-name', q.name));
+      body.appendChild(el('div', 'quest-desc', q.desc));
+      const track = el('div', 'quest-track');
+      const fill = el('div', 'quest-fill');
+      track.appendChild(fill);
+      body.appendChild(track);
+      row.appendChild(body);
+
+      const rew = el('div', 'quest-reward', '+' + q.reward);
+      rew.appendChild(el('small', null, 'XP'));
+      row.appendChild(rew);
+
+      wrap.appendChild(row);
+      requestAnimationFrame(() => { fill.style.width = (q.pct * 100).toFixed(1) + '%'; });
+    });
+    const done = list.filter(q => q.complete).length;
+    $(metaId).textContent = done + ' / ' + list.length + ' ' + label;
+  }
+
+  function renderTrophies(s) {
+    const wrap = $('trophies');
+    wrap.textContent = '';
+    // Unlocked first, then the closest to unlocking — so the next goal is visible.
+    const sorted = s.achievements.slice().sort((a, b) => {
+      if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+      return b.pct - a.pct;
+    });
+    sorted.forEach(t => {
+      const c = el('div', 'card trophy' + (t.unlocked ? ' got' : ''));
+      c.appendChild(el('div', 'trophy-glyph', t.glyph));
+      c.appendChild(el('div', 'trophy-name', t.name));
+      c.appendChild(el('div', 'trophy-desc', t.desc));
+      if (!t.unlocked) {
+        c.appendChild(el('div', 'trophy-prog', fmt(t.have) + ' / ' + fmt(t.need)));
+      }
+      c.title = t.desc;
+      wrap.appendChild(c);
+    });
+    $('trophyMeta').textContent = s.trophies + ' of ' + s.achievements.length + ' claimed';
+  }
+
+  function renderLog(s) {
+    const wrap = $('log');
+    wrap.textContent = '';
+    if (!s.events.length) {
+      wrap.appendChild(el('div', 'empty', 'No deeds recorded yet. Go do something.'));
+      return;
+    }
+    const byId = {};
+    s.skillList.forEach(sk => { byId[sk.id] = sk; });
+    s.events.slice(0, 24).forEach(e => {
+      const sk = byId[e.skill];
+      const row = el('div', 'log-row');
+      row.appendChild(el('span', 'log-glyph', sk ? sk.glyph : '·'));
+      row.appendChild(el('span', 'log-text', e.text));
+      row.appendChild(el('span', 'log-xp', '+' + e.xp));
+      row.appendChild(el('span', 'log-when', ago(e.ts)));
+      wrap.appendChild(row);
+    });
+  }
+
+  function render(s) {
+    if (!s) return;
+    renderHero(s);
+    renderSkills(s);
+    renderQuests(s.quests.daily, 'dailyQuests', 'dailyMeta', 'complete');
+    renderQuests(s.quests.weekly, 'weeklyQuests', 'weeklyMeta', 'complete');
+    renderTrophies(s);
+    renderLog(s);
+  }
+
+  /* ---------- rename ---------- */
+  function openName() {
+    const s = window.RPG && window.RPG.state;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('rpg:hero')) || {}; } catch (e) {}
+    $('nameInput').value = saved.name || '';
+    $('classInput').value = saved.className || '';
+    $('classHint').textContent = s
+      ? 'Leave blank to track your strongest discipline (currently ' + s.derivedClass + ').'
+      : 'Leave blank to track your strongest discipline.';
+    $('nameBg').classList.add('show');
+    $('nameInput').focus();
+  }
+  function closeName() { $('nameBg').classList.remove('show'); }
+  function saveName() {
+    const name = $('nameInput').value.trim();
+    const className = $('classInput').value.trim();
+    const out = {};
+    if (name) out.name = name;
+    if (className) out.className = className;
+    try { localStorage.setItem('rpg:hero', JSON.stringify(out)); } catch (e) {}
+    closeName();
+    if (window.RPG) render(window.RPG.refresh());
+  }
+
+  $('heroEdit').addEventListener('click', openName);
+  $('nameClose').addEventListener('click', closeName);
+  $('nameSave').addEventListener('click', saveName);
+  $('nameBg').addEventListener('click', (e) => { if (e.target === $('nameBg')) closeName(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeName();
+    if (e.key === 'Enter' && $('nameBg').classList.contains('show')) saveName();
+  });
+
+  /* ---------- boot ---------- */
+  // rpg.js fires this once it has computed, and again on every refresh.
+  document.addEventListener('rpg:update', (e) => render(e.detail));
+  if (window.RPG && window.RPG.state) render(window.RPG.state);
+
+  // sync.js is deferred, so it isn't defined while this inline script parses.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'rpg',
+      syncedKeys: ['rpg:hero', 'rpg:archive'],
+      onApplied: function () { if (window.RPG) render(window.RPG.refresh()); },
+    });
+  });
+})();
+</script>
+</body>
+</html>
