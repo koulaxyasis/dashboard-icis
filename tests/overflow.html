@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+})();
+</script>
+<title>overflow probe</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px}pre{white-space:pre-wrap;padding:10px}</style>
+</head>
+<body>
+<pre id="out">pending…</pre>
+<script>
+// Names the exact elements sticking out past the viewport, so a failing
+// width in smoke.html can be traced to a specific rule.
+var PAGE = new URLSearchParams(location.search).get('p') || '../index.html';
+var W = Number(new URLSearchParams(location.search).get('w') || 320);
+var f = document.createElement('iframe');
+f.style.width = W + 'px'; f.style.height = '900px';
+f.src = PAGE;
+f.addEventListener('load', function () {
+  setTimeout(function () {
+    var d = f.contentWindow.document;
+    var vw = d.documentElement.clientWidth;
+    var L = ['page=' + PAGE, 'width=' + W, 'viewport=' + vw,
+             'scrollWidth=' + Math.max(d.documentElement.scrollWidth, d.body.scrollWidth)];
+    var bad = [];
+    d.querySelectorAll('*').forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.right > vw + 0.5 || r.width > vw + 0.5) {
+        var depth = 0, n = el;
+        while (n.parentElement) { depth++; n = n.parentElement; }
+        bad.push({ d: depth, tag: el.tagName.toLowerCase(),
+          cls: (el.className || '').toString().slice(0, 46), id: el.id,
+          w: Math.round(r.width), right: Math.round(r.right), sw: el.scrollWidth });
+      }
+    });
+    bad.sort(function (a, b) { return a.d - b.d; });
+    bad.slice(0, 30).forEach(function (b) {
+      L.push('d' + b.d + ' ' + b.tag + (b.id ? '#' + b.id : '') + (b.cls ? '.' + b.cls : '') +
+             '  w=' + b.w + ' right=' + b.right + ' scrollW=' + b.sw);
+    });
+    L.push('offenders=' + bad.length);
+    document.getElementById('out').textContent = L.join('\n');
+  }, 1300);
+});
+document.body.appendChild(f);
+</script>
+</body></html>

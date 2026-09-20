@@ -209,17 +209,20 @@
   /* ---------- banner ---------- */
   function renderBanner() {
     var t = GS.totals(), s = GS.get();
-    $('portrait').innerHTML = HA.framed({
-      portrait: s.player.portrait, border: s.player.border,
-      background: s.player.background, size: 84
-    });
+    var st = GS.streakInfo();
+    $('portrait').innerHTML = HA.fromState(s, 84);
     $('bName').textContent = t.name;
     $('bTitle').textContent = t.title || 'Adventurer';
     $('bMeta').innerHTML =
       UI.rankBadge(t.rank) +
       '<span class="chip on">' + UI.esc(t.rank.name) + '</span>' +
       '<span class="chip">' + UI.esc(t.className) + '</span>' +
-      '<span class="chip">Score ' + UI.fmt(t.score) + '</span>';
+      '<span class="chip">Score ' + UI.fmt(t.score) + '</span>' +
+      '<span class="chip' + (st.count ? ' ok' : '') + '">' + st.count + '-day streak</span>' +
+      '<span class="chip' + (st.shields ? ' on' : '') + '" title="One shield is spent automatically to cover a day that would otherwise break your streak. Earned every ' +
+        st.every + ' days, up to ' + st.maxShields + '.">' +
+        st.shields + '/' + st.maxShields + ' shields</span>' +
+      (st.isRestToday ? '<span class="chip ok">rest day</span>' : '');
     $('bXp').textContent = UI.fmt(t.into) + ' / ' + UI.fmt(t.need);
     $('bFill').style.width = (t.pct * 100).toFixed(1) + '%';
     $('bNext').textContent = t.nextRank

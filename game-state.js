@@ -169,9 +169,24 @@
         portrait: 'aurora',
         border: 'plain',
         background: 'deepnight',
+        // Six cosmetic slots. Purely visual — nothing here is ever read
+        // by the progression code, which is asserted by the test suite.
+        equipment: {
+          portrait: 'aurora',
+          border: 'plain',
+          background: 'deepnight',
+          title: '',
+          tool: 'none',
+          companion: 'none'
+        },
         unlockedTitles: [],
         unlockedCosmetics: []
       },
+      // Streak protection. `used` is keyed by the missed DAY, which is what
+      // stops the same gap consuming a second shield on a later reload.
+      streak: { shields: 0, used: {}, earned: {}, restDays: {}, seeded: false },
+      questCustom: [],          // user-authored templates
+      questOverrides: {},       // patches over the shipped 100
       career: { chapters: {}, skills: {}, lastActionAt: 0, evidence: [] },
       quests: { date: '', list: [], mode: 'normal', rerollUsed: false, rolledOver: null, previewDate: '' },
       questHistory: {},          // date -> { list:[{id,done,xp}], mode }
@@ -201,8 +216,24 @@
     // blank state and fall through rather than returning early.
     if (!s || typeof s !== 'object') { s = blank(); changed = true; }
 
-    // Fill in anything a newer schema added.
     var base = blank();
+
+    // Fold the old flat cosmetic fields into the equipment object BEFORE
+    // the generic schema fill below — otherwise that fill would create a
+    // default `equipment` and the user's existing choices would be lost.
+    if (s.player && typeof s.player === 'object' && !s.player.equipment) {
+      s.player.equipment = {
+        portrait: s.player.portrait || 'aurora',
+        border: s.player.border || 'plain',
+        background: s.player.background || 'deepnight',
+        title: s.player.title || '',
+        tool: 'none',
+        companion: 'none'
+      };
+      changed = true;
+    }
+
+    // Fill in anything a newer schema added.
     Object.keys(base).forEach(function (k) {
       if (!(k in s)) { s[k] = base[k]; changed = true; }
     });
@@ -228,6 +259,34 @@
         if (!s.goalArchive[d]) { s.goalArchive[d] = archive[d]; changed = true; }
       });
     }
+    // Backfill any individual slot a partially-built equipment object is
+    // missing (e.g. state written before tool/companion existed).
+    if (!s.player.equipment) { s.player.equipment = {}; changed = true; }
+    var eq = s.player.equipment;
+    if (!eq.portrait)   { eq.portrait = s.player.portrait || 'aurora'; changed = true; }
+    if (!eq.border)     { eq.border = s.player.border || 'plain'; changed = true; }
+    if (!eq.background) { eq.background = s.player.background || 'deepnight'; changed = true; }
+    if (eq.title == null)  { eq.title = s.player.title || ''; changed = true; }
+    if (!eq.tool)       { eq.tool = 'none'; changed = true; }
+    if (!eq.companion)  { eq.companion = 'none'; changed = true; }
+
+    // Streak sub-object, and a one-time seed from the goals page's own
+    // counter so an existing streak is not reset to zero by the upgrade.
+    if (!s.streak || typeof s.streak !== 'object') { s.streak = base.streak; changed = true; }
+    ['used', 'earned', 'restDays'].forEach(function (k) {
+      if (!s.streak[k] || typeof s.streak[k] !== 'object') { s.streak[k] = {}; changed = true; }
+    });
+    if (typeof s.streak.shields !== 'number') { s.streak.shields = 0; changed = true; }
+    if (!s.streak.seeded) {
+      var legacy = readJSON('goal_streak_v1', null);
+      s.streak.legacyBaseline = (legacy && num(legacy.count)) || 0;
+      s.streak.seeded = true;
+      changed = true;
+    }
+
+    if (!Array.isArray(s.questCustom)) { s.questCustom = []; changed = true; }
+    if (!s.questOverrides || typeof s.questOverrides !== 'object') { s.questOverrides = {}; changed = true; }
+
     if (s.v !== SCHEMA) { s.v = SCHEMA; changed = true; }
     return { state: s, changed: changed };
   }
@@ -413,7 +472,20 @@
     var hist = readJSON('nw:history', []) || [];
     var acts = readJSON('nw:activity', []) || [];
     if (Array.isArray(hist) && hist.length) {
-      if (put('nw:snapshots', hist.length * XP.nwSnapshot, 'fortune')) changed = true;
+      // One entry per DAY that has a snapshot, not per snapshot row —
+      // and the FIRST row never counts. finance.html writes that first
+      // snapshot automatically the first time it is opened, so paying for
+      // it would be paying for a page visit. Every later row exists only
+      // because the recorded net worth actually moved.
+      var meaningful = hist.slice(1);
+      var snapDays = {};
+      meaningful.forEach(function (h) {
+        if (h && h.t) snapDays[dateKey(new Date(num(h.t)))] = true;
+      });
+      Object.keys(snapDays).forEach(function (d) {
+        if (put('nw:snap:' + d, XP.nwSnapshot, 'fortune')) changed = true;
+      });
+      if (drop('nw:snapshots')) changed = true;   // retire the old aggregate key
       var growth = hist.length >= 2 ? num(hist[hist.length - 1].v) - num(hist[0].v) : 0;
       var gx = growth > 0 ? Math.min(XP.growthCap, Math.floor(growth / XP.growthPer)) : 0;
       if (gx > 0) { if (put('nw:growth', gx, 'fortune')) changed = true; }
@@ -425,6 +497,135 @@
 
     if (changed) save();
     return changed;
+  }
+
+  // ---------------------------------------------------------------
+  // Streaks and shields
+  //
+  // ONE streak, computed here, read by every page — the goals page's own
+  // `goal_streak_v1` is only used once, as a starting baseline.
+  //
+  // A day counts toward the streak when it is:
+  //   perfect   every goal set that day was completed
+  //   rest      the user marked it a scheduled rest day (costs nothing)
+  //   shielded  a shield was spent to cover it
+  //
+  // Shields: one is earned at every SHIELD_EVERY-th day of streak, capped
+  // at SHIELD_MAX held. When the walk back hits a missed day and a shield
+  // is available it is spent and the day is recorded in `streak.used`.
+  // Because the record is keyed by the MISSED DAY, re-running this a
+  // hundred times can never spend a second shield on the same gap.
+  // ---------------------------------------------------------------
+  var SHIELD_MAX = 3;
+  var SHIELD_EVERY = 7;
+  var STREAK_LOOKBACK = 400;
+
+  function dayStatus(s, date) {
+    if (s.streak.restDays[date]) return 'rest';
+    var a = s.goalArchive[date];
+    if (a && num(a.t) > 0 && num(a.d) === num(a.t)) return 'perfect';
+    if (a && num(a.t) > 0) return 'partial';
+    return 'empty';
+  }
+
+  // Earning is derived from the streak length reached, keyed so a given
+  // milestone grants exactly one shield ever.
+  function grantShields(s, streakLen) {
+    var granted = 0;
+    for (var n = SHIELD_EVERY; n <= streakLen; n += SHIELD_EVERY) {
+      var key = 'streak' + n;
+      if (!s.streak.earned[key]) {
+        s.streak.earned[key] = { at: Date.now(), n: n };
+        if (s.streak.shields < SHIELD_MAX) s.streak.shields++;
+        s.ledger['shield:earn:' + key] = {
+          xp: 0, disc: 'resolve', at: Date.now(),
+          text: 'Streak shield earned at ' + n + ' days'
+        };
+        granted++;
+      }
+    }
+    return granted;
+  }
+
+  function streakInfo(opts) {
+    var s = load();
+    var commit = !(opts && opts.dryRun);
+    var today = (opts && opts.today) || todayKey();
+    var changed = false;
+
+    // Today is still in progress, so an unfinished today never breaks the
+    // chain — start the walk at yesterday unless today already qualifies.
+    var cursor = today;
+    var todaysStatus = dayStatus(s, today);
+    if (todaysStatus !== 'perfect' && todaysStatus !== 'rest') cursor = shiftKey(today, -1);
+
+    // Stop at the first day you ever tracked. Without this the walk runs
+    // back through pre-history, where every day reads as "missed", and
+    // burns shields covering days before you started.
+    var tracked = Object.keys(s.goalArchive).concat(Object.keys(s.streak.restDays)).sort();
+    var earliest = tracked.length ? tracked[0] : null;
+
+    var count = 0, restUsed = 0, shieldsSpent = [];
+    for (var i = 0; i < STREAK_LOOKBACK; i++) {
+      if (earliest && cursor < earliest) break;
+      var st = dayStatus(s, cursor);
+      if (st === 'perfect') { count++; }
+      else if (st === 'rest') { count++; restUsed++; }
+      else if (s.streak.used[cursor]) { count++; shieldsSpent.push(cursor); }
+      else if (s.streak.shields > 0) {
+        // Spend one, and remember WHICH day it covered.
+        if (commit) {
+          s.streak.shields--;
+          s.streak.used[cursor] = { at: Date.now(), on: cursor };
+          s.ledger['shield:use:' + cursor] = {
+            xp: 0, disc: 'resolve', at: Date.now(),
+            text: 'Streak shield spent to cover ' + cursor
+          };
+          changed = true;
+        }
+        count++; shieldsSpent.push(cursor);
+      } else break;
+      cursor = shiftKey(cursor, -1);
+    }
+
+    // Anyone upgrading mid-streak keeps the number the goals page showed.
+    var baseline = num(s.streak.legacyBaseline);
+    if (baseline > count && Object.keys(s.goalArchive).length < 2) count = baseline;
+
+    if (commit && grantShields(s, count) > 0) changed = true;
+    if (commit && changed) save();
+
+    return {
+      count: count,
+      shields: s.streak.shields,
+      maxShields: SHIELD_MAX,
+      every: SHIELD_EVERY,
+      spent: shieldsSpent,
+      restDays: restUsed,
+      nextShieldAt: (Math.floor(count / SHIELD_EVERY) + 1) * SHIELD_EVERY,
+      todayStatus: todaysStatus,
+      isRestToday: todaysStatus === 'rest'
+    };
+  }
+
+  function setRestDay(date, on) {
+    var s = load();
+    var d = date || todayKey();
+    if (on) {
+      s.streak.restDays[d] = { at: Date.now() };
+      // A rest day costs nothing, so refund a shield already spent on it.
+      if (s.streak.used[d]) {
+        delete s.streak.used[d];
+        delete s.ledger['shield:use:' + d];
+        if (s.streak.shields < SHIELD_MAX) s.streak.shields++;
+      }
+      s.ledger['rest:' + d] = { xp: 0, disc: 'vitality', at: Date.now(), text: 'Rest day taken — ' + d };
+    } else {
+      delete s.streak.restDays[d];
+      delete s.ledger['rest:' + d];
+    }
+    save();
+    return streakInfo();
   }
 
   // ---------------------------------------------------------------
@@ -527,6 +728,9 @@
 
     get: load,
     save: save,
+    // Drop the in-memory copy and re-read from storage, running migration
+    // again. This is what a fresh page load does.
+    reload: function () { cache = null; return load(); },
     update: function (fn) { var s = load(); fn(s); save(); return s; },
     reset: function () { cache = blank(); save(); },
 
@@ -537,6 +741,11 @@
 
     totals: totals,
     chronicle: chronicle,
+    streakInfo: streakInfo,
+    setRestDay: setRestDay,
+    dayStatus: function (d) { return dayStatus(load(), d); },
+    SHIELD_MAX: SHIELD_MAX,
+    SHIELD_EVERY: SHIELD_EVERY,
     subscribe: subscribe,
     notify: notify,
 

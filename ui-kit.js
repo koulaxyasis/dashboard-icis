@@ -142,7 +142,10 @@ body.icis::before {
 .sub { font-size: 12px; color: var(--text-3); }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-.sec { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 0 12px; }
+/* Wraps: section headers carry controls (mode switch, reroll, links) that
+   do not fit beside the label on a narrow phone. */
+.sec { display: flex; align-items: baseline; justify-content: space-between;
+       gap: 8px 12px; margin: 26px 0 12px; flex-wrap: wrap; }
 .sec-t { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
 .sec-m { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
 

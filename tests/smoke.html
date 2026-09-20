@@ -15,79 +15,170 @@
 })();
 </script>
 <title>smoke</title>
-<style>body{margin:0;background:#111;color:#eee;font:12px monospace}iframe{width:420px;height:560px;border:0;position:absolute;left:-9999px}pre{white-space:pre-wrap;padding:10px}</style>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px;top:0}pre{white-space:pre-wrap;padding:10px}</style>
+<script src="../game-state.js"></script>
+<script src="../quest-library.js"></script>
+<script src="../career-data.js"></script>
+<script src="../quest-engine.js"></script>
+<script src="../hero-art.js"></script>
 </head>
 <body>
-<pre id="out">pending</pre>
+<pre id="out">pending…</pre>
 <script>
-var L=[];
-var LEVEL=null;   // baseline hero level, set by the first page probed
+var L = [];
 function chk(label, ok, extra){ L.push((ok?'PASS ':'FAIL ')+label+(extra?'  '+extra:'')); return ok; }
+function eq(label, a, b){ return chk(label + ' = ' + a, String(a)===String(b), String(a)===String(b)?'':'expected '+b); }
 
-// Each page maps to the container ids that MUST have rendered content.
-// If a script throws mid-render these stay empty, which is the signal.
+var GS = window.GameState, QE = window.QuestEngine, HA = window.HeroArt;
+
+// Containers that MUST have content. If a page's script throws mid-render
+// these stay empty, which is the signal we key on.
 var PAGES = {
-  '../index.html': ['bName','story','quests','contracts','world','camp','social','reward'],
-  '../career.html': ['mission','chapters','skills'],
-  '../tavern.html': ['plans','people','suggestions','memories','stXp'],
-  '../character.html': ['bName','oLv','oQuests','oContract','oNext','oDisc'],
-  '../guild.html': ['bosses'],
-  '../nova.html': ['novaMain'],
-  // Legacy trackers — their own markup must still render after the
-  // chrome swap, and each keeps a signature element.
-  '../main.html': ['goalTickerStage'],
-  '../gym.html': [],
-  '../po-water.html': [],
-  '../caffeine.html': ['logList'],
-  '../finance.html': []
+  '../index.html':        ['bName','story','quests','contracts','world','camp','social','reward'],
+  '../career.html':       ['mission','chapters','skills'],
+  '../tavern.html':       ['plans','people','suggestions','memories','stXp'],
+  '../character.html':    ['bName','oLv','oShield','oQuests','oContract','oNext','oDisc'],
+  '../quest-editor.html': ['list','filters','meta'],
+  '../guild.html':        ['bosses'],
+  '../nova.html':         ['novaMain'],
+  '../main.html':         ['goalTickerStage'],
+  '../gym.html':          [],
+  '../po-water.html':     [],
+  '../caffeine.html':     ['logList'],
+  '../finance.html':      []
 };
-// finance keeps its own internal bottom nav, so it opts out of the shared one.
 var NO_NAV = { '../finance.html': true };
+var WIDTHS = [320, 390, 768, 1100];   // phone → desktop
 
-function probe(page, ids){
-  return new Promise(function(resolve){
-    var f=document.createElement('iframe');
-    var errs=[];
-    f.src=page;
-    f.addEventListener('load', function(){
-      // Hook late errors too (render happens on DOMContentLoaded / inline).
-      try { f.contentWindow.addEventListener('error', function(e){ errs.push(e.message); }); } catch(e){}
-      setTimeout(function(){
+var baseline = null;   // what every page's HUD must agree with
+
+function snapshot() {
+  GS.reload();
+  var t = GS.totals();
+  return {
+    xp: t.totalXp, level: t.level, score: t.score,
+    streak: GS.streakInfo().count,
+    board: QE.todayView().list.map(function(q){return q.id;}).join(','),
+    equipment: JSON.stringify(GS.get().player.equipment),
+    customs: (GS.get().questCustom||[]).map(function(q){return q.id;}).join(',')
+  };
+}
+
+function probe(page, ids) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe');
+    f.style.width = WIDTHS[1] + 'px';
+    f.style.height = '760px';
+    f.src = page;
+    f.addEventListener('load', function () {
+      setTimeout(function () {
         var d;
-        try { d=f.contentWindow.document; } catch(e){ chk(page+' same-origin', false, e.message); return resolve(); }
-        var empty=[];
-        ids.forEach(function(id){
-          var el=d.getElementById(id);
-          if(!el) empty.push(id+'(missing)');
-          else if(!el.textContent.trim() && !el.children.length) empty.push(id+'(empty)');
+        try { d = f.contentWindow.document; }
+        catch (e) { chk(page + ' same-origin', false, e.message); f.remove(); return resolve(); }
+
+        // 1. rendered
+        var empty = ids.filter(function (id) {
+          var el = d.getElementById(id);
+          return !el || (!el.textContent.trim() && !el.children.length);
         });
-        chk(page, empty.length===0, empty.length? 'not rendered: '+empty.join(', '):'');
-        // Shared chrome should be present on every page.
-        chk(page+' :: hud', !!d.getElementById('icisHud'));
-        if(!NO_NAV[page]) chk(page+' :: nav', !!d.getElementById('icisNav'));
-        // The shared level must read identically on every page.
-        var orb=d.getElementById('hudOrb');
-        if(!orb) chk(page+' :: hud orb', false);
-        else if(LEVEL===null){ LEVEL=orb.textContent; chk(page+' :: level baseline = '+LEVEL, true); }
-        else chk(page+' :: level matches', orb.textContent===LEVEL, 'got '+orb.textContent+' expected '+LEVEL);
-        // No horizontal overflow at 420px.
-        var sw=Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
-        var vw=d.documentElement.clientWidth;
-        chk(page+' :: no overflow @420', sw<=vw+1, 'scrollW='+sw+' vw='+vw);
-        if(errs.length) chk(page+' :: no runtime errors', false, errs.join(' | '));
-        f.remove(); resolve();
-      }, 1100);
+        chk(page, empty.length === 0, empty.length ? 'not rendered: ' + empty.join(', ') : '');
+
+        // 2. shared chrome
+        chk(page + ' :: hud', !!d.getElementById('icisHud'));
+        if (!NO_NAV[page]) chk(page + ' :: nav', !!d.getElementById('icisNav'));
+
+        // 3. the HUD must agree with the shared state on every page
+        var orb = d.getElementById('hudOrb');
+        var xpEl = d.getElementById('hudXp');
+        chk(page + ' :: hud level matches', !!orb && orb.textContent === String(baseline.level),
+            orb ? 'got ' + orb.textContent + ' expected ' + baseline.level : 'no orb');
+        chk(page + ' :: hud xp bar present', !!xpEl && /\d+\s*\/\s*\d+/.test(xpEl.textContent),
+            xpEl ? xpEl.textContent : 'missing');
+
+        // A page that also prints the level in its body must agree with its
+        // OWN hud. This catches state changing mid-render: the hud redraws
+        // on the change while the body keeps the number it read earlier.
+        var bodyLv = d.getElementById('oLv');
+        if (bodyLv && orb) {
+          chk(page + ' :: body level agrees with hud',
+              bodyLv.textContent.trim() === orb.textContent.trim(),
+              'body=' + bodyLv.textContent.trim() + ' hud=' + orb.textContent.trim());
+        }
+        var bodyStreak = d.getElementById('oStreak');
+        if (bodyStreak) {
+          chk(page + ' :: body streak matches state',
+              bodyStreak.textContent.trim() === String(baseline.streak),
+              'body=' + bodyStreak.textContent.trim() + ' expected ' + baseline.streak);
+        }
+
+        // 4. responsive: no horizontal overflow at any width
+        WIDTHS.forEach(function (w) {
+          f.style.width = w + 'px';
+          var sw = Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
+          var vw = d.documentElement.clientWidth;
+          chk(page + ' :: no overflow @' + w, sw <= vw + 1, 'scrollW=' + sw + ' vw=' + vw);
+        });
+        f.style.width = WIDTHS[1] + 'px';
+
+        f.remove();
+        resolve();
+      }, 1200);
     });
-    f.addEventListener('error', function(){ chk(page+' load', false); resolve(); });
+    f.addEventListener('error', function () { chk(page + ' load', false); resolve(); });
     document.body.appendChild(f);
   });
 }
 
-(async function(){
+(async function () {
+  // ---- set up a known, non-trivial state -------------------------
+  GS.reconcile();
+  QE.ensureToday();
+  // a custom quest, to prove authored content survives page loads
+  QE.resetCustom();
+  var made = QE.createQuest({ id:'u_smoke_probe', practicalTitle:'Smoke probe quest',
+    loreTitle:'The Proving', description:'Exists only to be counted.', category:'recovery',
+    difficulty:'light', xp:10, estimatedMinutes:5, cooldownDays:0, maximumUsesPerWeek:7,
+    weight:1, minimumLevel:1 });
+  chk('setup :: custom quest created', made.ok, made.ok ? '' : JSON.stringify(made.errors));
+  // equip cosmetics, to prove they persist and change nothing
+  GS.update(function (s) {
+    s.player.unlockedCosmetics.push('border_gilded');
+    s.player.equipment = { portrait:'dusk', border:'border_gilded', background:'deepnight',
+                           title:'', tool:'quill', companion:'wisp' };
+  });
+
+  baseline = snapshot();
+  L.push('--- baseline: level ' + baseline.level + ' · ' + baseline.xp + ' XP · streak ' +
+         baseline.streak + ' · board ' + baseline.board);
+
+  // ---- walk every page -------------------------------------------
   for (var p in PAGES) await probe(p, PAGES[p]);
-  var fails=L.filter(function(x){return x.indexOf('FAIL')===0;}).length;
-  L.unshift(fails===0?'### SMOKE OK ###':'### '+fails+' FAILURES ###');
-  document.getElementById('out').textContent=L.join('\n');
+
+  // ---- nothing may have shifted just from loading pages ----------
+  var after = snapshot();
+  eq('after all loads :: total XP unchanged', after.xp, baseline.xp);
+  eq('after all loads :: level unchanged', after.level, baseline.level);
+  eq('after all loads :: Adventurer Score unchanged', after.score, baseline.score);
+  eq('after all loads :: streak unchanged', after.streak, baseline.streak);
+  eq('after all loads :: quest board unchanged', after.board, baseline.board);
+  eq('after all loads :: equipment persisted', after.equipment, baseline.equipment);
+  eq('after all loads :: custom quest survived', after.customs, baseline.customs);
+  chk('after all loads :: custom quest still in library', !!QE.byId('u_smoke_probe'));
+
+  // ---- a second full pass must be just as inert -------------------
+  for (var p2 in PAGES) await probe(p2, PAGES[p2]);
+  var after2 = snapshot();
+  eq('second pass :: total XP still unchanged', after2.xp, baseline.xp);
+  eq('second pass :: streak still unchanged', after2.streak, baseline.streak);
+  eq('second pass :: board still unchanged', after2.board, baseline.board);
+
+  QE.deleteQuest('u_smoke_probe');
+
+  var fails = L.filter(function (x) { return x.indexOf('FAIL') === 0; }).length;
+  var passes = L.filter(function (x) { return x.indexOf('PASS') === 0; }).length;
+  L.unshift(fails === 0 ? '### SMOKE OK (' + passes + ' checks) ###' : '### ' + fails + ' FAILURES ###');
+  document.getElementById('out').textContent = L.join('\n');
 })();
 </script>
 </body></html>

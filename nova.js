@@ -159,8 +159,10 @@
     var workoutsThisWeek = week.filter(function (d) { return doneDays[d]; }).length;
     var trainedToday = !!doneDays[today];
 
-    var streakRec = GS.readJSON('goal_streak_v1', null);
-    var streak = (streakRec && Number(streakRec.count)) || 0;
+    // Same streak the rest of the app shows — computed once in game-state,
+    // shields and rest days included.
+    var streakInfo = GS.streakInfo();
+    var streak = streakInfo.count;
 
     // Social.
     var plans = (s.social && s.social.plans) || [];
@@ -200,6 +202,11 @@
       workoutsThisWeek: workoutsThisWeek, trainedToday: trainedToday,
       dow: new Date().getDay(),
       streak: streak,
+      shields: streakInfo.shields,
+      maxShields: streakInfo.maxShields,
+      shieldedDays: streakInfo.spent.length,
+      isRestToday: streakInfo.isRestToday,
+      nextShieldAt: streakInfo.nextShieldAt,
       socialPlan: upcoming, stalePeople: stalePeople,
       daysIdle: daysIdle, daysSinceCareer: daysSinceCareer,
       neglectedSkill: neglectedSkill,
@@ -371,6 +378,20 @@
     { id: 'balanced', tier: 8, expr: 'proud', act: A.hero,
       when: function (c) { return c.t.disciplines.every(function (d) { return d.level >= 3; }); },
       msg: function () { return 'Every discipline is at level 3 or better. Few people keep the whole board moving.'; } },
+
+    // --- Streak shields and rest days ----------------------------
+    { id: 'shield_spent', tier: 8, expr: 'pleased', act: A.hero,
+      when: function (c) { return c.shieldedDays > 0; },
+      msg: function (c) { return 'A streak shield covered ' + (c.shieldedDays === 1 ? 'a missed day' : c.shieldedDays + ' missed days') + '. Your streak stands at ' + c.streak + '.'; } },
+    { id: 'shield_none', tier: 8, expr: 'focused', act: A.quests,
+      when: function (c) { return c.shields === 0 && c.streak >= 3; },
+      msg: function (c) { return 'No shields left and a ' + c.streak + '-day streak riding on today. Next one at day ' + c.nextShieldAt + '.'; } },
+    { id: 'shield_full', tier: 8, expr: 'proud', act: A.hero,
+      when: function (c) { return c.shields >= c.maxShields; },
+      msg: function (c) { return 'All ' + c.maxShields + ' streak shields held. You have room to take a bad day.'; } },
+    { id: 'rest_today', tier: 8, expr: 'sleepy', act: A.hero,
+      when: function (c) { return c.isRestToday; },
+      msg: function () { return 'Today is a marked rest day. It protects the streak without spending a shield.'; } },
 
     // --- Returning after inactivity ------------------------------
     { id: 'return_long', tier: 3, expr: 'pleased', act: A.quests,

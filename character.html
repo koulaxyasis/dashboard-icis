@@ -98,6 +98,9 @@
 .switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; }
 .switch-t { font-size:13px; font-weight:600; color:var(--text); }
 .switch-s { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+.pip { display:grid; place-items:center; width:26px; height:26px; border-radius:8px;
+  border:1px solid var(--line); color:var(--text-3); background:rgba(255,255,255,.03); }
+.pip.on { color:var(--gold); border-color:rgba(233,190,110,.5); background:rgba(233,190,110,.12); }
 </style>
 </head>
 <body data-icis>
@@ -135,6 +138,9 @@
       <div class="card st"><div class="st-v" id="oStreak">0</div><div class="st-k">Streak</div></div>
     </div>
 
+    <div class="sec"><span class="sec-t">Streak &amp; Shields</span><span class="sec-m" id="oShMeta"></span></div>
+    <section class="card pad" id="oShield"></section>
+
     <div class="sec"><span class="sec-t">Today</span><span class="sec-m" id="oQMeta"></span></div>
     <div id="oQuests"></div>
 
@@ -160,9 +166,11 @@
   <div class="panel" id="p-quests">
     <div class="sec" style="margin-top:14px"><span class="sec-t">Tomorrow's Preview</span><span class="sec-m">no XP awarded</span></div>
     <div id="qPreview"></div>
-    <div class="sec"><span class="sec-t">Quest Library</span><span class="sec-m" id="qlMeta"></span></div>
+    <div class="sec"><span class="sec-t">Quest Library</span>
+      <a class="btn sm" href="quest-editor.html">Open Quest Editor</a></div>
     <div class="filterbar" id="qlFilter"></div>
     <section class="card qlib" id="qlList"></section>
+    <div class="sub" id="qlMeta" style="margin-top:7px"></div>
   </div>
 
   <!-- ===== ACHIEVEMENTS ===== -->
@@ -187,14 +195,9 @@
     <div class="sec"><span class="sec-t">Class</span><span class="sec-m">appearance & bonus quests only</span></div>
     <div class="cos" id="classes"></div>
 
-    <div class="sec"><span class="sec-t">Portrait</span><span class="sec-m">palette</span></div>
-    <div class="cos" id="portraits"></div>
-
-    <div class="sec"><span class="sec-t">Profile Border</span><span class="sec-m" id="bdMeta"></span></div>
-    <div class="cos" id="borders"></div>
-
-    <div class="sec"><span class="sec-t">Background</span><span class="sec-m" id="bgMeta"></span></div>
-    <div class="cos" id="backgrounds"></div>
+    <div class="sec"><span class="sec-t">Cosmetic Equipment</span><span class="sec-m" id="eqMeta"></span></div>
+    <section class="card pad" id="eqPreview"></section>
+    <div id="slots"></div>
 
     <div class="sec"><span class="sec-t">Preferences</span><span class="sec-m"></span></div>
     <div class="grid" style="gap:8px">
@@ -235,8 +238,7 @@
   /* ---------------- achievements ---------------- */
   function achievements() {
     var s = GS.get(), t = GS.totals();
-    var streakRec = GS.readJSON('goal_streak_v1', null);
-    var streak = (streakRec && Number(streakRec.count)) || 0;
+    var streak = GS.streakInfo().count;
     var questsDone = 0, careerQuests = 0, socialQuests = 0;
     Object.keys(s.questHistory).forEach(function (d) {
       (s.questHistory[d].list || []).forEach(function (q) {
@@ -288,8 +290,7 @@
   /* ---------------- banner ---------------- */
   function renderBanner() {
     var t = GS.totals(), s = GS.get();
-    $('portrait').innerHTML = HA.framed({ portrait:s.player.portrait, border:s.player.border,
-      background:s.player.background, size:88 });
+    $('portrait').innerHTML = HA.fromState(s, 88);
     $('bName').textContent = t.name;
     $('bTitle').textContent = t.title || 'Adventurer';
     $('bMeta').innerHTML = UI.rankBadge(t.rank) +
@@ -316,13 +317,55 @@
   }
 
   /* ---------------- overview ---------------- */
+  function renderShield() {
+    var st = GS.streakInfo();
+    var today = GS.todayKey();
+    var isRest = !!GS.get().streak.restDays[today];
+    var shieldPips = '';
+    for (var i = 0; i < st.maxShields; i++) {
+      shieldPips += '<span class="pip' + (i < st.shields ? ' on' : '') + '">' + UI.icon('hero', 15) + '</span>';
+    }
+    $('oShield').innerHTML =
+      '<div class="row wrap" style="gap:14px;align-items:flex-start">' +
+        '<div style="flex:none;text-align:center">' +
+          '<div class="mono" style="font-size:30px;font-weight:700;color:var(--text);line-height:1">' + st.count + '</div>' +
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-top:3px">Day streak</div>' +
+        '</div>' +
+        '<div class="grow" style="min-width:180px">' +
+          '<div class="row" style="gap:6px;margin-bottom:7px">' + shieldPips +
+            '<span class="sub" style="margin-left:4px">' + st.shields + ' of ' + st.maxShields + ' shields</span></div>' +
+          '<div class="sub" style="line-height:1.5">' +
+            'You earn <strong style="color:var(--text-2)">one shield every ' + st.every + ' days</strong> of streak ' +
+            '(next at day ' + st.nextShieldAt + ', up to ' + st.maxShields + ' held). ' +
+            'If a day would otherwise break the streak, one shield is spent automatically to cover it — ' +
+            'never more than one for the same day. A <strong style="color:var(--text-2)">rest day</strong> ' +
+            'costs no shield at all.' +
+          '</div>' +
+          '<div class="row wrap" style="gap:7px;margin-top:10px">' +
+            '<button class="toggle' + (isRest ? ' on' : '') + '" id="restToggle">' +
+              (isRest ? 'Today is a rest day' : 'Mark today a rest day') + '</button>' +
+            (st.spent.length ? '<span class="chip">' + st.spent.length + ' day' +
+              (st.spent.length === 1 ? '' : 's') + ' shielded</span>' : '') +
+            (st.restDays ? '<span class="chip ok">' + st.restDays + ' rest day' +
+              (st.restDays === 1 ? '' : 's') + ' in streak</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    $('oShMeta').textContent = st.shields + ' available';
+    var rt = $('restToggle');
+    if (rt) rt.addEventListener('click', function () {
+      GS.setRestDay(today, !isRest);
+      renderShield(); renderOverview(); renderBanner();
+    });
+  }
+
   function renderOverview() {
     var t = GS.totals(), s = GS.get();
-    var streakRec = GS.readJSON('goal_streak_v1', null);
     $('oLv').textContent = t.level;
     $('oRank').textContent = t.rank.sigil;
     $('oScore').textContent = UI.fmt(t.score);
-    $('oStreak').textContent = (streakRec && streakRec.count) || 0;
+    $('oStreak').textContent = GS.streakInfo().count;
+    renderShield();
 
     // Only three quests here — the full board lives on the hub.
     var v = QE.todayView();
@@ -486,33 +529,75 @@
         UI.esc(c.name) + '</button>';
     }).join('') + '<button class="cos-b' + (!s.player.classId ? ' on' : '') + '" data-class="">Auto (' + UI.esc(t.derivedClass) + ')</button>';
 
-    $('portraits').innerHTML = Object.keys(HA.PALETTES).map(function (k) {
-      return '<button class="cos-b' + (s.player.portrait === k ? ' on' : '') + '" data-portrait="' + k + '">' + UI.esc(k) + '</button>';
-    }).join('');
-
-    var bAvail = HA.availableBorders(s);
-    $('borders').innerHTML = Object.keys(HA.BORDERS).map(function (k) {
-      var ok = bAvail.indexOf(k) !== -1;
-      return '<button class="cos-b' + (s.player.border === k ? ' on' : '') + '" data-border="' + k + '"' +
-        (ok ? '' : ' disabled title="Unlock by finishing a campaign chapter"') + '>' +
-        UI.esc(HA.BORDERS[k].label) + (ok ? '' : ' 🔒') + '</button>';
-    }).join('');
-    $('bdMeta').textContent = bAvail.length + ' of ' + Object.keys(HA.BORDERS).length + ' unlocked';
-
-    var gAvail = HA.availableBackgrounds(s);
-    $('backgrounds').innerHTML = Object.keys(HA.BACKGROUNDS).map(function (k) {
-      var ok = gAvail.indexOf(k) !== -1;
-      return '<button class="cos-b' + (s.player.background === k ? ' on' : '') + '" data-bg="' + k + '"' +
-        (ok ? '' : ' disabled title="Unlock by finishing a campaign chapter"') + '>' +
-        UI.esc(HA.BACKGROUNDS[k].label) + (ok ? '' : ' 🔒') + '</button>';
-    }).join('');
-    $('bgMeta').textContent = gAvail.length + ' of ' + Object.keys(HA.BACKGROUNDS).length + ' unlocked';
+    renderSlots();
 
     var m = $('tgMotion'), n = $('tgNova');
     m.textContent = s.settings.reducedMotion ? 'On' : 'Off';
     m.classList.toggle('on', !!s.settings.reducedMotion);
     n.textContent = s.settings.novaEnabled === false ? 'Off' : 'On';
     n.classList.toggle('on', s.settings.novaEnabled !== false);
+  }
+
+  /* ---------------- cosmetic equipment ----------------
+     Six slots, all purely visual. None of these ids is ever read by
+     game-state's totals(), which the test suite asserts explicitly. */
+  function slotOptions(slot, s) {
+    if (slot.id === 'title') {
+      var titles = (s.player.unlockedTitles || []).slice();
+      // Keep whatever is currently equipped selectable, even if it predates
+      // the unlock list — otherwise you could not re-pick your own title.
+      var cur = s.player.equipment.title;
+      if (cur && titles.indexOf(cur) === -1) titles.push(cur);
+      return [''].concat(titles).map(function (t) {
+        return { id: t, label: t || 'None' };
+      });
+    }
+    return Object.keys(slot.set).map(function (k) {
+      var v = slot.set[k];
+      return { id: k, label: (v && v.label) || k };
+    });
+  }
+
+  function renderSlots() {
+    var s = GS.get();
+    var eq = s.player.equipment;
+
+    $('eqPreview').innerHTML =
+      '<div class="row" style="gap:14px;align-items:center">' +
+        HA.fromState(s, 92) +
+        '<div class="grow"><div class="lore">Live preview</div>' +
+          '<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">' +
+            UI.esc(eq.title || 'No title') + '</div>' +
+          '<div class="sub" style="margin-top:4px">' +
+            HA.SLOTS.filter(function (sl) { return sl.id !== 'title'; }).map(function (sl) {
+              var v = eq[sl.id];
+              var lbl = sl.set && sl.set[v] ? (sl.set[v].label || v) : v;
+              return UI.esc(sl.label) + ': ' + UI.esc(lbl);
+            }).join(' · ') +
+          '</div>' +
+          '<div class="sub" style="margin-top:8px;color:var(--text-3)">Cosmetics are visual only — they never change XP, levels or quest selection.</div>' +
+        '</div>' +
+      '</div>';
+
+    var totalOpts = 0, unlockedOpts = 0;
+    $('slots').innerHTML = HA.SLOTS.map(function (slot) {
+      var opts = slotOptions(slot, s);
+      var html = opts.map(function (o) {
+        var ok = HA.optionUnlocked(s, slot.id, o.id);
+        totalOpts++; if (ok) unlockedOpts++;
+        var on = (eq[slot.id] || '') === o.id;
+        var req = ok ? '' : HA.requirementLabel(slot.id, o.id);
+        var art = (slot.kind === 'emblem' && slot.set[o.id] && slot.set[o.id].art)
+          ? HA.emblem(slot.set, o.id, 15, on ? '#E9BE6E' : '#767D95') + ' ' : '';
+        return '<button class="cos-b' + (on ? ' on' : '') + '" data-slot="' + slot.id + '" data-opt="' + UI.esc(o.id) + '"' +
+          (ok ? '' : ' disabled title="' + UI.esc(req || 'Locked') + '"') + '>' +
+          art + UI.esc(o.label) + (ok ? '' : ' 🔒') + '</button>';
+      }).join('');
+      return '<div style="margin-bottom:14px">' +
+        '<label class="fl">' + UI.esc(slot.label) + '</label>' +
+        '<div class="cos">' + html + '</div></div>';
+    }).join('');
+    $('eqMeta').textContent = unlockedOpts + ' of ' + totalOpts + ' unlocked';
   }
 
   /* ---------------- tabs ---------------- */
@@ -555,8 +640,21 @@
     }
     if ((el = e.target.closest('[data-title]'))) {
       var ti = el.getAttribute('data-title');
-      GS.update(function (s) { s.player.title = ti; });
+      GS.update(function (s) { s.player.title = ti; s.player.equipment.title = ti; });
       renderBanner(); renderAchievements(); return;
+    }
+    if ((el = e.target.closest('[data-slot]'))) {
+      var slot = el.getAttribute('data-slot');
+      var opt = el.getAttribute('data-opt');
+      GS.update(function (s) {
+        s.player.equipment[slot] = opt;
+        // Keep the legacy flat fields in step so nothing that still reads
+        // them goes stale.
+        if (slot === 'portrait' || slot === 'border' || slot === 'background' || slot === 'title') {
+          s.player[slot] = opt;
+        }
+      });
+      renderBanner(); renderSlots(); return;
     }
     if ((el = e.target.closest('[data-class]'))) {
       var cid = el.getAttribute('data-class');
@@ -565,18 +663,6 @@
         var c = GS.CLASSES.filter(function (x) { return x.id === cid; })[0];
         s.player.className = c ? c.name : '';
       });
-      renderBanner(); renderSettings(); return;
-    }
-    if ((el = e.target.closest('[data-portrait]'))) {
-      GS.update(function (s) { s.player.portrait = el.getAttribute('data-portrait'); });
-      renderBanner(); renderSettings(); return;
-    }
-    if ((el = e.target.closest('[data-border]'))) {
-      GS.update(function (s) { s.player.border = el.getAttribute('data-border'); });
-      renderBanner(); renderSettings(); return;
-    }
-    if ((el = e.target.closest('[data-bg]'))) {
-      GS.update(function (s) { s.player.background = el.getAttribute('data-bg'); });
       renderBanner(); renderSettings(); return;
     }
   });

@@ -69,18 +69,184 @@
   }
 
   // ---------------------------------------------------------------
-  // Library with user overrides applied.
+  // Library = the shipped 100 (with any user patches applied) plus the
+  // user's own templates. Defaults are never mutated in place, which is
+  // what lets "reset defaults" and "reset custom" be separate actions.
   // ---------------------------------------------------------------
   function library() {
     var s = GS.get();
     var ov = s.questOverrides || {};
-    return LIB.all.map(function (q) {
+    var defaults = LIB.all.map(function (q) {
       var patch = ov[q.id];
-      return patch ? Object.assign({}, q, patch) : q;
+      return patch ? Object.assign({}, q, patch, { custom: false }) : Object.assign({}, q, { custom: false });
     });
+    var custom = (s.questCustom || []).map(function (q) {
+      return Object.assign({}, q, { custom: true });
+    });
+    return defaults.concat(custom);
   }
   function byId(id) {
     return library().filter(function (q) { return q.id === id; })[0] || null;
+  }
+  function isDefaultId(id) { return !!LIB.byId[id]; }
+
+  var DIFFICULTIES = ['light', 'normal', 'hard'];
+  var DISCIPLINE_FOR = {
+    career: 'career', social: 'fellowship', fitness: 'might',
+    finance: 'fortune', recovery: 'vitality', recreation: 'vitality'
+  };
+
+  // Returns { ok, errors: {field: message}, value } — the UI renders the
+  // errors inline rather than silently coercing bad input.
+  function validate(fields, opts) {
+    opts = opts || {};
+    var e = {};
+    var f = fields || {};
+    var id = String(f.id || '').trim();
+
+    if (!id) e.id = 'An ID is required.';
+    else if (!/^[a-z0-9_]{3,40}$/.test(id)) e.id = 'Use 3–40 lowercase letters, numbers or underscores.';
+    else if (!opts.editingId || opts.editingId !== id) {
+      if (library().some(function (q) { return q.id === id; })) e.id = 'That ID is already taken.';
+    }
+
+    if (!String(f.practicalTitle || '').trim()) e.practicalTitle = 'A practical title is required.';
+    if (!String(f.loreTitle || '').trim()) e.loreTitle = 'A lore title is required.';
+    if (LIB.categories.indexOf(f.category) === -1) e.category = 'Pick a category.';
+    if (DIFFICULTIES.indexOf(f.difficulty) === -1) e.difficulty = 'Pick a difficulty.';
+
+    var xp = Number(f.xp);
+    if (!isFinite(xp) || xp < 0 || xp > 500) e.xp = 'XP must be between 0 and 500.';
+    var mins = Number(f.estimatedMinutes);
+    if (!isFinite(mins) || mins < 0 || mins > 600) e.estimatedMinutes = 'Minutes must be between 0 and 600.';
+    var cd = Number(f.cooldownDays);
+    if (!isFinite(cd) || cd < 0 || cd > 90) e.cooldownDays = 'Cooldown must be between 0 and 90 days.';
+    var mx = Number(f.maximumUsesPerWeek);
+    if (!isFinite(mx) || mx < 1 || mx > 7) e.maximumUsesPerWeek = 'Uses per week must be between 1 and 7.';
+    var w = Number(f.weight);
+    if (!isFinite(w) || w < 1 || w > 5) e.weight = 'Weight must be between 1 and 5.';
+    var lvl = Number(f.minimumLevel);
+    if (!isFinite(lvl) || lvl < 1 || lvl > 99) e.minimumLevel = 'Minimum level must be between 1 and 99.';
+
+    if (f.weekdayOnly && f.weekendOnly) e.weekdayOnly = 'A quest cannot be weekday-only and weekend-only.';
+
+    var prereq = toList(f.prerequisites);
+    var allIds = library().map(function (q) { return q.id; });
+    var unknown = prereq.filter(function (p) { return allIds.indexOf(p) === -1; });
+    if (unknown.length) e.prerequisites = 'Unknown quest ID: ' + unknown.join(', ');
+    if (prereq.indexOf(id) !== -1) e.prerequisites = 'A quest cannot require itself.';
+
+    if (Object.keys(e).length) return { ok: false, errors: e };
+
+    return {
+      ok: true, errors: {},
+      value: {
+        id: id,
+        practicalTitle: String(f.practicalTitle).trim().slice(0, 90),
+        loreTitle: String(f.loreTitle).trim().slice(0, 90),
+        description: String(f.description || '').trim().slice(0, 300),
+        category: f.category,
+        subcategory: String(f.subcategory || '').trim().slice(0, 40),
+        difficulty: f.difficulty,
+        xp: Math.round(xp),
+        estimatedMinutes: Math.round(mins),
+        tags: toList(f.tags).slice(0, 12),
+        prerequisites: prereq.slice(0, 6),
+        cooldownDays: Math.round(cd),
+        weekdayOnly: !!f.weekdayOnly,
+        weekendOnly: !!f.weekendOnly,
+        minimumLevel: Math.round(lvl),
+        maximumUsesPerWeek: Math.round(mx),
+        active: f.active !== false,
+        weight: Math.round(w),
+        // Always follow the category. Editing a quest into a new category
+        // should move its XP to that category's discipline, not silently
+        // keep crediting the old one.
+        discipline: DISCIPLINE_FOR[f.category] || 'resolve'
+      }
+    };
+  }
+
+  function toList(v) {
+    if (Array.isArray(v)) return v.map(function (x) { return String(x).trim(); }).filter(Boolean);
+    return String(v || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+
+  function createQuest(fields) {
+    var r = validate(fields, {});
+    if (!r.ok) return r;
+    GS.update(function (s) {
+      if (!Array.isArray(s.questCustom)) s.questCustom = [];
+      s.questCustom.push(r.value);
+    });
+    return { ok: true, errors: {}, value: r.value };
+  }
+
+  // Editing a shipped quest writes a patch; editing a custom one replaces
+  // it. Either way the original 100 stay intact underneath.
+  function updateQuest(id, fields) {
+    var r = validate(fields, { editingId: id });
+    if (!r.ok) return r;
+    var isDefault = isDefaultId(id);
+    if (isDefault && r.value.id !== id) {
+      return { ok: false, errors: { id: 'Built-in quests keep their ID. Duplicate it as a custom quest instead.' } };
+    }
+    GS.update(function (s) {
+      if (isDefault) {
+        var base = LIB.byId[id];
+        var patch = {};
+        Object.keys(r.value).forEach(function (k) {
+          if (JSON.stringify(r.value[k]) !== JSON.stringify(base[k])) patch[k] = r.value[k];
+        });
+        if (Object.keys(patch).length) s.questOverrides[id] = patch;
+        else delete s.questOverrides[id];
+      } else {
+        s.questCustom = (s.questCustom || []).map(function (q) {
+          return q.id === id ? r.value : q;
+        });
+      }
+    });
+    return { ok: true, errors: {}, value: r.value };
+  }
+
+  function deleteQuest(id) {
+    if (isDefaultId(id)) {
+      return { ok: false, errors: { id: 'Built-in quests cannot be deleted. Deactivate it instead.' } };
+    }
+    GS.update(function (s) {
+      s.questCustom = (s.questCustom || []).filter(function (q) { return q.id !== id; });
+      delete s.questOverrides[id];
+      // Pull it off today's board so a deleted quest cannot be completed.
+      if (s.quests && Array.isArray(s.quests.list)) {
+        s.quests.list = s.quests.list.filter(function (q) { return q.id !== id; });
+      }
+    });
+    return { ok: true, errors: {} };
+  }
+
+  function setActive(id, on) {
+    var q = byId(id);
+    if (!q) return false;
+    if (isDefaultId(id)) saveOverride(id, { active: !!on });
+    else GS.update(function (s) {
+      s.questCustom = (s.questCustom || []).map(function (x) {
+        return x.id === id ? Object.assign({}, x, { active: !!on }) : x;
+      });
+    });
+    return true;
+  }
+
+  function resetDefaults() {
+    GS.update(function (s) { s.questOverrides = {}; });
+  }
+  function resetCustom() {
+    GS.update(function (s) {
+      var ids = (s.questCustom || []).map(function (q) { return q.id; });
+      s.questCustom = [];
+      if (s.quests && Array.isArray(s.quests.list)) {
+        s.quests.list = s.quests.list.filter(function (q) { return ids.indexOf(q.id) === -1; });
+      }
+    });
   }
 
   // ---------------------------------------------------------------
@@ -492,8 +658,11 @@
       return (Number((w.logs || {})[d]) || 0) * perUnit >= target;
     }).length;
 
+    // Skip the first row for the same reason reconcile() does: it is
+    // written automatically when the Treasury is first opened, so it is a
+    // page visit rather than a deliberate update.
     var hist = GS.readJSON('nw:history', []) || [];
-    var snapshot = Array.isArray(hist) && hist.some(function (h) {
+    var snapshot = Array.isArray(hist) && hist.slice(1).some(function (h) {
       return inWeek(GS.dateKey(new Date(Number(h.t) || 0)));
     });
 
@@ -559,7 +728,23 @@
     setMode: setMode,
     saveOverride: saveOverride,
     clearOverride: clearOverride,
+    validate: validate,
+    createQuest: createQuest,
+    updateQuest: updateQuest,
+    deleteQuest: deleteQuest,
+    setActive: setActive,
+    resetDefaults: resetDefaults,
+    resetCustom: resetCustom,
+    isDefaultId: isDefaultId,
+    DIFFICULTIES: DIFFICULTIES,
     usageIndex: function () { return usageIndex(GS.get()); },
     _generate: generate
   };
+
+  // Settle the day's board and this week's contracts ONCE, at module load,
+  // before anything renders. Doing it lazily inside a render pass meant a
+  // contract could complete halfway through drawing the page: the HUD
+  // (redrawn on the state change) showed the new level while the page body
+  // still showed the number it had read a moment earlier.
+  try { ensureToday(); contracts(); } catch (e) {}
 })();

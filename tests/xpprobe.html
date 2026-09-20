@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+})();
+</script>
+<title>xp probe</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px;width:390px;height:700px}pre{white-space:pre-wrap;padding:10px}</style>
+<script src="../game-state.js"></script>
+<script src="../quest-library.js"></script>
+<script src="../career-data.js"></script>
+<script src="../quest-engine.js"></script>
+<script src="../hero-art.js"></script>
+</head>
+<body>
+<pre id="out">pending…</pre>
+<script>
+// Loads each page in isolation and reports exactly which ledger keys it
+// added or changed — so "something awards XP on load" becomes a name.
+var PAGES = ['../index.html','../career.html','../tavern.html','../character.html',
+  '../quest-editor.html','../guild.html','../nova.html','../main.html','../gym.html',
+  '../po-water.html','../caffeine.html','../finance.html'];
+var GS = window.GameState;
+var L = [];
+
+function ledger() {
+  GS.reload();
+  var l = GS.get().ledger, out = {};
+  Object.keys(l).forEach(function (k) { out[k] = l[k].xp; });
+  return out;
+}
+function diff(a, b) {
+  var added = [], changed = [], removed = [];
+  Object.keys(b).forEach(function (k) {
+    if (!(k in a)) added.push(k + '=+' + b[k]);
+    else if (a[k] !== b[k]) changed.push(k + ' ' + a[k] + '->' + b[k]);
+  });
+  Object.keys(a).forEach(function (k) { if (!(k in b)) removed.push(k); });
+  return { added: added, changed: changed, removed: removed };
+}
+function total(l) { return Object.keys(l).reduce(function (s, k) { return s + l[k]; }, 0); }
+
+function load(page) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe');
+    f.src = page;
+    f.addEventListener('load', function () {
+      setTimeout(function () { f.remove(); resolve(); }, 1100);
+    });
+    document.body.appendChild(f);
+  });
+}
+
+(async function () {
+  GS.reconcile();
+  for (var pass = 1; pass <= 2; pass++) {
+    L.push('===== pass ' + pass + ' =====');
+    for (var i = 0; i < PAGES.length; i++) {
+      var before = ledger();
+      await load(PAGES[i]);
+      var after = ledger();
+      var d = diff(before, after);
+      var delta = total(after) - total(before);
+      if (delta !== 0 || d.added.length || d.changed.length || d.removed.length) {
+        L.push(PAGES[i] + '  XP delta ' + (delta >= 0 ? '+' : '') + delta);
+        if (d.added.length)   L.push('    added:   ' + d.added.join(', '));
+        if (d.changed.length) L.push('    changed: ' + d.changed.join(', '));
+        if (d.removed.length) L.push('    removed: ' + d.removed.join(', '));
+      } else {
+        L.push(PAGES[i] + '  (inert)');
+      }
+    }
+  }
+  document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>

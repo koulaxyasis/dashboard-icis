@@ -69,6 +69,7 @@
 <script src="../quest-library.js"></script>
 <script src="../career-data.js"></script>
 <script src="../quest-engine.js"></script>
+<script src="../hero-art.js"></script>
 </head>
 <body>
 <pre id="out">pending</pre>
@@ -102,6 +103,22 @@ try {
   // ---- migration
   chk('migrated hero name', GS.totals().name, 'Rizky');
 
+  // ---- weekly contracts settle at module load, so measure them first,
+  //      then strip them: the assertions below are about the XP derived
+  //      from the tracker pages, not about contract payouts.
+  var ct = QE.contracts();
+  chk('contracts defined', ct.list.length, 7);
+  chk('contract XP is keyed by week',
+    Object.keys(GS.get().ledger).filter(function(k){return k.indexOf('contract:')===0;})
+      .every(function(k){ return k.split(':').length === 3; }), 'true');
+  var ctXp = Object.keys(GS.get().ledger)
+    .filter(function(k){ return k.indexOf('contract:')===0; })
+    .reduce(function(a,k){ return a + GS.get().ledger[k].xp; }, 0);
+  note('contracts settled: '+ct.done+'/'+ct.total+' worth '+ctXp+' XP');
+  GS.update(function(st){
+    Object.keys(st.ledger).forEach(function(k){ if(k.indexOf('contract:')===0) delete st.ledger[k]; });
+  });
+
   // ---- XP totals (derived, reconciled)
   var t1=GS.totals();
   note('level='+t1.level+' xp='+t1.totalXp+' score='+t1.score);
@@ -112,7 +129,9 @@ try {
   chk('might xp', t1.byId.might.xp, 249);
   chk('vitality xp', t1.byId.vitality.xp, 154);
   chk('arcana xp', t1.byId.arcana.xp, 350);
-  chk('fortune xp', t1.byId.fortune.xp, 228);
+  // 5 snapshot rows, but the FIRST is the one finance.html writes just
+  // by being opened, so only 4 days count: 4x20 + 6 moves x8 + 80 growth.
+  chk('fortune xp', t1.byId.fortune.xp, 208);
 
   // ---- IDEMPOTENCE: reconciling again must not move anything
   GS.reconcile(); GS.reconcile(); GS.reconcile();
@@ -215,6 +234,340 @@ try {
   chk('deadline pins main slot', g2[0].pinned, 'true');
   chk('pinned to the deadline chapter', g2[0].chapterId, 'ch_sql');
   note('pin reason: '+g2[0].reason);
+
+  // =============================================================
+  // QUEST EDITOR — create / edit / delete / reset / validation
+  // =============================================================
+  var before100 = QE.library().length;
+  chk('library starts at 100', before100, 100);
+
+  // -- validation rejects bad input
+  var bad = QE.createQuest({ id:'', practicalTitle:'', loreTitle:'', category:'nope',
+    difficulty:'nope', xp:-5, estimatedMinutes:-1, cooldownDays:999, maximumUsesPerWeek:99,
+    weight:99, minimumLevel:0 });
+  chk('rejects empty/invalid quest', bad.ok, 'false');
+  chk('rejects out-of-range xp',
+    QE.createQuest({ id:'u_bigxp', practicalTitle:'X', loreTitle:'Y', category:'career',
+      difficulty:'normal', xp:999, estimatedMinutes:10, cooldownDays:1,
+      maximumUsesPerWeek:1, weight:1, minimumLevel:1 }).ok, 'false');
+  chk('  flags id', !!bad.errors.id, 'true');
+  chk('  flags category', !!bad.errors.category, 'true');
+  chk('  flags xp', !!bad.errors.xp, 'true');
+  chk('  flags weight', !!bad.errors.weight, 'true');
+
+  // -- duplicate ID against a built-in
+  var dupe = QE.createQuest({ id:'c_fmva_lesson', practicalTitle:'X', loreTitle:'Y',
+    category:'career', difficulty:'normal', xp:10, estimatedMinutes:10, cooldownDays:1,
+    maximumUsesPerWeek:1, weight:1, minimumLevel:1 });
+  chk('rejects duplicate built-in id', dupe.ok, 'false');
+
+  // -- weekday+weekend conflict
+  var conflict = QE.createQuest({ id:'u_conflict', practicalTitle:'X', loreTitle:'Y',
+    category:'career', difficulty:'normal', xp:10, estimatedMinutes:10, cooldownDays:1,
+    maximumUsesPerWeek:1, weight:1, minimumLevel:1, weekdayOnly:true, weekendOnly:true });
+  chk('rejects weekday+weekend', conflict.ok, 'false');
+
+  // -- unknown prerequisite
+  var badPre = QE.createQuest({ id:'u_badpre', practicalTitle:'X', loreTitle:'Y',
+    category:'career', difficulty:'normal', xp:10, estimatedMinutes:10, cooldownDays:1,
+    maximumUsesPerWeek:1, weight:1, minimumLevel:1, prerequisites:'does_not_exist' });
+  chk('rejects unknown prerequisite', badPre.ok, 'false');
+
+  // -- a valid custom quest
+  var made = QE.createQuest({ id:'u_test_quest', practicalTitle:'Write the variance memo',
+    loreTitle:'Testimony of Deviation', description:'A custom one.', category:'career',
+    subcategory:'fpna', difficulty:'hard', xp:77, estimatedMinutes:45, cooldownDays:3,
+    maximumUsesPerWeek:2, weight:3, minimumLevel:1, tags:'fpna, writing',
+    prerequisites:'c_fmva_lesson', active:true });
+  chk('creates a custom quest', made.ok, 'true');
+  chk('library grew to 101', QE.library().length, 101);
+  var mine = QE.byId('u_test_quest');
+  chk('  custom xp stored', mine.xp, 77);
+  chk('  custom tags parsed', mine.tags.join('|'), 'fpna|writing');
+  chk('  custom prereq parsed', mine.prerequisites.join('|'), 'c_fmva_lesson');
+  chk('  custom flagged as custom', mine.custom, 'true');
+  chk('  custom discipline derived', mine.discipline, 'career');
+
+  // -- duplicate ID against a custom quest
+  var dupe2 = QE.createQuest({ id:'u_test_quest', practicalTitle:'X', loreTitle:'Y',
+    category:'career', difficulty:'normal', xp:10, estimatedMinutes:10, cooldownDays:1,
+    maximumUsesPerWeek:1, weight:1, minimumLevel:1 });
+  chk('rejects duplicate custom id', dupe2.ok, 'false');
+
+  // -- edit every field of the custom quest
+  var edited = QE.updateQuest('u_test_quest', Object.assign({}, mine, {
+    practicalTitle:'Edited title', loreTitle:'Edited lore', category:'social',
+    subcategory:'reach-out', difficulty:'light', xp:12, estimatedMinutes:5,
+    cooldownDays:9, maximumUsesPerWeek:4, weight:5, minimumLevel:3,
+    tags:'a,b,c', prerequisites:'', weekendOnly:true, weekdayOnly:false, active:false
+  }));
+  chk('edits a custom quest', edited.ok, 'true');
+  var e2 = QE.byId('u_test_quest');
+  chk('  category changed', e2.category, 'social');
+  chk('  discipline followed category', e2.discipline, 'fellowship');
+  chk('  difficulty changed', e2.difficulty, 'light');
+  chk('  weight changed', e2.weight, 5);
+  chk('  maxUsesPerWeek changed', e2.maximumUsesPerWeek, 4);
+  chk('  minimumLevel changed', e2.minimumLevel, 3);
+  chk('  deactivated', e2.active, 'false');
+  chk('  weekendOnly set', e2.weekendOnly, 'true');
+
+  // -- built-ins are patched, not mutated
+  QE.updateQuest('c_fmva_lesson', Object.assign({}, QE.byId('c_fmva_lesson'), { xp: 99 }));
+  chk('built-in patch applies', QE.byId('c_fmva_lesson').xp, 99);
+  chk('built-in source untouched', QL.byId['c_fmva_lesson'].xp, 35);
+  chk('built-in id cannot change',
+    QE.updateQuest('c_fmva_lesson', Object.assign({}, QE.byId('c_fmva_lesson'), { id:'c_renamed' })).ok, 'false');
+  chk('built-in cannot be deleted', QE.deleteQuest('c_fmva_lesson').ok, 'false');
+
+  // -- activate / deactivate
+  QE.setActive('c_fmva_quiz', false);
+  chk('deactivates a built-in', QE.byId('c_fmva_quiz').active, 'false');
+  QE.setActive('c_fmva_quiz', true);
+  chk('reactivates a built-in', QE.byId('c_fmva_quiz').active, 'true');
+
+  // -- inactive quests are never selected
+  var allCareer = QE.library().filter(function(q){return q.category==='career';});
+  allCareer.forEach(function(q){ QE.setActive(q.id, false); });
+  var genNoCareer = QE._generate(GS.shiftKey(today, 40), 'normal', 0);
+  chk('inactive quests excluded from selection',
+    genNoCareer.filter(function(q){ return QL.byId[q.id] && QL.byId[q.id].category==='career'; }).length, 0);
+  allCareer.forEach(function(q){ QE.setActive(q.id, true); });
+
+  // -- persistence across a simulated reload
+  var rawState = JSON.parse(localStorage.getItem('icisGameStateV2'));
+  chk('custom quest persisted to storage',
+    (rawState.questCustom||[]).filter(function(q){return q.id==='u_test_quest';}).length, 1);
+  chk('built-in patch persisted', !!(rawState.questOverrides||{})['c_fmva_lesson'], 'true');
+
+  // -- resets are independent
+  QE.resetDefaults();
+  chk('resetDefaults restores built-in xp', QE.byId('c_fmva_lesson').xp, 35);
+  chk('resetDefaults keeps custom quests', !!QE.byId('u_test_quest'), 'true');
+  QE.resetCustom();
+  chk('resetCustom removes custom quests', QE.byId('u_test_quest'), 'null');
+  chk('resetCustom keeps the built-in 100', QE.library().length, 100);
+
+  // -- delete with the quest on today's board
+  QE.createQuest({ id:'u_deleteme', practicalTitle:'Delete me', loreTitle:'Ephemeral',
+    category:'recovery', difficulty:'light', xp:5, estimatedMinutes:5, cooldownDays:0,
+    maximumUsesPerWeek:7, weight:5, minimumLevel:1 });
+  GS.update(function(s){ s.quests.list.push({id:'u_deleteme', slot:'flex', done:false, xp:5, category:'recovery'}); });
+  QE.deleteQuest('u_deleteme');
+  chk('deleting pulls it off today’s board',
+    QE.todayView().list.filter(function(q){return q.id==='u_deleteme';}).length, 0);
+  chk('deleted quest is gone', QE.byId('u_deleteme'), 'null');
+
+  // =============================================================
+  // STREAK SHIELDS
+  // =============================================================
+  function resetStreakState(archive, opts) {
+    opts = opts || {};
+    // `noEarn` pre-claims every milestone so the shield-SPENDING tests are
+    // not also granting shields underneath the assertion.
+    var earned = {};
+    if (opts.noEarn) { for (var n=7;n<=700;n+=7) earned['streak'+n] = { at:0, n:n }; }
+    GS.update(function (s) {
+      s.goalArchive = archive || {};
+      s.streak = { shields:opts.shields||0, used:{}, earned:earned, restDays:opts.restDays||{},
+                   seeded:true, legacyBaseline:0 };
+      Object.keys(s.ledger).forEach(function(k){
+        if (k.indexOf('goal:')===0||k.indexOf('shield:')===0||k.indexOf('rest:')===0) delete s.ledger[k];
+      });
+    });
+  }
+  function perfectRun(endKey, n) {
+    var a = {};
+    for (var i=0;i<n;i++) a[GS.shiftKey(endKey,-i)] = { d:3, t:3 };
+    return a;
+  }
+
+  // -- a clean run, and a shield earned every 7 days
+  resetStreakState(perfectRun(GS.shiftKey(today,-1), 6));
+  var s6 = GS.streakInfo();
+  chk('6-day run counts 6', s6.count, 6);
+  chk('  no shield below the threshold', s6.shields, 0);
+
+  resetStreakState(perfectRun(GS.shiftKey(today,-1), 7));
+  var s7 = GS.streakInfo();
+  chk('7-day run counts 7', s7.count, 7);
+  chk('  earns exactly 1 shield', s7.shields, 1);
+  GS.streakInfo(); GS.streakInfo(); GS.streakInfo();
+  chk('  re-running does NOT re-earn', GS.streakInfo().shields, 1);
+
+  resetStreakState(perfectRun(GS.shiftKey(today,-1), 21));
+  chk('21-day run earns 3 shields', GS.streakInfo().shields, 3);
+  resetStreakState(perfectRun(GS.shiftKey(today,-1), 70));
+  chk('shields cap at maxShields', GS.streakInfo().shields, GS.SHIELD_MAX);
+
+  // -- a missed day consumes exactly one shield
+  var gap = perfectRun(GS.shiftKey(today,-1), 10);
+  delete gap[GS.shiftKey(today,-4)];               // a day with no goals at all
+  resetStreakState(gap, { shields: 2, noEarn: true });
+  var sg = GS.streakInfo();
+  chk('missed day is bridged by a shield', sg.count, 10);
+  chk('  exactly one shield spent', sg.shields, 1);
+  chk('  the covered day is recorded', sg.spent.join(','), GS.shiftKey(today,-4));
+  // idempotence: the expensive one to get wrong
+  GS.streakInfo(); GS.streakInfo(); GS.streakInfo(); GS.streakInfo();
+  chk('  repeat calls never spend a second shield', GS.streakInfo().shields, 1);
+  chk('  streak stays stable across repeats', GS.streakInfo().count, 10);
+
+  // -- a partial day (goals set, not all done) is also shieldable
+  var partial = perfectRun(GS.shiftKey(today,-1), 8);
+  partial[GS.shiftKey(today,-3)] = { d:1, t:4 };
+  resetStreakState(partial, { shields: 1, noEarn: true });
+  var sp = GS.streakInfo();
+  chk('partial day bridged by a shield', sp.count, 8);
+  chk('  one shield spent on the partial day', sp.shields, 0);
+
+  // -- with no shields left, the streak stops at the gap
+  var gap2 = perfectRun(GS.shiftKey(today,-1), 10);
+  delete gap2[GS.shiftKey(today,-4)];
+  resetStreakState(gap2, { shields: 0, noEarn: true });
+  chk('no shields means the streak breaks at the gap', GS.streakInfo().count, 3);
+
+  // -- rest days bridge without spending a shield
+  var rest = perfectRun(GS.shiftKey(today,-1), 10);
+  delete rest[GS.shiftKey(today,-4)];
+  var restMap = {}; restMap[GS.shiftKey(today,-4)] = { at: Date.now() };
+  resetStreakState(rest, { shields: 2, restDays: restMap, noEarn: true });
+  var sr = GS.streakInfo();
+  chk('rest day bridges the gap', sr.count, 10);
+  chk('  and costs no shield', sr.shields, 2);
+  chk('  rest day counted', sr.restDays, 1);
+
+  // -- marking a rest day refunds a shield already spent on it
+  var refund = perfectRun(GS.shiftKey(today,-1), 10);
+  delete refund[GS.shiftKey(today,-4)];
+  resetStreakState(refund, { shields: 1, noEarn: true });
+  chk('shield spent before rest is marked', GS.streakInfo().shields, 0);
+  GS.setRestDay(GS.shiftKey(today,-4), true);
+  chk('marking it a rest day refunds the shield', GS.streakInfo().shields, 1);
+  chk('  and the streak still holds', GS.streakInfo().count, 10);
+
+  // -- chronicle records both earning and spending
+  resetStreakState(perfectRun(GS.shiftKey(today,-1), 7));
+  GS.streakInfo();
+  var chronTexts = GS.chronicle(60).map(function(r){ return r.text; }).join(' | ');
+  chk('chronicle records shield earned', chronTexts.indexOf('Streak shield earned') !== -1, 'true');
+  var gap3 = perfectRun(GS.shiftKey(today,-1), 9);
+  delete gap3[GS.shiftKey(today,-3)];
+  resetStreakState(gap3, { shields: 1, noEarn: true });
+  GS.streakInfo();
+  chk('chronicle records shield spent',
+    GS.chronicle(60).map(function(r){return r.text;}).join(' | ').indexOf('Streak shield spent') !== -1, 'true');
+  GS.setRestDay(GS.shiftKey(today,-6), true);
+  chk('chronicle records rest day',
+    GS.chronicle(60).map(function(r){return r.text;}).join(' | ').indexOf('Rest day taken') !== -1, 'true');
+  chk('shield ledger entries award no XP',
+    GS.chronicle(60).filter(function(r){ return r.key.indexOf('shield:')===0 || r.key.indexOf('rest:')===0; })
+      .every(function(r){ return r.xp === 0; }), 'true');
+
+  // -- an unfinished today never breaks the streak
+  var live = perfectRun(GS.shiftKey(today,-1), 5);
+  live[today] = { d:1, t:5 };
+  resetStreakState(live, { shields: 0, noEarn: true });
+  chk('an in-progress today does not break the streak', GS.streakInfo().count, 5);
+  chk('  and does not spend a shield', GS.streakInfo().shields, 0);
+
+  // -- timezone / date-boundary behaviour
+  // The whole system keys off local date strings, so a run ending
+  // "yesterday" must read the same regardless of the clock time now,
+  // and must not silently wrap a month or year boundary.
+  resetStreakState(perfectRun('2026-03-01', 5));
+  var cross = GS.streakInfo({ today: '2026-03-02' });
+  chk('streak crosses a month boundary', cross.count, 5);
+  resetStreakState(perfectRun('2026-01-02', 4));
+  chk('streak crosses a year boundary', GS.streakInfo({ today:'2026-01-03' }).count, 4);
+  var dstRun = perfectRun('2026-03-29', 3);   // EU DST switch weekend
+  resetStreakState(dstRun);
+  chk('streak survives a DST weekend', GS.streakInfo({ today:'2026-03-30' }).count, 3);
+  chk('dateKey is local, not UTC',
+    GS.dateKey(new Date(2026, 0, 1, 23, 59, 0)), '2026-01-01');
+  chk('shiftKey does not drift over DST',
+    GS.shiftKey('2026-03-29', -1), '2026-03-28');
+  // dryRun must never mutate
+  var beforeShields = GS.get().streak.shields;
+  GS.streakInfo({ dryRun: true, today: GS.shiftKey(today, 5) });
+  chk('dryRun does not spend shields', GS.get().streak.shields, beforeShields);
+
+  // =============================================================
+  // COSMETICS — visual only
+  // =============================================================
+  var HA = window.HeroArt;
+  chk('six equipment slots', HA.SLOTS.length, 6);
+  chk('slot ids', HA.SLOTS.map(function(s){return s.id;}).join(','),
+      'portrait,border,background,title,tool,companion');
+
+  var st0 = GS.get();
+  chk('equipment migrated onto player', !!st0.player.equipment, 'true');
+  chk('  default tool', st0.player.equipment.tool, 'none');
+  chk('  default companion', st0.player.equipment.companion, 'none');
+
+  // locked vs unlocked
+  chk('plain border always unlocked', HA.optionUnlocked(st0,'border','plain'), 'true');
+  chk('gilded border locked by default', HA.optionUnlocked(st0,'border','border_gilded'), 'false');
+  chk('abacus tool always unlocked', HA.optionUnlocked(st0,'tool','abacus'), 'true');
+  chk('quill tool locked by default', HA.optionUnlocked(st0,'tool','quill'), 'false');
+  chk('wisp companion always unlocked', HA.optionUnlocked(st0,'companion','wisp'), 'true');
+  chk('fox companion locked by default', HA.optionUnlocked(st0,'companion','fox'), 'false');
+  GS.update(function(s){ s.player.unlockedCosmetics.push('border_gilded'); });
+  chk('gilded unlocks once granted', HA.optionUnlocked(GS.get(),'border','border_gilded'), 'true');
+  chk('quill unlocks with gilded', HA.optionUnlocked(GS.get(),'tool','quill'), 'true');
+  chk('requirement label is human readable',
+    HA.requirementLabel('tool','modelblade').indexOf('emberwrought') !== -1, 'true');
+
+  // THE important one: equipping must not move a single progression number
+  var pre = GS.totals();
+  var preStreak = GS.streakInfo().count;
+  var preBoard = QE.todayView().list.map(function(q){return q.id;}).join(',');
+  GS.update(function(s){
+    s.player.equipment = { portrait:'dusk', border:'border_gilded', background:'archive',
+                           title:'Certified Modeller', tool:'quill', companion:'wisp' };
+  });
+  var post = GS.totals();
+  chk('equipping does not change total XP', post.totalXp, pre.totalXp);
+  chk('equipping does not change level', post.level, pre.level);
+  chk('equipping does not change Adventurer Score', post.score, pre.score);
+  chk('equipping does not change discipline XP',
+    post.disciplines.map(function(d){return d.xp;}).join(','),
+    pre.disciplines.map(function(d){return d.xp;}).join(','));
+  chk('equipping does not change the streak', GS.streakInfo().count, preStreak);
+  chk('equipping does not change the quest board',
+    QE.todayView().list.map(function(q){return q.id;}).join(','), preBoard);
+
+  // persistence + rendering
+  var rawEq = JSON.parse(localStorage.getItem('icisGameStateV2')).player.equipment;
+  chk('equipment persisted', rawEq.tool + '/' + rawEq.companion, 'quill/wisp');
+  var html = HA.fromState(GS.get(), 80);
+  chk('portrait renders from state', html.indexOf('<svg') !== -1, 'true');
+  chk('  tool badge rendered', html.indexOf('hero-badge-tool') !== -1, 'true');
+  chk('  companion badge rendered', html.indexOf('hero-badge-comp') !== -1, 'true');
+
+  // =============================================================
+  // MIGRATION from the pre-equipment shape
+  // =============================================================
+  var legacyShape = JSON.parse(localStorage.getItem('icisGameStateV2'));
+  delete legacyShape.player.equipment;
+  legacyShape.player.portrait = 'ember';
+  legacyShape.player.border = 'border_gilded';
+  legacyShape.player.background = 'archive';
+  legacyShape.player.title = 'Certified Modeller';
+  delete legacyShape.streak;
+  delete legacyShape.questCustom;
+  delete legacyShape.questOverrides;
+  localStorage.setItem('icisGameStateV2', JSON.stringify(legacyShape));
+  localStorage.setItem('goal_streak_v1', JSON.stringify({ count: 12 }));
+  var migrated = GS.reload();
+  chk('migration builds equipment', !!migrated.player.equipment, 'true');
+  chk('  keeps the old portrait', migrated.player.equipment.portrait, 'ember');
+  chk('  keeps the old border', migrated.player.equipment.border, 'border_gilded');
+  chk('  keeps the old title', migrated.player.equipment.title, 'Certified Modeller');
+  chk('  fills new slots with none', migrated.player.equipment.tool, 'none');
+  chk('  rebuilds streak object', typeof migrated.streak.shields, 'number');
+  chk('  rebuilds questCustom', Array.isArray(migrated.questCustom), 'true');
+  chk('  seeds the legacy streak baseline', migrated.streak.legacyBaseline, 12);
 
 } catch (e) {
   L.push('FAIL threw: '+e.message+'\n'+e.stack);

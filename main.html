@@ -1330,5 +1330,37 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
+
+<!-- =============================================================
+     Streak display, unified.
+     This page keeps its own `goal_streak_v1` counter, but the shared
+     state computes the streak that every other page shows — including
+     rest days and spent shields. Rather than have two numbers disagree,
+     the pill here is overwritten with the shared one.
+     ============================================================= -->
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState;
+  if (!GS) return;
+  var el = document.getElementById('gmStreakNum');
+  if (!el) return;
+
+  function sync() {
+    var st = GS.streakInfo();
+    if (el.textContent !== String(st.count)) el.textContent = st.count;
+    var pill = document.getElementById('gmStreak');
+    if (pill) {
+      pill.title = st.shields + ' of ' + st.maxShields + ' streak shields held' +
+        (st.spent.length ? ' · ' + st.spent.length + ' day(s) currently shielded' : '');
+    }
+  }
+  sync();
+  // This page re-renders the pill on its own; re-assert after its writes.
+  window.addEventListener('goals-changed', function () { GS.reconcile(); sync(); });
+  document.addEventListener('icis:update', sync);
+  setInterval(sync, 1500);
+})();
+</script>
 </body>
 </html>

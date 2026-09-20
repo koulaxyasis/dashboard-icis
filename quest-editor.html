@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Quest Editor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="hero-art.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+.bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+.bar input[type=search] { flex:1; min-width:170px; }
+.pill { border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:6px 11px;
+  color:var(--text-3); font:inherit; font-size:11.5px; font-weight:650; cursor:pointer; }
+.pill.on { border-color:rgba(233,190,110,.5); color:var(--gold); background:rgba(233,190,110,.1); }
+
+.qrow { display:flex; align-items:center; gap:10px; padding:10px 13px; border-bottom:1px solid rgba(255,255,255,.05); }
+.qrow:last-child { border-bottom:0; }
+.qrow.off { opacity:.45; }
+.qrow-b { flex:1; min-width:0; }
+.qrow-t { font-size:13px; font-weight:650; color:var(--text); }
+.qrow-s { font-size:10.5px; color:var(--text-3); margin-top:2px; }
+.qrow-a { display:flex; gap:6px; flex:none; }
+.mini { border:1px solid var(--line); background:transparent; color:var(--text-3); border-radius:8px;
+  padding:5px 9px; font:inherit; font-size:10.5px; font-weight:700; cursor:pointer; }
+.mini:hover { color:var(--text); border-color:var(--line-2); }
+.mini.on { border-color:rgba(107,227,164,.5); color:var(--ok); }
+.mini.danger:hover { color:var(--bad); border-color:rgba(242,119,122,.5); }
+.tagc { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  padding:1px 6px; border-radius:999px; border:1px solid var(--line); color:var(--text-3); margin-right:4px; }
+.tagc.custom { color:var(--gold); border-color:rgba(233,190,110,.45); }
+.tagc.patched { color:#7DD3FC; border-color:rgba(125,211,252,.45); }
+
+.list { max-height:52vh; overflow-y:auto; }
+
+.form { padding:16px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:11px; }
+@media (max-width:620px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+.f { margin-bottom:11px; }
+.err { color:var(--bad); font-size:11px; margin-top:4px; display:none; }
+.f.bad input, .f.bad select, .f.bad textarea { border-color:rgba(242,119,122,.65); }
+.f.bad .err { display:block; }
+.checkrow { display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:4px 0; }
+.checkrow label { display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--text-2); cursor:pointer; }
+.checkrow input { width:auto; }
+.formfoot { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+.hintline { font-size:11.5px; color:var(--text-3); margin-top:8px; line-height:1.5; }
+
+.danger-zone { border-color:rgba(242,119,122,.24); }
+.dz-row { display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid rgba(255,255,255,.05); }
+.dz-row:last-child { border-bottom:0; }
+.dz-b { flex:1; min-width:0; }
+.dz-t { font-size:13px; font-weight:650; color:var(--text); }
+.dz-s { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+
+.modal-bg { position:fixed; inset:0; z-index:130; display:none; align-items:center; justify-content:center;
+  padding:18px; background:rgba(0,0,0,.68); backdrop-filter:blur(10px); }
+.modal-bg.show { display:flex; }
+.modal { width:100%; max-width:420px; background:#0F1322; border:1px solid var(--line-2);
+  border-radius:var(--r-lg); padding:20px; }
+.modal-t { font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px; }
+.modal-s { font-size:13px; color:var(--text-3); line-height:1.5; margin-bottom:16px; }
+.modal-a { display:flex; gap:8px; justify-content:flex-end; }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div style="margin-bottom:14px">
+    <div class="lore">Quest Board · Library</div>
+    <h1 class="h1">Quest Editor</h1>
+    <div class="sub">Author your own quests, or retune the built-in ones. Changes save straight into your shared state.</div>
+  </div>
+
+  <div class="bar">
+    <input type="search" id="search" placeholder="Search title, lore, tag or ID…" autocomplete="off">
+    <button class="btn gold" id="newBtn">New quest</button>
+  </div>
+  <div class="bar" id="filters"></div>
+
+  <section class="card list" id="list"></section>
+  <div class="sub" id="meta" style="margin-top:7px"></div>
+
+  <div class="sec" id="formSec" hidden><span class="sec-t" id="formTitle">Edit Quest</span><span class="sec-m" id="formMeta"></span></div>
+  <section class="card form" id="form" hidden>
+    <div class="grid2">
+      <div class="f" data-f="practicalTitle"><label class="fl">Practical title *</label>
+        <input id="f_practicalTitle" maxlength="90" placeholder="Complete one FMVA lesson"><div class="err"></div></div>
+      <div class="f" data-f="loreTitle"><label class="fl">Lore title *</label>
+        <input id="f_loreTitle" maxlength="90" placeholder="Rite of the First Seal"><div class="err"></div></div>
+    </div>
+    <div class="f" data-f="description"><label class="fl">Description</label>
+      <textarea id="f_description" rows="2" maxlength="300" placeholder="What finishing this actually means."></textarea><div class="err"></div></div>
+    <div class="grid3">
+      <div class="f" data-f="id"><label class="fl">ID *</label>
+        <input id="f_id" maxlength="40" placeholder="u_my_quest" autocomplete="off"><div class="err"></div></div>
+      <div class="f" data-f="category"><label class="fl">Category *</label>
+        <select id="f_category"></select><div class="err"></div></div>
+      <div class="f" data-f="subcategory"><label class="fl">Subcategory</label>
+        <input id="f_subcategory" maxlength="40" placeholder="fmva, excel, gym…"><div class="err"></div></div>
+    </div>
+    <div class="grid3">
+      <div class="f" data-f="difficulty"><label class="fl">Difficulty *</label>
+        <select id="f_difficulty"></select><div class="err"></div></div>
+      <div class="f" data-f="xp"><label class="fl">XP (0–500)</label>
+        <input id="f_xp" type="number" min="0" max="500"><div class="err"></div></div>
+      <div class="f" data-f="estimatedMinutes"><label class="fl">Minutes (0–600)</label>
+        <input id="f_estimatedMinutes" type="number" min="0" max="600"><div class="err"></div></div>
+    </div>
+    <div class="grid3">
+      <div class="f" data-f="cooldownDays"><label class="fl">Cooldown days (0–90)</label>
+        <input id="f_cooldownDays" type="number" min="0" max="90"><div class="err"></div></div>
+      <div class="f" data-f="maximumUsesPerWeek"><label class="fl">Max uses / week (1–7)</label>
+        <input id="f_maximumUsesPerWeek" type="number" min="1" max="7"><div class="err"></div></div>
+      <div class="f" data-f="weight"><label class="fl">Selection weight (1–5)</label>
+        <input id="f_weight" type="number" min="1" max="5"><div class="err"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="f" data-f="tags"><label class="fl">Tags (comma separated)</label>
+        <input id="f_tags" placeholder="fmva, study"><div class="err"></div></div>
+      <div class="f" data-f="prerequisites"><label class="fl">Prerequisite quest IDs (comma separated)</label>
+        <input id="f_prerequisites" placeholder="c_fmva_lesson"><div class="err"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="f" data-f="minimumLevel"><label class="fl">Minimum level (1–99)</label>
+        <input id="f_minimumLevel" type="number" min="1" max="99"><div class="err"></div></div>
+      <div class="f" data-f="weekdayOnly"><label class="fl">Scheduling</label>
+        <div class="checkrow">
+          <label><input type="checkbox" id="f_weekdayOnly"> Weekdays only</label>
+          <label><input type="checkbox" id="f_weekendOnly"> Weekends only</label>
+          <label><input type="checkbox" id="f_active" checked> Active</label>
+        </div><div class="err"></div></div>
+    </div>
+    <div class="formfoot">
+      <button class="btn gold" id="saveBtn">Save quest</button>
+      <button class="btn" id="cancelBtn">Cancel</button>
+      <button class="btn" id="dupBtn">Duplicate as custom</button>
+      <button class="btn" id="delBtn" style="margin-left:auto">Delete</button>
+    </div>
+    <div class="hintline" id="formHint"></div>
+  </section>
+
+  <div class="sec"><span class="sec-t">Reset</span><span class="sec-m">two separate actions</span></div>
+  <section class="card danger-zone">
+    <div class="dz-row">
+      <div class="dz-b"><div class="dz-t">Reset the built-in 100</div>
+        <div class="dz-s">Drops every edit you made to the shipped quests. Your custom quests are untouched.</div></div>
+      <button class="btn sm" id="resetDefaults">Reset defaults</button>
+    </div>
+    <div class="dz-row">
+      <div class="dz-b"><div class="dz-t">Delete all custom quests</div>
+        <div class="dz-s">Removes only quests you authored. The built-in 100 are untouched.</div></div>
+      <button class="btn sm" id="resetCustom">Delete custom</button>
+    </div>
+  </section>
+
+</div>
+
+<div class="modal-bg" id="confirmBg">
+  <div class="modal" role="dialog" aria-label="Confirm">
+    <div class="modal-t" id="cTitle">Are you sure?</div>
+    <div class="modal-s" id="cBody"></div>
+    <div class="modal-a">
+      <button class="btn" id="cNo">Cancel</button>
+      <button class="btn gold" id="cYes">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, QE = window.QuestEngine, QL = window.QuestLibrary, UI = window.UI;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var FIELDS = ['id','practicalTitle','loreTitle','description','category','subcategory','difficulty',
+    'xp','estimatedMinutes','cooldownDays','maximumUsesPerWeek','weight','tags','prerequisites',
+    'minimumLevel','weekdayOnly','weekendOnly','active'];
+
+  var filter = 'all', query = '', editingId = null, creating = false;
+
+  /* ---------- form plumbing ---------- */
+  function fillSelects() {
+    $('f_category').innerHTML = QL.categories.map(function (c) {
+      return '<option value="' + c + '">' + c + '</option>';
+    }).join('');
+    $('f_difficulty').innerHTML = QE.DIFFICULTIES.map(function (d) {
+      return '<option value="' + d + '">' + d + '</option>';
+    }).join('');
+  }
+
+  function readForm() {
+    var o = {};
+    FIELDS.forEach(function (f) {
+      var el = $('f_' + f);
+      if (!el) return;
+      o[f] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    return o;
+  }
+  function writeForm(q) {
+    FIELDS.forEach(function (f) {
+      var el = $('f_' + f);
+      if (!el) return;
+      var v = q[f];
+      if (el.type === 'checkbox') el.checked = !!v;
+      else if (Array.isArray(v)) el.value = v.join(', ');
+      else el.value = v == null ? '' : v;
+    });
+  }
+  function clearErrors() {
+    document.querySelectorAll('.f').forEach(function (el) {
+      el.classList.remove('bad');
+      var e = el.querySelector('.err'); if (e) e.textContent = '';
+    });
+  }
+  function showErrors(errs) {
+    clearErrors();
+    Object.keys(errs).forEach(function (k) {
+      var wrap = document.querySelector('.f[data-f="' + k + '"]');
+      if (!wrap) { UI.toast('close', 'Invalid', errs[k], ''); return; }
+      wrap.classList.add('bad');
+      var e = wrap.querySelector('.err'); if (e) e.textContent = errs[k];
+    });
+  }
+
+  function openForm(q, isNew) {
+    creating = !!isNew;
+    editingId = isNew ? null : q.id;
+    clearErrors();
+    writeForm(q);
+    $('form').hidden = false;
+    $('formSec').hidden = false;
+    $('f_id').disabled = !isNew && QE.isDefaultId(q.id);
+    $('formTitle').textContent = isNew ? 'New Quest' : 'Edit Quest';
+    var builtIn = !isNew && QE.isDefaultId(q.id);
+    $('formMeta').textContent = isNew ? 'custom' : (builtIn ? 'built-in · edits stored as a patch' : 'custom');
+    $('delBtn').hidden = isNew || builtIn;
+    $('dupBtn').hidden = isNew;
+    $('formHint').textContent = builtIn
+      ? 'Built-in quests keep their ID and can always be reset. Use "Duplicate as custom" to make a freely editable copy.'
+      : 'Custom quests can be edited and deleted freely.';
+    $('form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function closeForm() { $('form').hidden = true; $('formSec').hidden = true; editingId = null; creating = false; }
+
+  function blankQuest() {
+    return { id: '', practicalTitle: '', loreTitle: '', description: '', category: 'career',
+      subcategory: '', difficulty: 'normal', xp: 35, estimatedMinutes: 30, cooldownDays: 7,
+      maximumUsesPerWeek: 1, weight: 1, tags: '', prerequisites: '', minimumLevel: 1,
+      weekdayOnly: false, weekendOnly: false, active: true };
+  }
+
+  /* ---------- list ---------- */
+  function render() {
+    var lib = QE.library();
+    var s = GS.get();
+    var patched = s.questOverrides || {};
+
+    $('filters').innerHTML = ['all', 'custom', 'patched', 'inactive'].concat(QL.categories).map(function (c) {
+      return '<button class="pill' + (filter === c ? ' on' : '') + '" data-filter="' + c + '">' + c + '</button>';
+    }).join('');
+
+    var shown = lib.filter(function (q) {
+      if (filter === 'custom' && !q.custom) return false;
+      if (filter === 'patched' && !patched[q.id]) return false;
+      if (filter === 'inactive' && q.active) return false;
+      if (['all','custom','patched','inactive'].indexOf(filter) === -1 && q.category !== filter) return false;
+      if (query) {
+        var hay = (q.id + ' ' + q.practicalTitle + ' ' + q.loreTitle + ' ' + q.tags.join(' ')).toLowerCase();
+        if (hay.indexOf(query) === -1) return false;
+      }
+      return true;
+    });
+
+    $('list').innerHTML = shown.length ? shown.map(function (q) {
+      return '<div class="qrow' + (q.active ? '' : ' off') + '">' +
+        '<div class="qrow-b">' +
+          '<div class="qrow-t">' +
+            (q.custom ? '<span class="tagc custom">custom</span>' : '') +
+            (patched[q.id] ? '<span class="tagc patched">edited</span>' : '') +
+            UI.esc(q.practicalTitle) + '</div>' +
+          '<div class="qrow-s">' + UI.esc(q.id) + ' · ' + UI.esc(q.category) +
+            (q.subcategory ? '/' + UI.esc(q.subcategory) : '') + ' · ' + UI.esc(q.difficulty) +
+            ' · ' + q.xp + ' XP · ' + q.estimatedMinutes + 'm · cd ' + q.cooldownDays + 'd · ' +
+            q.maximumUsesPerWeek + '/wk · w' + q.weight +
+            (q.weekdayOnly ? ' · weekdays' : '') + (q.weekendOnly ? ' · weekends' : '') +
+            (q.minimumLevel > 1 ? ' · LV' + q.minimumLevel : '') +
+            (q.prerequisites.length ? ' · needs ' + UI.esc(q.prerequisites.join(',')) : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="qrow-a">' +
+          '<button class="mini' + (q.active ? ' on' : '') + '" data-tog="' + UI.esc(q.id) + '">' +
+            (q.active ? 'Active' : 'Off') + '</button>' +
+          '<button class="mini" data-edit="' + UI.esc(q.id) + '">Edit</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="empty">Nothing matches that filter.</div>';
+
+    var customCount = lib.filter(function (q) { return q.custom; }).length;
+    $('meta').textContent = shown.length + ' shown · ' + lib.length + ' total (' +
+      customCount + ' custom, ' + Object.keys(patched).length + ' edited, ' +
+      lib.filter(function (q) { return q.active; }).length + ' active)';
+  }
+
+  /* ---------- confirm dialog ---------- */
+  var pending = null;
+  function confirmAsk(title, body, fn) {
+    $('cTitle').textContent = title;
+    $('cBody').textContent = body;
+    pending = fn;
+    $('confirmBg').classList.add('show');
+  }
+  $('cNo').addEventListener('click', function () { $('confirmBg').classList.remove('show'); pending = null; });
+  $('cYes').addEventListener('click', function () {
+    $('confirmBg').classList.remove('show');
+    if (pending) { pending(); pending = null; }
+  });
+  $('confirmBg').addEventListener('click', function (e) {
+    if (e.target === $('confirmBg')) { $('confirmBg').classList.remove('show'); pending = null; }
+  });
+
+  /* ---------- actions ---------- */
+  $('newBtn').addEventListener('click', function () {
+    var q = blankQuest();
+    q.id = 'u_' + Date.now().toString(36);
+    openForm(q, true);
+  });
+  $('cancelBtn').addEventListener('click', closeForm);
+
+  $('saveBtn').addEventListener('click', function () {
+    var data = readForm();
+    var r = creating ? QE.createQuest(data) : QE.updateQuest(editingId, data);
+    if (!r.ok) { showErrors(r.errors); return; }
+    UI.toast('check', creating ? 'Quest created' : 'Quest saved', r.value.practicalTitle, r.value.id);
+    closeForm(); render();
+  });
+
+  $('dupBtn').addEventListener('click', function () {
+    var data = readForm();
+    data.id = 'u_' + String(data.id).replace(/^u_/, '').slice(0, 24) + '_' + Date.now().toString(36).slice(-4);
+    data.practicalTitle = data.practicalTitle + ' (copy)';
+    var r = QE.createQuest(data);
+    if (!r.ok) { showErrors(r.errors); return; }
+    UI.toast('plus', 'Duplicated', r.value.practicalTitle, r.value.id);
+    closeForm(); render();
+  });
+
+  $('delBtn').addEventListener('click', function () {
+    var id = editingId;
+    var q = QE.byId(id);
+    if (!q) return;
+    confirmAsk('Delete this quest?', '"' + q.practicalTitle + '" will be removed permanently. This cannot be undone.', function () {
+      var r = QE.deleteQuest(id);
+      if (!r.ok) { showErrors(r.errors); return; }
+      UI.toast('close', 'Deleted', q.practicalTitle, '');
+      closeForm(); render();
+    });
+  });
+
+  $('resetDefaults').addEventListener('click', function () {
+    var n = Object.keys(GS.get().questOverrides || {}).length;
+    confirmAsk('Reset the built-in 100?',
+      n ? n + ' edited built-in quest(s) will go back to their shipped values. Custom quests are not affected.'
+        : 'There are no edits to reset. Custom quests are not affected.',
+      function () { QE.resetDefaults(); UI.toast('dice', 'Reset', 'Built-in quests restored', ''); render(); });
+  });
+  $('resetCustom').addEventListener('click', function () {
+    var n = (GS.get().questCustom || []).length;
+    confirmAsk('Delete all custom quests?',
+      n ? n + ' custom quest(s) will be deleted permanently. The built-in 100 are not affected.'
+        : 'You have no custom quests. The built-in 100 are not affected.',
+      function () { QE.resetCustom(); UI.toast('close', 'Deleted', 'Custom quests removed', ''); closeForm(); render(); });
+  });
+
+  document.addEventListener('click', function (e) {
+    var el;
+    if ((el = e.target.closest('[data-filter]'))) { filter = el.getAttribute('data-filter'); render(); return; }
+    if ((el = e.target.closest('[data-tog]'))) {
+      var id = el.getAttribute('data-tog');
+      QE.setActive(id, !QE.byId(id).active);
+      render(); return;
+    }
+    if ((el = e.target.closest('[data-edit]'))) {
+      openForm(QE.byId(el.getAttribute('data-edit')), false); return;
+    }
+  });
+
+  $('search').addEventListener('input', function () {
+    query = $('search').value.trim().toLowerCase(); render();
+  });
+
+  fillSelects();
+  render();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+  });
+})();
+</script>
+</body>
+</html>

@@ -420,6 +420,10 @@ main {
   gap: 6px;
   align-items: center;
 }
+/* Grid items default to min-width:auto, so the date inputs and the select
+   refused to shrink below their intrinsic width and pushed the page wider
+   than the phone viewport. */
+.pm-add-row2 > * { min-width: 0; }
 .pm-input {
   font-size: 13px;
   padding: 9px 11px;
