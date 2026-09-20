@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+// Safety guard: these pages seed and CLEAR localStorage. Refuse to run
+// anywhere except a local dev server so they can never wipe live data.
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML =
+      '<body style="background:#0B0E1A;color:#AFB4C6;font:14px system-ui;padding:40px">' +
+      '<h1 style="color:#F2777A">Blocked</h1>' +
+      '<p>This is a local test harness. It clears localStorage, so it only runs on localhost.</p></body>';
+    throw new Error('test harness blocked off localhost');
+  }
+})();
+</script>
+<title>smoke</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}iframe{width:420px;height:560px;border:0;position:absolute;left:-9999px}pre{white-space:pre-wrap;padding:10px}</style>
+</head>
+<body>
+<pre id="out">pending</pre>
+<script>
+var L=[];
+var LEVEL=null;   // baseline hero level, set by the first page probed
+function chk(label, ok, extra){ L.push((ok?'PASS ':'FAIL ')+label+(extra?'  '+extra:'')); return ok; }
+
+// Each page maps to the container ids that MUST have rendered content.
+// If a script throws mid-render these stay empty, which is the signal.
+var PAGES = {
+  '../index.html': ['bName','story','quests','contracts','world','camp','social','reward'],
+  '../career.html': ['mission','chapters','skills'],
+  '../tavern.html': ['plans','people','suggestions','memories','stXp'],
+  '../character.html': ['bName','oLv','oQuests','oContract','oNext','oDisc'],
+  '../guild.html': ['bosses'],
+  '../nova.html': ['novaMain'],
+  // Legacy trackers — their own markup must still render after the
+  // chrome swap, and each keeps a signature element.
+  '../main.html': ['goalTickerStage'],
+  '../gym.html': [],
+  '../po-water.html': [],
+  '../caffeine.html': ['logList'],
+  '../finance.html': []
+};
+// finance keeps its own internal bottom nav, so it opts out of the shared one.
+var NO_NAV = { '../finance.html': true };
+
+function probe(page, ids){
+  return new Promise(function(resolve){
+    var f=document.createElement('iframe');
+    var errs=[];
+    f.src=page;
+    f.addEventListener('load', function(){
+      // Hook late errors too (render happens on DOMContentLoaded / inline).
+      try { f.contentWindow.addEventListener('error', function(e){ errs.push(e.message); }); } catch(e){}
+      setTimeout(function(){
+        var d;
+        try { d=f.contentWindow.document; } catch(e){ chk(page+' same-origin', false, e.message); return resolve(); }
+        var empty=[];
+        ids.forEach(function(id){
+          var el=d.getElementById(id);
+          if(!el) empty.push(id+'(missing)');
+          else if(!el.textContent.trim() && !el.children.length) empty.push(id+'(empty)');
+        });
+        chk(page, empty.length===0, empty.length? 'not rendered: '+empty.join(', '):'');
+        // Shared chrome should be present on every page.
+        chk(page+' :: hud', !!d.getElementById('icisHud'));
+        if(!NO_NAV[page]) chk(page+' :: nav', !!d.getElementById('icisNav'));
+        // The shared level must read identically on every page.
+        var orb=d.getElementById('hudOrb');
+        if(!orb) chk(page+' :: hud orb', false);
+        else if(LEVEL===null){ LEVEL=orb.textContent; chk(page+' :: level baseline = '+LEVEL, true); }
+        else chk(page+' :: level matches', orb.textContent===LEVEL, 'got '+orb.textContent+' expected '+LEVEL);
+        // No horizontal overflow at 420px.
+        var sw=Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
+        var vw=d.documentElement.clientWidth;
+        chk(page+' :: no overflow @420', sw<=vw+1, 'scrollW='+sw+' vw='+vw);
+        if(errs.length) chk(page+' :: no runtime errors', false, errs.join(' | '));
+        f.remove(); resolve();
+      }, 1100);
+    });
+    f.addEventListener('error', function(){ chk(page+' load', false); resolve(); });
+    document.body.appendChild(f);
+  });
+}
+
+(async function(){
+  for (var p in PAGES) await probe(p, PAGES[p]);
+  var fails=L.filter(function(x){return x.indexOf('FAIL')===0;}).length;
+  L.unshift(fails===0?'### SMOKE OK ###':'### '+fails+' FAILURES ###');
+  document.getElementById('out').textContent=L.join('\n');
+})();
+</script>
+</body></html>

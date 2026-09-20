@@ -5,682 +5,619 @@
 <script src="/api/config"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050506">
-<title>Character</title>
-
+<meta name="theme-color" content="#0B0E1A">
+<title>Hero Profile</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
-<script src="rpg.js" defer></script>
-<script src="topbar.js" defer></script>
-
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="hero-art.js"></script>
+<script src="ui-kit.js"></script>
 <style>
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --gold: #E9BE6E;
-  --gold-dim: #C99B4E;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: #050506;
-  color: var(--text-secondary);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-body {
-  min-height: 100vh; position: relative; overflow-x: hidden;
-  padding: max(24px, env(safe-area-inset-top)) 20px 60px;
-}
-body::before {
-  content: ''; position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 80% 8%, rgba(233,190,110,0.14), transparent 46%),
-    radial-gradient(circle at 12% 88%, rgba(167,139,250,0.08), transparent 52%);
-  filter: blur(46px); pointer-events: none; z-index: -2;
-  animation: drift 40s ease-in-out infinite alternate;
-}
-body::after {
-  content: ''; position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px; pointer-events: none; z-index: -1;
-}
-@keyframes drift { 0%{transform:translate3d(0,0,0)} 100%{transform:translate3d(-20px,14px,0)} }
+.banner { padding:18px; border-color:rgba(233,190,110,.22);
+  background:radial-gradient(circle at 90% 0%, rgba(233,190,110,.13), transparent 58%), var(--panel); }
+.banner-row { display:flex; gap:16px; align-items:center; }
+.banner-name { font-size:24px; font-weight:700; color:var(--text); letter-spacing:-.025em; margin:2px 0 0;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.edit-b { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:2px; line-height:0; }
+.edit-b:hover { color:var(--gold); }
+.banner-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:6px; }
+.xp-line { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:14px 0 5px; }
+.xp-k { font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:var(--text-3); }
+.xp-n { font-family:var(--mono); font-size:11px; color:var(--text-2); }
 
-.page { max-width: 1100px; margin: 0 auto; }
+/* tabs */
+.tabs { display:flex; gap:4px; margin:16px 0 4px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:3px; }
+.tabs::-webkit-scrollbar { display:none; }
+.tab { flex:none; border:1px solid var(--line); background:var(--panel); color:var(--text-3);
+  font:inherit; font-size:12px; font-weight:650; padding:8px 13px; border-radius:10px; cursor:pointer; white-space:nowrap; }
+.tab.on { background:rgba(233,190,110,.14); color:var(--gold); border-color:rgba(233,190,110,.42); }
+.panel { display:none; }
+.panel.on { display:block; }
 
-/* ===== Shared card ===== */
-.card {
-  position: relative; overflow: hidden;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-}
-.sec-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 12px; margin: 30px 0 13px;
-}
-.sec-title {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--gold);
-}
-.sec-meta {
-  font-size: 11px; color: var(--text-tertiary);
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-}
+.stat4 { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-top:12px; }
+@media (max-width:560px){ .stat4{ grid-template-columns:repeat(2,1fr); } }
+.st { padding:13px; text-align:center; cursor:default; }
+.st-v { font-family:var(--mono); font-size:20px; font-weight:700; color:var(--text); }
+.st-k { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); margin-top:4px; }
 
-/* ===== Hero banner ===== */
-.hero {
-  padding: 24px;
-  border-color: rgba(233,190,110,0.20);
-  background:
-    radial-gradient(circle at 88% 0%, rgba(233,190,110,0.14), transparent 55%),
-    rgba(255,255,255,0.04);
-}
-.hero-row { display: flex; align-items: center; gap: 20px; }
-.orb {
-  width: 92px; height: 92px; flex: none; position: relative;
-  display: grid; place-items: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 26%, #F9E6BE, #C99B4E 58%, #5E3F17);
-  box-shadow: 0 0 34px rgba(233,190,110,0.35), inset 0 2px 0 rgba(255,255,255,0.55);
-}
-.orb-lvl {
-  font-size: 34px; font-weight: 800; color: #2A1B06;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1;
-}
-.orb-cap {
-  position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
-  padding: 2px 9px; border-radius: 999px;
-  background: #100D08; border: 1px solid rgba(233,190,110,0.4);
-  font-size: 8px; font-weight: 800; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--gold); white-space: nowrap;
-}
-.hero-id { flex: 1; min-width: 0; }
-.hero-name {
-  margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.028em;
-  color: var(--text-primary);
-  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
-}
-.hero-edit {
-  border: 0; background: transparent; cursor: pointer; padding: 3px;
-  color: var(--text-tertiary); font-size: 14px; line-height: 1;
-  border-radius: 6px; transition: color .15s;
-}
-.hero-edit:hover { color: var(--gold); }
-.hero-class {
-  margin-top: 3px; font-size: 13px; color: var(--text-tertiary);
-}
-.hero-class b { color: var(--gold); font-weight: 600; }
-.hero-xp { margin-top: 16px; }
-.xp-line {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 10px; margin-bottom: 6px;
-}
-.xp-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--text-tertiary);
-}
-.xp-nums {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-  color: var(--text-secondary); font-variant-numeric: tabular-nums;
-}
-.xp-track {
-  height: 10px; border-radius: 6px; overflow: hidden;
-  background: rgba(0,0,0,0.42);
-  border: 1px solid rgba(255,255,255,0.07);
-}
-.xp-fill {
-  height: 100%; border-radius: 5px; width: 0;
-  background: linear-gradient(90deg, #A8752B, #E9BE6E 60%, #FBEBC6);
-  box-shadow: 0 0 14px rgba(233,190,110,0.55);
-  transition: width .7s cubic-bezier(.22,1,.36,1);
-  position: relative;
-}
-.xp-fill::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
-  animation: sheen 2.6s ease-in-out infinite;
-}
-@keyframes sheen { 0%,100% { transform: translateX(-100%); } 55% { transform: translateX(100%); } }
+.disc { padding:15px; }
+.disc-top { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.disc-n { flex:1; }
+.disc-lore { font-size:9.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+.disc-name { font-size:14px; font-weight:700; color:var(--text); margin-top:1px; }
+.disc-prac { font-size:11px; color:var(--text-3); margin-top:1px; }
+.disc-lv { font-family:var(--mono); font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; flex:none; }
+.disc-foot { display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-3); margin-top:7px; font-family:var(--mono); }
 
-/* ===== Stat strip ===== */
-.stats {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px;
-}
-.stat { padding: 14px; text-align: center; }
-.stat-val {
-  font-family: var(--font-mono); font-size: 21px; font-weight: 700;
-  color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1.1;
-}
-.stat-key {
-  margin-top: 5px; font-size: 9px; font-weight: 700; letter-spacing: 0.13em;
-  text-transform: uppercase; color: var(--text-tertiary);
-}
+.tr { padding:14px 9px; text-align:center; opacity:.4; filter:grayscale(1); transition:opacity .2s, filter .2s; }
+.tr.got { opacity:1; filter:none; border-color:rgba(233,190,110,.3);
+  background:linear-gradient(180deg,rgba(233,190,110,.09),rgba(255,255,255,.03)); }
+.tr-ic { color:var(--gold); }
+.tr-n { margin-top:7px; font-size:10.5px; font-weight:700; color:var(--text); line-height:1.25; }
+.tr-d { margin-top:3px; font-size:9.5px; color:var(--text-3); line-height:1.3; }
+.tr-p { margin-top:5px; font-family:var(--mono); font-size:8.5px; color:var(--gold); }
+.trophies { display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:9px; }
 
-/* ===== Skills ===== */
-.skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
-.skill {
-  --c: var(--gold);
-  display: block; padding: 17px; text-decoration: none;
-  transition: transform .18s ease, border-color .18s ease;
-}
-.skill::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(circle at 84% 12%, color-mix(in srgb, var(--c) 18%, transparent), transparent 58%);
-}
-.skill:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--c) 42%, transparent); }
-.skill-top { display: flex; align-items: center; gap: 11px; position: relative; }
-.skill-glyph {
-  font-size: 22px; line-height: 1;
-  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--c) 65%, transparent));
-}
-.skill-name {
-  flex: 1; font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-.skill-lvl {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-  padding: 3px 9px; border-radius: 999px;
-  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
-  font-variant-numeric: tabular-nums;
-}
-.skill-track {
-  height: 6px; margin: 13px 0 9px; border-radius: 4px; overflow: hidden;
-  background: rgba(0,0,0,0.38); position: relative;
-}
-.skill-fill {
-  height: 100%; border-radius: 4px; width: 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, #000), var(--c));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent);
-  transition: width .7s cubic-bezier(.22,1,.36,1);
-}
-.skill-foot {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  position: relative;
-}
-.skill-stat { font-size: 12px; color: var(--text-tertiary); }
-.skill-xp {
-  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums; flex: none;
-}
+.ch-row { display:flex; align-items:center; gap:11px; padding:10px 13px; border-bottom:1px solid rgba(255,255,255,.05); }
+.ch-row:last-child { border-bottom:0; }
+.ch-t { flex:1; min-width:0; font-size:13px; color:var(--text-2); }
+.ch-x { flex:none; font-family:var(--mono); font-size:11px; font-weight:700; color:var(--gold); }
+.ch-w { flex:none; width:44px; text-align:right; font-family:var(--mono); font-size:10px; color:var(--text-3); }
 
-/* ===== Quests ===== */
-.quests { display: grid; gap: 9px; }
-.quest {
-  display: flex; align-items: center; gap: 13px;
-  padding: 13px 15px;
-  transition: border-color .18s;
-}
-.quest.done { border-color: rgba(107,227,164,0.28); background: rgba(107,227,164,0.05); }
-.quest-mark {
-  width: 25px; height: 25px; flex: none;
-  display: grid; place-items: center;
-  border-radius: 50%; font-size: 12px; font-weight: 800;
-  border: 1.5px solid rgba(255,255,255,0.14);
-  color: var(--text-tertiary);
-}
-.quest.done .quest-mark {
-  border-color: #6BE3A4; color: #0A0A0B; background: #6BE3A4;
-  box-shadow: 0 0 14px rgba(107,227,164,0.45);
-}
-.quest-body { flex: 1; min-width: 0; }
-.quest-name {
-  font-size: 14px; font-weight: 650; color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-.quest.done .quest-name { color: #6BE3A4; }
-.quest-desc { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
-.quest-track {
-  height: 3px; margin-top: 8px; border-radius: 2px; overflow: hidden;
-  background: rgba(255,255,255,0.08);
-}
-.quest-fill {
-  height: 100%; border-radius: 2px; width: 0;
-  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
-  transition: width .6s cubic-bezier(.22,1,.36,1);
-}
-.quest.done .quest-fill { background: #6BE3A4; }
-.quest-reward {
-  flex: none; text-align: right;
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-  color: var(--gold); font-variant-numeric: tabular-nums;
-}
-.quest.done .quest-reward { color: #6BE3A4; }
-.quest-reward small {
-  display: block; font-size: 8px; letter-spacing: 0.12em;
-  color: var(--text-tertiary); font-weight: 700; margin-top: 1px;
-}
+.cos { display:flex; gap:8px; flex-wrap:wrap; }
+.cos-b { border:1px solid var(--line); background:var(--panel); border-radius:12px; padding:9px 11px;
+  cursor:pointer; color:var(--text-3); font:inherit; font-size:12px; font-weight:600; }
+.cos-b.on { border-color:rgba(233,190,110,.5); color:var(--gold); background:rgba(233,190,110,.1); }
+.cos-b[disabled] { opacity:.35; cursor:not-allowed; }
 
-/* ===== Trophies ===== */
-.trophies {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px;
-}
-.trophy {
-  padding: 14px 8px; text-align: center;
-  opacity: 0.38; filter: grayscale(100%);
-  transition: opacity .2s, filter .2s, transform .18s;
-}
-.trophy.got {
-  opacity: 1; filter: none;
-  border-color: rgba(233,190,110,0.28);
-  background: linear-gradient(180deg, rgba(233,190,110,0.09), rgba(255,255,255,0.03));
-}
-.trophy:hover { transform: translateY(-2px); }
-.trophy-glyph { font-size: 25px; line-height: 1; }
-.trophy.got .trophy-glyph { filter: drop-shadow(0 0 9px rgba(233,190,110,0.55)); }
-.trophy-name {
-  margin-top: 7px; font-size: 10px; font-weight: 700;
-  color: var(--text-primary); letter-spacing: -0.005em; line-height: 1.25;
-}
-.trophy-desc {
-  margin-top: 3px; font-size: 9px; color: var(--text-tertiary); line-height: 1.3;
-}
-.trophy-prog {
-  margin-top: 5px; font-family: var(--font-mono); font-size: 8px;
-  color: var(--gold); font-variant-numeric: tabular-nums;
-}
+.qlib { max-height:460px; overflow-y:auto; }
+.ql { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid rgba(255,255,255,.05); }
+.ql:last-child { border-bottom:0; }
+.ql-b { flex:1; min-width:0; }
+.ql-t { font-size:12.5px; font-weight:600; color:var(--text); }
+.ql-s { font-size:10.5px; color:var(--text-3); margin-top:2px; }
+.ql.off { opacity:.42; }
+.toggle { border:1px solid var(--line); background:transparent; color:var(--text-3); border-radius:8px;
+  padding:5px 9px; font:inherit; font-size:10.5px; font-weight:700; cursor:pointer; flex:none; }
+.toggle.on { border-color:rgba(107,227,164,.5); color:var(--ok); }
+.filterbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
 
-/* ===== Combat log ===== */
-.log { padding: 6px 4px; }
-.log-row {
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 13px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.log-row:last-child { border-bottom: 0; }
-.log-glyph { font-size: 15px; line-height: 1; flex: none; }
-.log-text {
-  flex: 1; min-width: 0; font-size: 13px; color: var(--text-secondary);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.log-xp {
-  flex: none; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-  color: var(--gold); font-variant-numeric: tabular-nums;
-}
-.log-when {
-  flex: none; width: 54px; text-align: right;
-  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
-}
-.empty {
-  padding: 26px 16px; text-align: center;
-  font-size: 13px; color: var(--text-tertiary);
-}
+.explain { padding:14px; font-size:12.5px; color:var(--text-3); line-height:1.55; }
+.explain code { font-family:var(--mono); color:var(--gold); font-size:11.5px; }
 
-/* ===== Name modal ===== */
-.modal-bg {
-  position: fixed; inset: 0; z-index: 120; display: none;
-  align-items: center; justify-content: center; padding: 20px;
-  background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-}
-.modal-bg.show { display: flex; }
-.modal {
-  width: 100%; max-width: 400px;
-  background: #0e0e10; border: 1px solid rgba(233,190,110,0.18);
-  border-radius: 18px; padding: 22px; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
-}
-.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.modal-title { font-size: 17px; font-weight: 700; color: var(--text-primary); }
-.modal-close {
-  border: 0; background: transparent; color: var(--text-tertiary);
-  font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
-}
-.modal-close:hover { color: var(--text-primary); }
-.field { margin-bottom: 14px; }
-.field-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--text-tertiary); margin-bottom: 7px; display: block;
-}
-.set-input {
-  width: 100%; padding: 11px 13px;
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 11px;
-  background: rgba(0,0,0,0.3); color: var(--text-primary);
-  font-family: inherit; font-size: 14px; outline: none; transition: border-color .2s;
-}
-.set-input:focus { border-color: rgba(233,190,110,0.45); }
-.hint { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
-.set-save {
-  width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 12px;
-  background: linear-gradient(180deg, #F6DCA8, #C99B4E); color: #2A1B06;
-  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 8px 22px rgba(0,0,0,0.3);
-}
-.set-save:active { transform: translateY(1px); }
-
-@media (max-width: 560px) {
-  body { padding-left: 14px; padding-right: 14px; }
-  .hero { padding: 19px; }
-  .hero-row { gap: 15px; }
-  .orb { width: 74px; height: 74px; }
-  .orb-lvl { font-size: 27px; }
-  .hero-name { font-size: 24px; }
-  .stats { grid-template-columns: repeat(2, 1fr); }
-  .log-when { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .xp-fill::after { animation: none; }
-  .xp-fill, .skill-fill, .quest-fill { transition: none; }
-  body::before { animation: none; }
-}
+.modal-bg { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center;
+  padding:18px; background:rgba(0,0,0,.66); backdrop-filter:blur(10px); }
+.modal-bg.show { display:flex; }
+.modal { width:100%; max-width:420px; max-height:88vh; overflow-y:auto; background:#0F1322;
+  border:1px solid var(--line-2); border-radius:var(--r-lg); padding:20px; }
+.modal-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.field { margin-bottom:13px; }
+.switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; }
+.switch-t { font-size:13px; font-weight:600; color:var(--text); }
+.switch-s { font-size:11.5px; color:var(--text-3); margin-top:2px; }
 </style>
 </head>
-<body data-rpg-no-plate>
-<div class="page">
+<body data-icis>
+<div class="wrap">
 
-  <!-- ===== Hero banner ===== -->
-  <section class="card hero">
-    <div class="hero-row">
-      <div class="orb">
-        <span class="orb-lvl" id="heroLevel">1</span>
-        <span class="orb-cap" id="heroRank">Wanderer</span>
-      </div>
-      <div class="hero-id">
-        <h1 class="hero-name">
-          <span id="heroName">Icis</span>
-          <button class="hero-edit" id="heroEdit" type="button" aria-label="Rename character">✎</button>
-        </h1>
-        <div class="hero-class" id="heroClass"></div>
+  <section class="card ornate banner">
+    <div class="banner-row">
+      <span id="portrait"></span>
+      <div class="grow">
+        <span class="lore" id="bTitle">Adventurer</span>
+        <h1 class="banner-name"><span id="bName">Icis</span>
+          <button class="edit-b" id="editBtn" aria-label="Edit character"></button></h1>
+        <div class="banner-meta" id="bMeta"></div>
       </div>
     </div>
-    <div class="hero-xp">
-      <div class="xp-line">
-        <span class="xp-label" id="heroNext">Experience</span>
-        <span class="xp-nums" id="heroXp">0 / 100</span>
-      </div>
-      <div class="xp-track"><div class="xp-fill" id="heroFill"></div></div>
-    </div>
+    <div class="xp-line"><span class="xp-k" id="bNext">Experience</span><span class="xp-n" id="bXp">0 / 100</span></div>
+    <div class="track"><div class="fill" id="bFill"></div></div>
   </section>
 
-  <div class="stats">
-    <div class="card stat"><div class="stat-val" id="statPower">0</div><div class="stat-key">Power</div></div>
-    <div class="card stat"><div class="stat-val" id="statStreak">0</div><div class="stat-key">Streak</div></div>
-    <div class="card stat"><div class="stat-val" id="statQuests">0/5</div><div class="stat-key">Quests</div></div>
-    <div class="card stat"><div class="stat-val" id="statTrophies">0</div><div class="stat-key">Trophies</div></div>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="disciplines">Disciplines</button>
+    <button class="tab" data-tab="quests">Quests</button>
+    <button class="tab" data-tab="achievements">Achievements</button>
+    <button class="tab" data-tab="chronicle">Chronicle</button>
+    <button class="tab" data-tab="settings">Settings</button>
   </div>
 
-  <!-- ===== Skills ===== -->
-  <div class="sec-head">
-    <span class="sec-title">Disciplines</span>
-    <span class="sec-meta" id="skillMeta"></span>
-  </div>
-  <div class="skills" id="skills"></div>
+  <!-- ===== OVERVIEW ===== -->
+  <div class="panel on" id="p-overview">
+    <div class="stat4">
+      <div class="card st"><div class="st-v" id="oLv">1</div><div class="st-k">Level</div></div>
+      <div class="card st"><div class="st-v" id="oRank">F</div><div class="st-k">Rank</div></div>
+      <div class="card st"><div class="st-v" id="oScore">0</div><div class="st-k">Adventurer Score</div></div>
+      <div class="card st"><div class="st-v" id="oStreak">0</div><div class="st-k">Streak</div></div>
+    </div>
 
-  <!-- ===== Daily quests ===== -->
-  <div class="sec-head">
-    <span class="sec-title">Daily Quests</span>
-    <span class="sec-meta" id="dailyMeta"></span>
-  </div>
-  <div class="quests" id="dailyQuests"></div>
+    <div class="sec"><span class="sec-t">Today</span><span class="sec-m" id="oQMeta"></span></div>
+    <div id="oQuests"></div>
 
-  <!-- ===== Weekly quests ===== -->
-  <div class="sec-head">
-    <span class="sec-title">Weekly Contracts</span>
-    <span class="sec-meta" id="weeklyMeta"></span>
-  </div>
-  <div class="quests" id="weeklyQuests"></div>
+    <div class="sec"><span class="sec-t">This Week's Contract</span><span class="sec-m" id="oCtMeta"></span></div>
+    <div id="oContract"></div>
 
-  <!-- ===== Trophies ===== -->
-  <div class="sec-head">
-    <span class="sec-title">Hall of Trophies</span>
-    <span class="sec-meta" id="trophyMeta"></span>
-  </div>
-  <div class="trophies" id="trophies"></div>
+    <div class="sec"><span class="sec-t">Next Up</span><span class="sec-m">closest to unlocking</span></div>
+    <div class="grid g2" id="oNext"></div>
 
-  <!-- ===== Combat log ===== -->
-  <div class="sec-head">
-    <span class="sec-title">Chronicle</span>
-    <span class="sec-meta">most recent first</span>
+    <div class="sec"><span class="sec-t">Disciplines</span><span class="sec-m" id="oDiscMeta"></span></div>
+    <div class="grid auto" id="oDisc"></div>
   </div>
-  <section class="card log" id="log"></section>
+
+  <!-- ===== DISCIPLINES ===== -->
+  <div class="panel" id="p-disciplines">
+    <div class="sec" style="margin-top:14px"><span class="sec-t">All Disciplines</span><span class="sec-m" id="dMeta"></span></div>
+    <div class="grid auto" id="dList"></div>
+    <div class="sec"><span class="sec-t">Career Skills</span><span class="sec-m">from the Career Guild</span></div>
+    <div class="grid auto" id="dSkills"></div>
+  </div>
+
+  <!-- ===== QUESTS ===== -->
+  <div class="panel" id="p-quests">
+    <div class="sec" style="margin-top:14px"><span class="sec-t">Tomorrow's Preview</span><span class="sec-m">no XP awarded</span></div>
+    <div id="qPreview"></div>
+    <div class="sec"><span class="sec-t">Quest Library</span><span class="sec-m" id="qlMeta"></span></div>
+    <div class="filterbar" id="qlFilter"></div>
+    <section class="card qlib" id="qlList"></section>
+  </div>
+
+  <!-- ===== ACHIEVEMENTS ===== -->
+  <div class="panel" id="p-achievements">
+    <div class="sec" style="margin-top:14px"><span class="sec-t">Titles</span><span class="sec-m" id="tiMeta"></span></div>
+    <div class="cos" id="titles"></div>
+    <div class="sec"><span class="sec-t">Hall of Trophies</span><span class="sec-m" id="trMeta"></span></div>
+    <div class="trophies" id="trophies"></div>
+  </div>
+
+  <!-- ===== CHRONICLE ===== -->
+  <div class="panel" id="p-chronicle">
+    <div class="sec" style="margin-top:14px"><span class="sec-t">Chronicle</span><span class="sec-m">most recent first</span></div>
+    <section class="card" id="chron"></section>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div class="panel" id="p-settings">
+    <div class="sec" style="margin-top:14px"><span class="sec-t">Adventurer Score</span><span class="sec-m">how it is calculated</span></div>
+    <section class="card explain" id="scoreExplain"></section>
+
+    <div class="sec"><span class="sec-t">Class</span><span class="sec-m">appearance & bonus quests only</span></div>
+    <div class="cos" id="classes"></div>
+
+    <div class="sec"><span class="sec-t">Portrait</span><span class="sec-m">palette</span></div>
+    <div class="cos" id="portraits"></div>
+
+    <div class="sec"><span class="sec-t">Profile Border</span><span class="sec-m" id="bdMeta"></span></div>
+    <div class="cos" id="borders"></div>
+
+    <div class="sec"><span class="sec-t">Background</span><span class="sec-m" id="bgMeta"></span></div>
+    <div class="cos" id="backgrounds"></div>
+
+    <div class="sec"><span class="sec-t">Preferences</span><span class="sec-m"></span></div>
+    <div class="grid" style="gap:8px">
+      <div class="card switch">
+        <div><div class="switch-t">Reduced motion</div>
+          <div class="switch-s">Disable animations and transitions.</div></div>
+        <button class="toggle" id="tgMotion">Off</button>
+      </div>
+      <div class="card switch">
+        <div><div class="switch-t">Nova companion</div>
+          <div class="switch-s">Local rule-based hints. No API, no network.</div></div>
+        <button class="toggle" id="tgNova">On</button>
+      </div>
+    </div>
+  </div>
 
 </div>
 
-<!-- ===== Rename ===== -->
-<div class="modal-bg" id="nameBg">
-  <div class="modal" role="dialog" aria-label="Character">
-    <div class="modal-head">
-      <span class="modal-title">Your Character</span>
-      <button class="modal-close" id="nameClose" type="button" aria-label="Close">×</button>
-    </div>
-    <div class="field">
-      <label class="field-label" for="nameInput">Name</label>
-      <input class="set-input" id="nameInput" type="text" maxlength="24" placeholder="Icis" autocomplete="off">
-    </div>
-    <div class="field">
-      <label class="field-label" for="classInput">Class</label>
-      <input class="set-input" id="classInput" type="text" maxlength="24" placeholder="auto" autocomplete="off">
-      <div class="hint" id="classHint"></div>
-    </div>
-    <button class="set-save" id="nameSave" type="button">Save</button>
+<div class="modal-bg" id="editBg">
+  <div class="modal" role="dialog" aria-label="Edit character">
+    <div class="modal-h"><span style="font-size:16px;font-weight:700;color:var(--text)">Your Character</span>
+      <button class="edit-b" id="editClose" aria-label="Close">✕</button></div>
+    <div class="field"><label class="fl">Name</label><input id="inName" maxlength="24" placeholder="Icis"></div>
+    <div class="field"><label class="fl">Class name</label><input id="inClass" maxlength="24" placeholder="auto">
+      <div class="sub" id="classHint" style="margin-top:6px"></div></div>
+    <button class="btn gold" id="editSave" style="width:100%">Save</button>
   </div>
 </div>
 
 <script>
 (function () {
   'use strict';
-  const $ = (id) => document.getElementById(id);
+  var GS = window.GameState, QE = window.QuestEngine, CD = window.CareerData,
+      UI = window.UI, HA = window.HeroArt, QL = window.QuestLibrary;
+  var $ = function (id) { return document.getElementById(id); };
+  var st = document.createElement('style'); st.textContent = HA.CSS; document.head.appendChild(st);
 
-  function fmt(n) { return Math.round(Number(n) || 0).toLocaleString(); }
-
-  function ago(ts) {
-    const s = Math.max(0, (Date.now() - ts) / 1000);
-    if (s < 3600) return Math.floor(s / 60) + 'm';
-    if (s < 86400) return Math.floor(s / 3600) + 'h';
-    const d = Math.floor(s / 86400);
-    if (d < 7) return d + 'd';
-    if (d < 365) return Math.floor(d / 7) + 'w';
-    return Math.floor(d / 365) + 'y';
-  }
-
-  // Build a node tree rather than innerHTML — goal text and project names are
-  // user input and must never be parsed as markup.
-  function el(tag, cls, text) {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text != null) n.textContent = text;
-    return n;
-  }
-
-  function renderHero(s) {
-    $('heroLevel').textContent = s.level;
-    $('heroRank').textContent = s.rank.sigil + ' ' + s.rank.name;
-    $('heroName').textContent = s.name;
-    $('heroXp').textContent = fmt(s.into) + ' / ' + fmt(s.need);
-    $('heroFill').style.width = (s.pct * 100).toFixed(1) + '%';
-    $('heroNext').textContent = s.nextRank
-      ? 'Next rank · ' + s.nextRank.name + ' at ' + s.nextRank.at
-      : 'Maximum rank reached';
-
-    const cls = $('heroClass');
-    cls.textContent = '';
-    cls.appendChild(el('b', null, s.className));
-    cls.appendChild(document.createTextNode(' · ' + fmt(s.totalXp) + ' total XP earned'));
-
-    $('statPower').textContent = fmt(s.power);
-    $('statStreak').textContent = s.skills.resolve.stats.streak;
-    $('statQuests').textContent = s.questsDone + '/' + s.quests.daily.length;
-    $('statTrophies').textContent = s.trophies + '/' + s.achievements.length;
-  }
-
-  // One line of headline detail per discipline, pulled from that page's data.
-  function skillLine(sk) {
-    const st = sk.stats;
-    switch (sk.id) {
-      case 'resolve':  return fmt(st.goalsDone) + ' goals · ' + fmt(st.perfectDays) + ' perfect days';
-      case 'might':    return fmt(st.sessions) + ' sessions · ' + fmt(st.volume) + ' ' + st.units;
-      case 'vitality': return fmt(st.hitDays) + ' hydrated days · ' + fmt(st.cleanDays) + ' clean days';
-      case 'arcana':   return fmt(st.tasksDone) + ' tasks · ' + fmt(st.projectsDone) + ' shipped';
-      case 'fortune':  return fmt(st.snapshots) + ' snapshots · ' + fmt(st.moves) + ' moves';
-      default:         return '';
-    }
-  }
-
-  function renderSkills(s) {
-    const wrap = $('skills');
-    wrap.textContent = '';
-    s.skillList.forEach(sk => {
-      const a = el('a', 'card skill');
-      a.href = sk.page;
-      a.style.setProperty('--c', sk.color);
-
-      const top = el('div', 'skill-top');
-      top.appendChild(el('span', 'skill-glyph', sk.glyph));
-      top.appendChild(el('span', 'skill-name', sk.name));
-      top.appendChild(el('span', 'skill-lvl', 'LV ' + sk.level));
-      a.appendChild(top);
-
-      const track = el('div', 'skill-track');
-      const fill = el('div', 'skill-fill');
-      track.appendChild(fill);
-      a.appendChild(track);
-
-      const foot = el('div', 'skill-foot');
-      foot.appendChild(el('span', 'skill-stat', skillLine(sk)));
-      foot.appendChild(el('span', 'skill-xp', fmt(sk.into) + '/' + fmt(sk.need)));
-      a.appendChild(foot);
-
-      wrap.appendChild(a);
-      requestAnimationFrame(() => { fill.style.width = (sk.pct * 100).toFixed(1) + '%'; });
+  /* ---------------- achievements ---------------- */
+  function achievements() {
+    var s = GS.get(), t = GS.totals();
+    var streakRec = GS.readJSON('goal_streak_v1', null);
+    var streak = (streakRec && Number(streakRec.count)) || 0;
+    var questsDone = 0, careerQuests = 0, socialQuests = 0;
+    Object.keys(s.questHistory).forEach(function (d) {
+      (s.questHistory[d].list || []).forEach(function (q) {
+        if (!q.done) return;
+        questsDone++;
+        var cat = q.category || (QL.byId[q.id] && QL.byId[q.id].category);
+        if (cat === 'career') careerQuests++;
+        if (cat === 'social') socialQuests++;
+      });
     });
-
-    const top = s.skillList.slice().sort((a, b) => b.level - a.level)[0];
-    $('skillMeta').textContent = top ? 'highest · ' + top.name + ' LV ' + top.level : '';
-  }
-
-  function renderQuests(list, mountId, metaId, label) {
-    const wrap = $(mountId);
-    wrap.textContent = '';
-    list.forEach(q => {
-      const row = el('div', 'card quest' + (q.complete ? ' done' : ''));
-      row.appendChild(el('div', 'quest-mark', q.complete ? '✓' : '·'));
-
-      const body = el('div', 'quest-body');
-      body.appendChild(el('div', 'quest-name', q.name));
-      body.appendChild(el('div', 'quest-desc', q.desc));
-      const track = el('div', 'quest-track');
-      const fill = el('div', 'quest-fill');
-      track.appendChild(fill);
-      body.appendChild(track);
-      row.appendChild(body);
-
-      const rew = el('div', 'quest-reward', '+' + q.reward);
-      rew.appendChild(el('small', null, 'XP'));
-      row.appendChild(rew);
-
-      wrap.appendChild(row);
-      requestAnimationFrame(() => { fill.style.width = (q.pct * 100).toFixed(1) + '%'; });
+    (s.quests.list || []).forEach(function (q) {
+      if (!q.done) return;
+      questsDone++;
+      var cat = q.category || (QL.byId[q.id] && QL.byId[q.id].category);
+      if (cat === 'career') careerQuests++;
+      if (cat === 'social') socialQuests++;
     });
-    const done = list.filter(q => q.complete).length;
-    $(metaId).textContent = done + ' / ' + list.length + ' ' + label;
+    var chaptersDone = CD.CHAPTERS.filter(function (c) { return CD.chapterProgress(s, c).complete; }).length;
+    var projects = GS.readJSON('pm:projects', []) || [];
+    var bossesSlain = (Array.isArray(projects) ? projects : []).filter(function (p) { return p && p.status === 'done'; }).length;
+    var memories = (s.social.memories || []).length;
+
+    var defs = [
+      { id:'first_quest', ic:'check',  n:'First Steps',      d:'Complete one quest',            have:questsDone,   need:1 },
+      { id:'q25',         ic:'quest',  n:'Questant',         d:'Complete 25 quests',            have:questsDone,   need:25 },
+      { id:'q100',        ic:'quest',  n:'Quest Veteran',    d:'Complete 100 quests',           have:questsDone,   need:100 },
+      { id:'q500',        ic:'star',   n:'Legend of the Board', d:'Complete 500 quests',        have:questsDone,   need:500 },
+      { id:'career10',    ic:'career', n:'Apprentice Analyst', d:'Complete 10 career quests',   have:careerQuests, need:10 },
+      { id:'career50',    ic:'career', n:'Guild Regular',    d:'Complete 50 career quests',     have:careerQuests, need:50 },
+      { id:'ch1',         ic:'book',   n:'First Seal',       d:'Finish a campaign chapter',     have:chaptersDone, need:1 },
+      { id:'ch5',         ic:'book',   n:'Half the Story',   d:'Finish 5 campaign chapters',    have:chaptersDone, need:5 },
+      { id:'ch10',        ic:'trophy', n:'Storyline Complete', d:'Finish all 10 chapters',      have:chaptersDone, need:10 },
+      { id:'boss1',       ic:'skull',  n:'Bossbreaker',      d:'Finish a project',              have:bossesSlain,  need:1 },
+      { id:'boss5',       ic:'skull',  n:'Guild Champion',   d:'Finish 5 projects',             have:bossesSlain,  need:5 },
+      { id:'streak7',     ic:'flame',  n:'Seven Days',       d:'A 7-day streak',                have:streak,       need:7 },
+      { id:'streak30',    ic:'flame',  n:'Thirty Nights',    d:'A 30-day streak',               have:streak,       need:30 },
+      { id:'social10',    ic:'people', n:'Good Company',     d:'Complete 10 social quests',     have:socialQuests, need:10 },
+      { id:'mem25',       ic:'tavern', n:'Tales to Tell',    d:'Record 25 memories',            have:memories,     need:25 },
+      { id:'lv10',        ic:'hero',   n:'Adept',            d:'Reach level 10',                have:t.level,      need:10 },
+      { id:'lv25',        ic:'hero',   n:'Warden',           d:'Reach level 25',                have:t.level,      need:25 },
+      { id:'balanced',    ic:'star',   n:'Polymath',         d:'Level 5 in every discipline',
+        have:t.disciplines.filter(function(x){return x.level>=5;}).length, need:t.disciplines.length }
+    ];
+    return defs.map(function (a) {
+      return Object.assign({}, a, { unlocked: a.have >= a.need, pct: a.need ? Math.min(1, a.have / a.need) : 0 });
+    });
   }
 
-  function renderTrophies(s) {
-    const wrap = $('trophies');
-    wrap.textContent = '';
-    // Unlocked first, then the closest to unlocking — so the next goal is visible.
-    const sorted = s.achievements.slice().sort((a, b) => {
+  /* ---------------- banner ---------------- */
+  function renderBanner() {
+    var t = GS.totals(), s = GS.get();
+    $('portrait').innerHTML = HA.framed({ portrait:s.player.portrait, border:s.player.border,
+      background:s.player.background, size:88 });
+    $('bName').textContent = t.name;
+    $('bTitle').textContent = t.title || 'Adventurer';
+    $('bMeta').innerHTML = UI.rankBadge(t.rank) +
+      '<span class="chip on">' + UI.esc(t.rank.name) + '</span>' +
+      '<span class="chip">' + UI.esc(t.className) + '</span>';
+    $('bXp').textContent = UI.fmt(t.into) + ' / ' + UI.fmt(t.need);
+    $('bFill').style.width = (t.pct * 100).toFixed(1) + '%';
+    $('bNext').textContent = t.nextRank
+      ? 'Level ' + t.level + ' · next rank ' + t.nextRank.name + ' at ' + t.nextRank.at
+      : 'Level ' + t.level + ' · maximum rank';
+    $('editBtn').innerHTML = UI.icon('gear', 15);
+  }
+
+  function discCard(d) {
+    return '<div class="card disc">' +
+      '<div class="disc-top">' +
+        '<span style="color:' + d.color + '">' + UI.icon('bolt', 18) + '</span>' +
+        '<span class="disc-n"><span class="disc-lore" style="color:' + d.color + '">' + UI.esc(d.lore) + '</span>' +
+          '<div class="disc-name">' + UI.esc(d.name) + '</div>' +
+          '<div class="disc-prac">' + UI.esc(d.practical) + '</div></span>' +
+        '<span class="disc-lv" style="color:' + d.color + ';background:' + d.color + '1f;border:1px solid ' + d.color + '44">LV ' + d.level + '</span>' +
+      '</div>' + UI.bar(d.pct, d.color) +
+      '<div class="disc-foot"><span>' + UI.fmt(d.xp) + ' XP</span><span>' + d.into + '/' + d.need + '</span></div></div>';
+  }
+
+  /* ---------------- overview ---------------- */
+  function renderOverview() {
+    var t = GS.totals(), s = GS.get();
+    var streakRec = GS.readJSON('goal_streak_v1', null);
+    $('oLv').textContent = t.level;
+    $('oRank').textContent = t.rank.sigil;
+    $('oScore').textContent = UI.fmt(t.score);
+    $('oStreak').textContent = (streakRec && streakRec.count) || 0;
+
+    // Only three quests here — the full board lives on the hub.
+    var v = QE.todayView();
+    var show = v.list.filter(function (q) { return !q.done; }).slice(0, 3);
+    if (!show.length) show = v.list.slice(0, 3);
+    $('oQuests').innerHTML = show.map(function (q) {
+      return '<div class="card ch-row">' +
+        '<span style="color:' + (q.done ? 'var(--ok)' : 'var(--gold)') + '">' +
+          UI.icon(q.done ? 'check' : 'quest', 16) + '</span>' +
+        '<span class="ch-t"><strong style="color:var(--text)">' + UI.esc(q.practicalTitle) + '</strong>' +
+          '<div style="font-size:11px;color:var(--text-3)">' + UI.esc(q.loreTitle) + '</div></span>' +
+        '<span class="ch-x">+' + q.xp + '</span></div>';
+    }).join('') || '<div class="card empty">No quests today.</div>';
+    $('oQMeta').textContent = v.done + '/' + v.total + ' complete';
+
+    // Nearest incomplete contract.
+    var c = QE.contracts();
+    var near = c.list.filter(function (x) { return !x.complete; })
+      .sort(function (a, b) { return b.pct - a.pct; })[0] || c.list[0];
+    $('oContract').innerHTML = '<div class="card pad">' +
+      '<div style="font-size:13px;font-weight:650;color:var(--text)">' + UI.esc(near.name) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-3);margin:3px 0 8px">' + UI.esc(near.lore) + ' · +' + near.xp + ' XP</div>' +
+      UI.bar(near.pct) +
+      '<div style="font-family:var(--mono);font-size:10.5px;color:var(--text-3);margin-top:6px">' +
+        Math.min(near.have, near.need) + ' / ' + near.need + '</div></div>';
+    $('oCtMeta').textContent = c.done + '/' + c.total + ' done';
+
+    // Nearest achievement + next cosmetic unlock.
+    var ach = achievements().filter(function (a) { return !a.unlocked; })
+      .sort(function (a, b) { return b.pct - a.pct; })[0];
+    var nextChapter = CD.CHAPTERS.filter(function (ch) { return !CD.chapterProgress(s, ch).complete; })[0];
+    $('oNext').innerHTML =
+      (ach ? '<div class="card pad"><div class="lore">Nearest achievement</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text);margin:4px 0 2px">' + UI.esc(ach.n) + '</div>' +
+        '<div class="sub">' + UI.esc(ach.d) + '</div>' +
+        '<div style="margin-top:8px">' + UI.bar(ach.pct) + '</div>' +
+        '<div style="font-family:var(--mono);font-size:10.5px;color:var(--gold);margin-top:5px">' +
+          UI.fmt(ach.have) + ' / ' + UI.fmt(ach.need) + '</div></div>'
+        : '<div class="card pad"><div class="lore">Achievements</div><div class="sub">All unlocked.</div></div>') +
+      (nextChapter ? '<div class="card pad"><div class="lore">Next unlock</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text);margin:4px 0 2px">' +
+          UI.esc(nextChapter.reward.title) + '</div>' +
+        '<div class="sub">Title + border, from finishing ' + UI.esc(nextChapter.name) + '</div>' +
+        '<div style="margin-top:8px">' + UI.bar(CD.chapterProgress(s, nextChapter).pct / 100) + '</div>' +
+        '<div style="font-family:var(--mono);font-size:10.5px;color:var(--gold);margin-top:5px">' +
+          CD.chapterProgress(s, nextChapter).pct + '% of the chapter</div></div>'
+        : '<div class="card pad"><div class="lore">Next unlock</div><div class="sub">Campaign complete.</div></div>');
+
+    $('oDisc').innerHTML = t.disciplines.map(discCard).join('');
+    $('oDiscMeta').textContent = 'total ' + UI.fmt(t.totalXp) + ' XP';
+  }
+
+  /* ---------------- disciplines tab ---------------- */
+  function renderDisciplines() {
+    var t = GS.totals(), s = GS.get();
+    $('dList').innerHTML = t.disciplines.map(discCard).join('');
+    $('dMeta').textContent = t.disciplines.length + ' tracked';
+    $('dSkills').innerHTML = CD.skillTotals(s).map(function (sk) {
+      return '<div class="card disc"><div class="disc-top">' +
+        '<span style="color:' + sk.color + '">' + UI.icon('bolt', 17) + '</span>' +
+        '<span class="disc-n"><div class="disc-name">' + UI.esc(sk.name) + '</div></span>' +
+        '<span class="disc-lv" style="color:' + sk.color + ';background:' + sk.color + '1f;border:1px solid ' + sk.color + '44">LV ' + sk.level + '</span>' +
+      '</div>' + UI.bar(sk.pct, sk.color) +
+      '<div class="disc-foot"><span>' + UI.fmt(sk.xp) + ' XP</span><span>' + sk.into + '/' + sk.need + '</span></div></div>';
+    }).join('');
+  }
+
+  /* ---------------- quests tab ---------------- */
+  var qlCat = 'all';
+  function renderQuests() {
+    var pv = QE.preview();
+    $('qPreview').innerHTML = '<div class="card pad">' +
+      '<div class="sub" style="margin-bottom:9px">' + UI.esc(pv.date) + ' — a look ahead. Nothing here is locked in or scored.</div>' +
+      pv.list.map(function (e) {
+        var tpl = QL.byId[e.id];
+        if (!tpl) return '';
+        return '<div class="ch-row"><span style="color:var(--gold)">' + UI.icon('quest', 15) + '</span>' +
+          '<span class="ch-t"><strong style="color:var(--text)">' + UI.esc(tpl.practicalTitle) + '</strong>' +
+          '<div style="font-size:11px;color:var(--text-3)">' + UI.esc(tpl.loreTitle) + ' · ' + UI.esc(e.slot) + '</div></span>' +
+          '<span class="ch-x">+' + tpl.xp + '</span></div>';
+      }).join('') + '</div>';
+
+    var lib = QE.library();
+    var cats = ['all'].concat(QL.categories);
+    $('qlFilter').innerHTML = cats.map(function (c) {
+      var n = c === 'all' ? lib.length : lib.filter(function (q) { return q.category === c; }).length;
+      return '<button class="cos-b' + (qlCat === c ? ' on' : '') + '" data-cat="' + c + '">' +
+        UI.esc(c) + ' ' + n + '</button>';
+    }).join('');
+
+    var shown = lib.filter(function (q) { return qlCat === 'all' || q.category === qlCat; });
+    $('qlList').innerHTML = shown.map(function (q) {
+      return '<div class="ql' + (q.active ? '' : ' off') + '">' +
+        '<div class="ql-b"><div class="ql-t">' + UI.esc(q.practicalTitle) + '</div>' +
+        '<div class="ql-s">' + UI.esc(q.loreTitle) + ' · ' + UI.esc(q.category) +
+          ' · ' + UI.esc(q.difficulty) + ' · ' + q.xp + ' XP · ' + q.estimatedMinutes + 'm' +
+          ' · cd ' + q.cooldownDays + 'd · w' + q.weight + '</div></div>' +
+        '<button class="toggle' + (q.active ? ' on' : '') + '" data-tog="' + UI.esc(q.id) + '">' +
+          (q.active ? 'Active' : 'Off') + '</button>' +
+        '<button class="toggle" data-wt="' + UI.esc(q.id) + '" title="Cycle selection weight">w' + q.weight + '</button>' +
+      '</div>';
+    }).join('');
+    $('qlMeta').textContent = lib.filter(function (q) { return q.active; }).length + ' of ' + lib.length + ' active';
+  }
+
+  /* ---------------- achievements tab ---------------- */
+  function renderAchievements() {
+    var s = GS.get();
+    var titles = s.player.unlockedTitles || [];
+    $('titles').innerHTML = titles.length ? ('<button class="cos-b' + (!s.player.title ? ' on' : '') + '" data-title="">None</button>' +
+      titles.map(function (t) {
+        return '<button class="cos-b' + (s.player.title === t ? ' on' : '') + '" data-title="' + UI.esc(t) + '">' + UI.esc(t) + '</button>';
+      }).join('')) : '<div class="sub">Titles unlock by finishing campaign chapters.</div>';
+    $('tiMeta').textContent = titles.length + ' unlocked';
+
+    var list = achievements().slice().sort(function (a, b) {
       if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
       return b.pct - a.pct;
     });
-    sorted.forEach(t => {
-      const c = el('div', 'card trophy' + (t.unlocked ? ' got' : ''));
-      c.appendChild(el('div', 'trophy-glyph', t.glyph));
-      c.appendChild(el('div', 'trophy-name', t.name));
-      c.appendChild(el('div', 'trophy-desc', t.desc));
-      if (!t.unlocked) {
-        c.appendChild(el('div', 'trophy-prog', fmt(t.have) + ' / ' + fmt(t.need)));
-      }
-      c.title = t.desc;
-      wrap.appendChild(c);
+    $('trophies').innerHTML = list.map(function (a) {
+      return '<div class="card tr' + (a.unlocked ? ' got' : '') + '" title="' + UI.esc(a.d) + '">' +
+        '<div class="tr-ic">' + UI.icon(a.ic, 24) + '</div>' +
+        '<div class="tr-n">' + UI.esc(a.n) + '</div>' +
+        '<div class="tr-d">' + UI.esc(a.d) + '</div>' +
+        (a.unlocked ? '' : '<div class="tr-p">' + UI.fmt(a.have) + ' / ' + UI.fmt(a.need) + '</div>') +
+      '</div>';
+    }).join('');
+    $('trMeta').textContent = list.filter(function (a) { return a.unlocked; }).length + ' of ' + list.length + ' claimed';
+  }
+
+  /* ---------------- chronicle ---------------- */
+  function renderChronicle() {
+    var rows = GS.chronicle(40);
+    var t = GS.totals();
+    var colors = t.disciplines.reduce(function (a, d) { a[d.id] = d.color; return a; }, {});
+    $('chron').innerHTML = rows.length ? rows.map(function (r) {
+      return '<div class="ch-row">' +
+        '<span style="color:' + (colors[r.disc] || 'var(--text-3)') + '">' + UI.icon('star', 15) + '</span>' +
+        '<span class="ch-t trunc">' + UI.esc(r.text) + '</span>' +
+        '<span class="ch-x">+' + r.xp + '</span>' +
+        '<span class="ch-w">' + UI.ago(r.at) + '</span></div>';
+    }).join('') : '<div class="empty">Nothing recorded yet.</div>';
+  }
+
+  /* ---------------- settings ---------------- */
+  function renderSettings() {
+    var s = GS.get(), t = GS.totals();
+
+    $('scoreExplain').innerHTML =
+      '<strong style="color:var(--text)">Adventurer Score = ' + UI.fmt(t.score) + '</strong><br>' +
+      'It replaces the old "Power" number, which did not mean anything specific. ' +
+      'It is the sum of three parts:<br><br>' +
+      '<code>total XP ÷ 10</code> = ' + UI.fmt(t.scoreParts.xp) + '<br>' +
+      '<code>hero level × 25</code> = ' + UI.fmt(t.scoreParts.level) + '<br>' +
+      '<code>sum of all discipline levels × 15</code> = ' + UI.fmt(t.scoreParts.disciplines) + '<br><br>' +
+      'The third part is what rewards breadth: a hero at level 10 across every discipline ' +
+      'scores higher than one who put everything into a single track.';
+
+    $('classes').innerHTML = GS.CLASSES.map(function (c) {
+      return '<button class="cos-b' + (s.player.classId === c.id ? ' on' : '') + '" data-class="' + c.id + '" title="' + UI.esc(c.blurb) + '">' +
+        UI.esc(c.name) + '</button>';
+    }).join('') + '<button class="cos-b' + (!s.player.classId ? ' on' : '') + '" data-class="">Auto (' + UI.esc(t.derivedClass) + ')</button>';
+
+    $('portraits').innerHTML = Object.keys(HA.PALETTES).map(function (k) {
+      return '<button class="cos-b' + (s.player.portrait === k ? ' on' : '') + '" data-portrait="' + k + '">' + UI.esc(k) + '</button>';
+    }).join('');
+
+    var bAvail = HA.availableBorders(s);
+    $('borders').innerHTML = Object.keys(HA.BORDERS).map(function (k) {
+      var ok = bAvail.indexOf(k) !== -1;
+      return '<button class="cos-b' + (s.player.border === k ? ' on' : '') + '" data-border="' + k + '"' +
+        (ok ? '' : ' disabled title="Unlock by finishing a campaign chapter"') + '>' +
+        UI.esc(HA.BORDERS[k].label) + (ok ? '' : ' 🔒') + '</button>';
+    }).join('');
+    $('bdMeta').textContent = bAvail.length + ' of ' + Object.keys(HA.BORDERS).length + ' unlocked';
+
+    var gAvail = HA.availableBackgrounds(s);
+    $('backgrounds').innerHTML = Object.keys(HA.BACKGROUNDS).map(function (k) {
+      var ok = gAvail.indexOf(k) !== -1;
+      return '<button class="cos-b' + (s.player.background === k ? ' on' : '') + '" data-bg="' + k + '"' +
+        (ok ? '' : ' disabled title="Unlock by finishing a campaign chapter"') + '>' +
+        UI.esc(HA.BACKGROUNDS[k].label) + (ok ? '' : ' 🔒') + '</button>';
+    }).join('');
+    $('bgMeta').textContent = gAvail.length + ' of ' + Object.keys(HA.BACKGROUNDS).length + ' unlocked';
+
+    var m = $('tgMotion'), n = $('tgNova');
+    m.textContent = s.settings.reducedMotion ? 'On' : 'Off';
+    m.classList.toggle('on', !!s.settings.reducedMotion);
+    n.textContent = s.settings.novaEnabled === false ? 'Off' : 'On';
+    n.classList.toggle('on', s.settings.novaEnabled !== false);
+  }
+
+  /* ---------------- tabs ---------------- */
+  var RENDER = {
+    overview: renderOverview, disciplines: renderDisciplines, quests: renderQuests,
+    achievements: renderAchievements, chronicle: renderChronicle, settings: renderSettings
+  };
+  function show(tab) {
+    if (!RENDER[tab]) tab = 'overview';
+    Array.prototype.forEach.call($('tabs').children, function (b) {
+      b.classList.toggle('on', b.getAttribute('data-tab') === tab);
     });
-    $('trophyMeta').textContent = s.trophies + ' of ' + s.achievements.length + ' claimed';
-  }
-
-  function renderLog(s) {
-    const wrap = $('log');
-    wrap.textContent = '';
-    if (!s.events.length) {
-      wrap.appendChild(el('div', 'empty', 'No deeds recorded yet. Go do something.'));
-      return;
-    }
-    const byId = {};
-    s.skillList.forEach(sk => { byId[sk.id] = sk; });
-    s.events.slice(0, 24).forEach(e => {
-      const sk = byId[e.skill];
-      const row = el('div', 'log-row');
-      row.appendChild(el('span', 'log-glyph', sk ? sk.glyph : '·'));
-      row.appendChild(el('span', 'log-text', e.text));
-      row.appendChild(el('span', 'log-xp', '+' + e.xp));
-      row.appendChild(el('span', 'log-when', ago(e.ts)));
-      wrap.appendChild(row);
+    ['overview','disciplines','quests','achievements','chronicle','settings'].forEach(function (k) {
+      $('p-' + k).classList.toggle('on', k === tab);
     });
+    RENDER[tab]();
+    try { history.replaceState(null, '', '?tab=' + tab); } catch (e) {}
   }
-
-  function render(s) {
-    if (!s) return;
-    renderHero(s);
-    renderSkills(s);
-    renderQuests(s.quests.daily, 'dailyQuests', 'dailyMeta', 'complete');
-    renderQuests(s.quests.weekly, 'weeklyQuests', 'weeklyMeta', 'complete');
-    renderTrophies(s);
-    renderLog(s);
-  }
-
-  /* ---------- rename ---------- */
-  function openName() {
-    const s = window.RPG && window.RPG.state;
-    let saved = {};
-    try { saved = JSON.parse(localStorage.getItem('rpg:hero')) || {}; } catch (e) {}
-    $('nameInput').value = saved.name || '';
-    $('classInput').value = saved.className || '';
-    $('classHint').textContent = s
-      ? 'Leave blank to track your strongest discipline (currently ' + s.derivedClass + ').'
-      : 'Leave blank to track your strongest discipline.';
-    $('nameBg').classList.add('show');
-    $('nameInput').focus();
-  }
-  function closeName() { $('nameBg').classList.remove('show'); }
-  function saveName() {
-    const name = $('nameInput').value.trim();
-    const className = $('classInput').value.trim();
-    const out = {};
-    if (name) out.name = name;
-    if (className) out.className = className;
-    try { localStorage.setItem('rpg:hero', JSON.stringify(out)); } catch (e) {}
-    closeName();
-    if (window.RPG) render(window.RPG.refresh());
-  }
-
-  $('heroEdit').addEventListener('click', openName);
-  $('nameClose').addEventListener('click', closeName);
-  $('nameSave').addEventListener('click', saveName);
-  $('nameBg').addEventListener('click', (e) => { if (e.target === $('nameBg')) closeName(); });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeName();
-    if (e.key === 'Enter' && $('nameBg').classList.contains('show')) saveName();
+  $('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]');
+    if (b) show(b.getAttribute('data-tab'));
   });
 
-  /* ---------- boot ---------- */
-  // rpg.js fires this once it has computed, and again on every refresh.
-  document.addEventListener('rpg:update', (e) => render(e.detail));
-  if (window.RPG && window.RPG.state) render(window.RPG.state);
+  /* ---------------- interactions ---------------- */
+  document.addEventListener('click', function (e) {
+    var el;
+    if ((el = e.target.closest('[data-cat]'))) { qlCat = el.getAttribute('data-cat'); renderQuests(); return; }
+    if ((el = e.target.closest('[data-tog]'))) {
+      var id = el.getAttribute('data-tog');
+      var cur = QE.byId(id);
+      QE.saveOverride(id, { active: !cur.active });
+      renderQuests(); return;
+    }
+    if ((el = e.target.closest('[data-wt]'))) {
+      var wid = el.getAttribute('data-wt');
+      var q = QE.byId(wid);
+      var next = q.weight >= 3 ? 1 : q.weight + 1;   // cycle 1 → 2 → 3 → 1
+      QE.saveOverride(wid, { weight: next });
+      renderQuests(); return;
+    }
+    if ((el = e.target.closest('[data-title]'))) {
+      var ti = el.getAttribute('data-title');
+      GS.update(function (s) { s.player.title = ti; });
+      renderBanner(); renderAchievements(); return;
+    }
+    if ((el = e.target.closest('[data-class]'))) {
+      var cid = el.getAttribute('data-class');
+      GS.update(function (s) {
+        s.player.classId = cid;
+        var c = GS.CLASSES.filter(function (x) { return x.id === cid; })[0];
+        s.player.className = c ? c.name : '';
+      });
+      renderBanner(); renderSettings(); return;
+    }
+    if ((el = e.target.closest('[data-portrait]'))) {
+      GS.update(function (s) { s.player.portrait = el.getAttribute('data-portrait'); });
+      renderBanner(); renderSettings(); return;
+    }
+    if ((el = e.target.closest('[data-border]'))) {
+      GS.update(function (s) { s.player.border = el.getAttribute('data-border'); });
+      renderBanner(); renderSettings(); return;
+    }
+    if ((el = e.target.closest('[data-bg]'))) {
+      GS.update(function (s) { s.player.background = el.getAttribute('data-bg'); });
+      renderBanner(); renderSettings(); return;
+    }
+  });
 
-  // sync.js is deferred, so it isn't defined while this inline script parses.
+  $('tgMotion').addEventListener('click', function () {
+    GS.update(function (s) { s.settings.reducedMotion = !s.settings.reducedMotion; });
+    UI.applyMotionPref(); renderSettings();
+  });
+  $('tgNova').addEventListener('click', function () {
+    GS.update(function (s) { s.settings.novaEnabled = s.settings.novaEnabled === false; });
+    renderSettings();
+  });
+
+  $('editBtn').addEventListener('click', function () {
+    var s = GS.get(), t = GS.totals();
+    $('inName').value = s.player.name || '';
+    $('inClass').value = s.player.className || '';
+    $('classHint').textContent = 'Leave blank to follow your strongest discipline (currently ' + t.derivedClass + ').';
+    $('editBg').classList.add('show');
+  });
+  function closeEdit() { $('editBg').classList.remove('show'); }
+  $('editClose').addEventListener('click', closeEdit);
+  $('editBg').addEventListener('click', function (e) { if (e.target === $('editBg')) closeEdit(); });
+  $('editSave').addEventListener('click', function () {
+    GS.update(function (s) {
+      s.player.name = $('inName').value.trim().slice(0, 24) || 'Icis';
+      s.player.className = $('inClass').value.trim().slice(0, 24);
+    });
+    closeEdit(); renderBanner(); renderSettings();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeEdit(); });
+
+  /* ---------------- boot ---------------- */
+  renderBanner();
+  var qs = (location.search.match(/tab=([a-z]+)/) || [])[1];
+  show(qs || 'overview');
+  document.addEventListener('icis:update', renderBanner);
+
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
-    initCloudSync({
-      appKey: 'rpg',
-      syncedKeys: ['rpg:hero', 'rpg:archive'],
-      onApplied: function () { if (window.RPG) render(window.RPG.refresh()); },
-    });
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
   });
 })();
 </script>

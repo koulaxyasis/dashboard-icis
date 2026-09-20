@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Spirit Companion</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="ui-kit.js"></script>
+<script src="nova.js"></script>
+<style>
+.stage { padding:22px; text-align:center; border-color:rgba(167,139,250,.24);
+  background:radial-gradient(circle at 50% 0%, rgba(167,139,250,.14), transparent 62%), var(--panel); }
+.bubble { position:relative; margin:16px auto 0; max-width:520px; padding:16px 18px;
+  border-radius:16px; border:1px solid rgba(167,139,250,.28); background:rgba(255,255,255,.05); }
+.bubble::before { content:''; position:absolute; top:-9px; left:50%; transform:translateX(-50%) rotate(45deg);
+  width:16px; height:16px; background:rgba(28,26,48,.98);
+  border-left:1px solid rgba(167,139,250,.28); border-top:1px solid rgba(167,139,250,.28); }
+.bubble-t { font-size:15.5px; line-height:1.5; color:var(--text); }
+.bubble-a { margin-top:14px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.expr { display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+.expr button { border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:5px 9px;
+  color:var(--text-3); font:inherit; font-size:10.5px; font-weight:700; cursor:pointer; }
+.expr button.on { border-color:rgba(167,139,250,.5); color:#A78BFA; background:rgba(167,139,250,.1); }
+.hrow { display:flex; align-items:flex-start; gap:11px; padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.05); }
+.hrow:last-child { border-bottom:0; }
+.hrow-t { flex:1; font-size:13px; color:var(--text-2); line-height:1.4; }
+.hrow-w { flex:none; font-family:var(--mono); font-size:10px; color:var(--text-3); }
+.explain { padding:15px; font-size:12.5px; line-height:1.6; color:var(--text-3); }
+.explain strong { color:var(--text-2); }
+.switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 15px; }
+.toggle { border:1px solid var(--line); background:transparent; color:var(--text-3); border-radius:9px;
+  padding:6px 11px; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+.toggle.on { border-color:rgba(107,227,164,.5); color:var(--ok); }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div style="margin-bottom:14px">
+    <div class="lore">Spirit Companion</div>
+    <h1 class="h1">Nova</h1>
+    <div class="sub">A local rule engine with a face. No API key, no network, no guessing.</div>
+  </div>
+
+  <section class="card ornate stage" id="novaMain"></section>
+
+  <div class="sec"><span class="sec-t">Recent Messages</span><span class="sec-m" id="hMeta"></span></div>
+  <section class="card" id="history"></section>
+
+  <div class="sec"><span class="sec-t">Settings</span><span class="sec-m"></span></div>
+  <div class="card switch">
+    <div><div style="font-size:13px;font-weight:600;color:var(--text)">Nova enabled</div>
+      <div class="sub">Turn off to hide Nova everywhere.</div></div>
+    <button class="toggle" id="tgNova">On</button>
+  </div>
+
+  <div class="sec"><span class="sec-t">How Nova Works</span><span class="sec-m" id="ruleMeta"></span></div>
+  <section class="card explain" id="explain"></section>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, UI = window.UI, N = window.Nova;
+  var $ = function (id) { return document.getElementById(id); };
+  var forced = null;   // expression preview override
+
+  function renderMain() {
+    var s = GS.get();
+    if (s.settings.novaEnabled === false) {
+      $('novaMain').innerHTML = '<div class="empty">Nova is turned off. Enable her below to see hints again.</div>';
+      return;
+    }
+    var m = N.pick();
+    if (!m) { $('novaMain').innerHTML = '<div class="empty">Nothing to say right now.</div>'; return; }
+    N.remember(m);
+    var expr = forced || m.expression;
+    $('novaMain').innerHTML =
+      N.portrait(expr, 148) +
+      '<div class="bubble"><div class="bubble-t">' + UI.esc(m.message) + '</div>' +
+        '<div class="bubble-a">' +
+          '<a class="btn gold" href="' + UI.esc(m.action.href) + '">' + UI.esc(m.action.label) + ' ' + UI.icon('arrow', 14) + '</a>' +
+          '<button class="btn" id="nextMsg">Another</button>' +
+        '</div></div>' +
+      '<div class="expr">' + N.expressions.map(function (e) {
+        return '<button data-expr="' + e + '"' + (e === expr ? ' class="on"' : '') + '>' + UI.esc(e) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sub" style="margin-top:10px">rule: <code style="font-family:var(--mono)">' +
+        UI.esc(m.id) + '</code> · priority tier ' + m.tier + '</div>';
+  }
+
+  function renderHistory() {
+    var s = GS.get();
+    var rows = (s.nova.recent || []).slice(0, 25);
+    $('history').innerHTML = rows.length ? rows.map(function (r) {
+      return '<div class="hrow"><span style="color:#A78BFA">' + UI.icon('spirit', 15) + '</span>' +
+        '<span class="hrow-t">' + UI.esc(r.text) + '</span>' +
+        '<span class="hrow-w">' + UI.ago(r.at) + '</span></div>';
+    }).join('') : '<div class="empty">No messages yet.</div>';
+    $('hMeta').textContent = rows.length + ' stored locally';
+  }
+
+  function renderExplain() {
+    var counts = {};
+    N.RULES.forEach(function (r) { counts[r.tier] = (counts[r.tier] || 0) + 1; });
+    var TIERS = ['', 'Urgent deadline (≤3 days)', 'Overdue career or project task', 'Unfinished Main Story quest',
+      'Daily quests close to completion', 'Neglected career skill', 'Upcoming social plan',
+      'Fitness, hydration, caffeine, recovery', 'Positive feedback on recent progress', 'General suggestion'];
+    $('explain').innerHTML =
+      'Nova reads your saved data, walks an ordered list of <strong>' + N.templateCount + ' rules</strong>, ' +
+      'and shows the single highest-priority message that matches. She never repeats a template within three days, ' +
+      'and she takes the time of day into account.<br><br>' +
+      '<strong>Priority order</strong><br>' +
+      TIERS.slice(1).map(function (label, i) {
+        return (i + 1) + '. ' + label + ' <span style="color:var(--text-3)">(' + (counts[i + 1] || 0) + ' templates)</span>';
+      }).join('<br>') +
+      '<br><br><strong>What Nova is not.</strong> She is not an AI and does not think. ' +
+      'There is no model, no API key and no request leaving your browser — every message above is a ' +
+      'pre-written template chosen by an <code style="font-family:var(--mono)">if</code> statement. ' +
+      'She does not give medical, financial or mental-health advice; she points at your own numbers ' +
+      'and the next thing you said you wanted to do.';
+    $('ruleMeta').textContent = N.templateCount + ' templates';
+  }
+
+  function renderToggle() {
+    var s = GS.get();
+    var b = $('tgNova');
+    var on = s.settings.novaEnabled !== false;
+    b.textContent = on ? 'On' : 'Off';
+    b.classList.toggle('on', on);
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#nextMsg')) {
+      // Mark the current one as seen so "Another" genuinely moves on.
+      forced = null; renderMain(); renderHistory(); return;
+    }
+    var ex = e.target.closest('[data-expr]');
+    if (ex) { forced = ex.getAttribute('data-expr'); renderMain(); return; }
+  });
+
+  $('tgNova').addEventListener('click', function () {
+    GS.update(function (s) { s.settings.novaEnabled = s.settings.novaEnabled === false; });
+    renderToggle(); renderMain();
+  });
+
+  renderMain(); renderHistory(); renderExplain(); renderToggle();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+  });
+})();
+</script>
+</body>
+</html>

@@ -5,487 +5,488 @@
 <script src="/api/config"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050506">
-<title>Dashboard</title>
-
+<meta name="theme-color" content="#0B0E1A">
+<title>Adventurer Hub</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
-<script src="topbar.js" defer></script>
-<script src="rpg.js" defer></script>
-
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="hero-art.js"></script>
+<script src="ui-kit.js"></script>
+<script src="nova.js"></script>
 <style>
-/* ===== Shared design tokens (same as the rest of the dashboard) ===== */
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: #050506;
-  color: var(--text-secondary);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-body {
-  min-height: 100vh; position: relative; overflow-x: hidden;
-  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
-}
-/* Soft drifting glow + dot texture (matches the other pages). */
-body::before {
-  content: ''; position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(224,118,88,0.16), transparent 45%),
-    radial-gradient(circle at 18% 90%, rgba(180,180,200,0.06), transparent 50%);
-  filter: blur(40px); pointer-events: none; z-index: -2;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-body::after {
-  content: ''; position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px; pointer-events: none; z-index: -1;
-}
-@keyframes drift { 0%{transform:translate3d(0,0,0)} 100%{transform:translate3d(-22px,14px,0)} }
+/* ---- hero banner ---- */
+.banner { padding:18px; border-color:rgba(233,190,110,.22);
+  background:radial-gradient(circle at 90% 0%, rgba(233,190,110,.13), transparent 58%), var(--panel); }
+.banner-row { display:flex; gap:16px; align-items:center; }
+.banner-id { flex:1; min-width:0; }
+.banner-name { font-size:24px; font-weight:700; color:var(--text); letter-spacing:-.025em; margin:2px 0 0; }
+.banner-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:6px; }
+.banner-xp { margin-top:14px; }
+.xp-line { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:5px; }
+.xp-k { font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:var(--text-3); }
+.xp-n { font-family:var(--mono); font-size:11px; color:var(--text-2); }
 
-.page { max-width: 1100px; margin: 0 auto; }
-.dash-title {
-  margin: 0 0 18px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
-  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-}
-@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+/* ---- main story ---- */
+.story { padding:17px; border-color:rgba(233,190,110,.26); }
+.story-t { font-size:18px; font-weight:700; color:var(--text); margin:5px 0 3px; letter-spacing:-.015em; }
+.story-cta { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
 
-/* ===== BENTO GRID ===== */
-.bento {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 168px;
-  grid-auto-flow: dense;
-  gap: 14px;
-}
-.tile {
-  --accent: #6BE3A4;                 /* each tile overrides this */
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column;
-  padding: 20px;
-  border-radius: 18px;
-  text-decoration: none;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-/* The "its own style" bit — a faint accent glow per tile. */
-.tile::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(circle at 78% 18%,
-              color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%);
-  opacity: 0.7; transition: opacity 0.18s ease;
-}
-.tile:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.55);
-}
-.tile:hover::before { opacity: 1; }
+/* ---- quests ---- */
+.qmode { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.qmode button { border:0; background:transparent; color:var(--text-3); font:inherit; font-size:11px; font-weight:700; padding:6px 10px; cursor:pointer; }
+.qmode button.on { background:rgba(233,190,110,.16); color:var(--gold); }
+.q { display:flex; align-items:flex-start; gap:12px; padding:13px 14px; margin-bottom:8px; }
+.q.done { border-color:rgba(107,227,164,.28); background:rgba(107,227,164,.05); }
+.q.pinned { border-color:rgba(233,190,110,.38); }
+.q-box { width:23px; height:23px; flex:none; margin-top:1px; border-radius:7px; cursor:pointer; padding:0;
+  border:1.5px solid var(--line-2); background:transparent; display:grid; place-items:center; color:transparent; }
+.q-box.on { background:var(--ok); border-color:var(--ok); color:#08130E; }
+.q-b { flex:1; min-width:0; }
+.q-lore { font-size:9.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.q-t { font-size:13.5px; font-weight:650; color:var(--text); margin-top:2px; line-height:1.3; }
+.q.done .q-t { color:var(--ok); text-decoration:line-through; }
+.q-d { font-size:11.5px; color:var(--text-3); margin-top:3px; line-height:1.4; }
+.q-tags { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+.q-r { flex:none; text-align:right; }
+.q-xp { font-family:var(--mono); font-size:12px; font-weight:700; color:var(--gold); }
+.q-min { font-size:9.5px; color:var(--text-3); margin-top:2px; }
 
-/* Tile sizes */
-.tile.big  { grid-column: span 2; grid-row: span 2; }
-.tile.wide { grid-column: span 2; }
+/* ---- contracts ---- */
+.ct { display:flex; align-items:center; gap:11px; padding:11px 13px; margin-bottom:7px; }
+.ct.done { border-color:rgba(107,227,164,.26); }
+.ct-b { flex:1; min-width:0; }
+.ct-t { font-size:12.5px; font-weight:600; color:var(--text); }
+.ct.done .ct-t { color:var(--ok); }
+.ct-s { font-size:10.5px; color:var(--text-3); margin-top:2px; }
+.ct-n { flex:none; font-family:var(--mono); font-size:11px; color:var(--text-3); }
 
-/* Tile contents */
-.tile-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.tile-num {
-  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
-  letter-spacing: 0.08em; color: var(--text-tertiary);
-}
-.tile-emoji {
-  font-size: 26px; line-height: 1;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 60%, transparent));
-}
-.tile-spacer { flex: 1; }
-.tile-title {
-  font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
-  color: var(--text-primary); margin: 0 0 4px;
-}
-.tile.big .tile-title { font-size: 28px; }
-.tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.tile-sub {
-  font-size: 13px; color: var(--text-tertiary);
-}
-.tile-arrow {
-  font-size: 18px; color: var(--accent);
-  transition: transform 0.18s ease; flex-shrink: 0;
-}
-.tile:hover .tile-arrow { transform: translateX(4px); }
+/* ---- world map ---- */
+.world { display:grid; grid-template-columns:repeat(auto-fit,minmax(152px,1fr)); gap:10px; }
+.loc { display:block; padding:15px 14px; text-decoration:none; transition:transform .16s, border-color .16s; }
+.loc:hover { transform:translateY(-2px); }
+.loc-ic { margin-bottom:9px; }
+.loc-l { font-size:13.5px; font-weight:700; color:var(--text); letter-spacing:-.01em; }
+.loc-p { font-size:10.5px; color:var(--text-3); margin-top:2px; }
+.loc-v { font-family:var(--mono); font-size:10.5px; margin-top:7px; }
 
-/* ===== Responsive: collapse the bento on small screens ===== */
-@media (max-width: 720px) {
-  .bento { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
-  .tile.big { grid-column: span 2; grid-row: span 1; }
-  .tile.big .tile-title { font-size: 22px; }
-}
-@media (max-width: 440px) {
-  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
-  .bento { grid-template-columns: 1fr; grid-auto-rows: 132px; }
-  .tile.big, .tile.wide { grid-column: span 1; }
-}
+.two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+@media (max-width:760px){ .two{ grid-template-columns:1fr; } }
 
-/* ===== Header row + gear ===== */
-.hub-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.hub-head .dash-title { margin: 0; }
-.gear-btn {
-  width: 42px; height: 42px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 12px; border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04); color: var(--text-secondary);
-  cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.1s;
-  -webkit-tap-highlight-color: transparent;
-}
-.gear-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
-.gear-btn:active { transform: scale(0.94) rotate(35deg); }
-.gear-btn svg { width: 22px; height: 22px; }
+.mini { padding:14px; }
+.mini-t { font-size:13px; font-weight:650; color:var(--text); }
+.mini-s { font-size:11.5px; color:var(--text-3); margin-top:3px; }
 
-/* ===== Settings modal ===== */
-.modal-bg {
-  position: fixed; inset: 0; z-index: 120; display: none;
-  align-items: center; justify-content: center; padding: 20px;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-}
-.modal-bg.show { display: flex; }
-.modal {
-  width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto;
-  background: #0e0e10; border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 18px; padding: 22px; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
-}
-.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.modal-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-.modal-close { border: 0; background: transparent; color: var(--text-tertiary); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
-.modal-close:hover { color: var(--text-primary); }
-.field { margin-bottom: 14px; }
-.field-label { font-size: 11px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 7px; display: block; }
-.field-row { display: flex; gap: 8px; align-items: center; }
-.set-input {
-  flex: 1; min-width: 0; padding: 11px 13px;
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 11px;
-  background: rgba(0,0,0,0.3); color: var(--text-primary);
-  font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.2s;
-}
-.set-input:focus { border-color: rgba(255,255,255,0.28); }
-.seg { display: inline-flex; border: 1px solid rgba(255,255,255,0.10); border-radius: 11px; overflow: hidden; flex-shrink: 0; }
-.seg button { border: 0; background: transparent; color: var(--text-tertiary); font-family: inherit; font-size: 13px; font-weight: 600; padding: 11px 14px; cursor: pointer; transition: background 0.15s, color 0.15s; }
-.seg button.on { background: rgba(255,255,255,0.12); color: var(--text-primary); }
-.set-save {
-  width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 12px;
-  background: linear-gradient(180deg,#FFFFFF,#E8E5DD); color: #0A0A0B;
-  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 22px rgba(0,0,0,0.25);
-  transition: filter 0.15s, transform 0.1s;
-}
-.set-save:hover { filter: brightness(1.05); }
-.set-save:active { transform: translateY(1px); }
-.set-status { text-align: center; font-size: 12px; color: var(--success); min-height: 16px; margin-top: 8px; }
+/* settings modal (kept from the original hub) */
+.modal-bg { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center;
+  padding:18px; background:rgba(0,0,0,.65); backdrop-filter:blur(10px); }
+.modal-bg.show { display:flex; }
+.modal { width:100%; max-width:440px; max-height:88vh; overflow-y:auto; background:#0F1322;
+  border:1px solid var(--line-2); border-radius:var(--r-lg); padding:20px; }
+.modal-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.modal-x { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:2px; line-height:0; }
+.fieldrow { display:flex; gap:8px; align-items:center; }
+.seg { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; flex:none; }
+.seg button { border:0; background:transparent; color:var(--text-3); font:inherit; font-size:12px; font-weight:600; padding:9px 12px; cursor:pointer; }
+.seg button.on { background:rgba(255,255,255,.12); color:var(--text); }
+.field { margin-bottom:13px; }
 </style>
 </head>
-<body>
-<div class="page">
+<body data-icis>
+<div class="wrap">
 
-  <div class="hub-head">
-    <h1 class="dash-title">Icis Dashboard</h1>
-    <button class="gear-btn" id="settingsOpen" type="button" aria-label="Settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    </button>
+  <!-- 1,2 — portrait, identity, shared XP bar -->
+  <section class="card ornate banner">
+    <div class="banner-row">
+      <a href="character.html" id="portrait" aria-label="Hero profile"></a>
+      <div class="banner-id">
+        <span class="lore" id="bTitle">Adventurer</span>
+        <h1 class="banner-name" id="bName">Icis</h1>
+        <div class="banner-meta" id="bMeta"></div>
+      </div>
+    </div>
+    <div class="banner-xp">
+      <div class="xp-line">
+        <span class="xp-k" id="bNext">Experience</span>
+        <span class="xp-n" id="bXp">0 / 100</span>
+      </div>
+      <div class="track"><div class="fill" id="bFill"></div></div>
+    </div>
+  </section>
+
+  <!-- 9 — Nova -->
+  <div id="novaMount" style="margin-top:10px"></div>
+
+  <!-- 3,4 — Main Story + Continue Quest -->
+  <div class="sec"><span class="sec-t">Main Story</span><span class="sec-m" id="storyMeta"></span></div>
+  <section class="card ornate story" id="story"></section>
+
+  <!-- 5 — five daily quests -->
+  <div class="sec">
+    <span class="sec-t">Daily Quests</span>
+    <span class="row" style="gap:8px">
+      <span class="qmode" id="qmode">
+        <button data-mode="light">Light</button>
+        <button data-mode="normal">Normal</button>
+        <button data-mode="ambitious">Ambitious</button>
+      </span>
+      <button class="btn sm" id="rerollBtn" title="One reroll per day"></button>
+    </span>
+  </div>
+  <div id="quests"></div>
+  <div class="sub" id="questMeta" style="margin-top:6px"></div>
+
+  <div class="two" style="margin-top:22px">
+    <div>
+      <!-- 6 — weekly contracts -->
+      <div class="sec" style="margin-top:0"><span class="sec-t">Guild Contracts</span><span class="sec-m" id="ctMeta"></span></div>
+      <div id="contracts"></div>
+    </div>
+    <div>
+      <!-- 7 — career campaign progress -->
+      <div class="sec" style="margin-top:0"><span class="sec-t">Career Campaign</span><span class="sec-m" id="campMeta"></span></div>
+      <a class="card mini" href="career.html" style="display:block;text-decoration:none" id="camp"></a>
+
+      <!-- 8 — upcoming social plan -->
+      <div class="sec"><span class="sec-t">Tavern</span><span class="sec-m">next plan</span></div>
+      <a class="card mini" href="tavern.html" style="display:block;text-decoration:none" id="social"></a>
+
+      <!-- 10 — recent reward -->
+      <div class="sec"><span class="sec-t">Latest Reward</span><span class="sec-m" id="rewMeta"></span></div>
+      <a class="card mini" href="character.html?tab=achievements" style="display:block;text-decoration:none" id="reward"></a>
+    </div>
   </div>
 
-  <div class="bento">
-
-    <!-- Big tile -->
-    <a class="tile big" href="character.html" style="--accent:#E9BE6E">
-      <div class="tile-top">
-        <span class="tile-num">·01</span>
-        <span class="tile-emoji">🛡️</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Character</h2>
-      <div class="tile-foot">
-        <span class="tile-sub" id="charSub">Level, quests & trophies</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="main.html" style="--accent:#6BE3A4">
-      <div class="tile-top">
-        <span class="tile-num">·02</span>
-        <span class="tile-emoji">🏠</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Main</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Goals & daily plan</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="gym.html" style="--accent:#7DD3FC">
-      <div class="tile-top">
-        <span class="tile-num">·03</span>
-        <span class="tile-emoji">💪</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Fitness</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Workouts, splits, sessions</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="health.html" style="--accent:#A7F3D0">
-      <div class="tile-top">
-        <span class="tile-num">·04</span>
-        <span class="tile-emoji">🗂️</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Project Manager</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Projects & deadlines</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="po-water.html" style="--accent:#60A5FA">
-      <div class="tile-top">
-        <span class="tile-num">·05</span>
-        <span class="tile-emoji">💧</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Water</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Hydration</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="finance.html" style="--accent:#F2C063">
-      <div class="tile-top">
-        <span class="tile-num">·06</span>
-        <span class="tile-emoji">📊</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Finance</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Net worth & spending</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="caffeine.html" style="--accent:#C9A36B">
-      <div class="tile-top">
-        <span class="tile-num">·07</span>
-        <span class="tile-emoji">☕</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Caffeine</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Intake & timing</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="nova-lite.html" style="--accent:#A78BFA">
-      <div class="tile-top">
-        <span class="tile-num">·08</span>
-        <span class="tile-emoji">🧠</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Nova</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Your AI mentor</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
+  <!-- 11 — world locations -->
+  <div class="sec">
+    <span class="sec-t">World</span>
+    <button class="btn sm" id="openSettings">Your Data</button>
   </div>
+  <div class="world" id="world"></div>
+
 </div>
 
-<!-- ===== Settings / Your Data ===== -->
+<!-- Your Data — unchanged behaviour, still writes into po_water_v1.profile -->
 <div class="modal-bg" id="settingsBg">
   <div class="modal" role="dialog" aria-label="Your data">
-    <div class="modal-head">
-      <span class="modal-title">Your Data</span>
-      <button class="modal-close" id="settingsClose" type="button" aria-label="Close">×</button>
+    <div class="modal-h">
+      <span style="font-size:16px;font-weight:700;color:var(--text)">Your Data</span>
+      <button class="modal-x" id="settingsClose" aria-label="Close">✕</button>
     </div>
-
-    <div class="field">
-      <label class="field-label">Height</label>
-      <div class="field-row">
-        <input class="set-input" id="heightA" type="number" min="0" inputmode="decimal" placeholder="cm">
-        <input class="set-input" id="heightB" type="number" min="0" inputmode="decimal" placeholder="in" style="display:none">
-        <div class="seg" id="heightUnitSeg">
-          <button type="button" data-u="cm" class="on">cm</button>
-          <button type="button" data-u="ft">ft/in</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="field">
-      <label class="field-label">Weight</label>
-      <div class="field-row">
-        <input class="set-input" id="weight" type="number" min="0" inputmode="decimal" placeholder="weight">
-        <div class="seg" id="weightUnitSeg">
-          <button type="button" data-u="kg" class="on">kg</button>
-          <button type="button" data-u="lb">lb</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="field">
-      <label class="field-label">Age</label>
-      <input class="set-input" id="age" type="number" min="0" inputmode="numeric" placeholder="years">
-    </div>
-
-    <div class="field">
-      <label class="field-label">Sex</label>
-      <div class="seg" id="sexSeg" style="width:100%;display:flex">
-        <button type="button" data-s="m" style="flex:1">Male</button>
-        <button type="button" data-s="f" style="flex:1">Female</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label class="field-label">Active hours / week</label>
-      <input class="set-input" id="activity" type="number" min="0" inputmode="decimal" placeholder="e.g. 5">
-    </div>
-
-    <button class="set-save" id="settingsSave" type="button">Save</button>
-    <div class="set-status" id="settingsStatus"></div>
+    <div class="field"><label class="fl">Height</label>
+      <div class="fieldrow">
+        <input id="heightA" type="number" min="0" inputmode="decimal" placeholder="cm">
+        <input id="heightB" type="number" min="0" inputmode="decimal" placeholder="in" style="display:none">
+        <div class="seg" id="heightUnitSeg"><button data-u="cm" class="on">cm</button><button data-u="ft">ft/in</button></div>
+      </div></div>
+    <div class="field"><label class="fl">Weight</label>
+      <div class="fieldrow">
+        <input id="weight" type="number" min="0" inputmode="decimal" placeholder="weight">
+        <div class="seg" id="weightUnitSeg"><button data-u="kg" class="on">kg</button><button data-u="lb">lb</button></div>
+      </div></div>
+    <div class="field"><label class="fl">Age</label><input id="age" type="number" min="0" inputmode="numeric" placeholder="years"></div>
+    <div class="field"><label class="fl">Sex</label>
+      <div class="seg" id="sexSeg" style="display:flex;width:100%">
+        <button data-s="m" style="flex:1">Male</button><button data-s="f" style="flex:1">Female</button>
+      </div></div>
+    <div class="field"><label class="fl">Active hours / week</label><input id="activity" type="number" min="0" inputmode="decimal" placeholder="e.g. 5"></div>
+    <button class="btn gold" id="settingsSave" style="width:100%">Save</button>
+    <div id="settingsStatus" class="sub" style="text-align:center;min-height:16px;margin-top:8px"></div>
   </div>
 </div>
 
 <script>
 (function () {
   'use strict';
-  const $ = (id) => document.getElementById(id);
-  const WATER_KEY = 'po_water_v1';
+  var GS = window.GameState, QE = window.QuestEngine, CD = window.CareerData,
+      UI = window.UI, HA = window.HeroArt;
+  var $ = function (id) { return document.getElementById(id); };
 
-  function loadJSON(k, f) { try { return JSON.parse(localStorage.getItem(k)) || f; } catch (e) { return f; } }
-  function saveJSON(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+  var st = document.createElement('style'); st.textContent = HA.CSS; document.head.appendChild(st);
 
-  // Mirror of topbar.js defaultWaterState so we never clobber the water tracker.
+  /* ---------- banner ---------- */
+  function renderBanner() {
+    var t = GS.totals(), s = GS.get();
+    $('portrait').innerHTML = HA.framed({
+      portrait: s.player.portrait, border: s.player.border,
+      background: s.player.background, size: 84
+    });
+    $('bName').textContent = t.name;
+    $('bTitle').textContent = t.title || 'Adventurer';
+    $('bMeta').innerHTML =
+      UI.rankBadge(t.rank) +
+      '<span class="chip on">' + UI.esc(t.rank.name) + '</span>' +
+      '<span class="chip">' + UI.esc(t.className) + '</span>' +
+      '<span class="chip">Score ' + UI.fmt(t.score) + '</span>';
+    $('bXp').textContent = UI.fmt(t.into) + ' / ' + UI.fmt(t.need);
+    $('bFill').style.width = (t.pct * 100).toFixed(1) + '%';
+    $('bNext').textContent = t.nextRank
+      ? 'Level ' + t.level + ' · next rank ' + t.nextRank.name + ' at ' + t.nextRank.at
+      : 'Level ' + t.level + ' · maximum rank';
+  }
+
+  /* ---------- main story ---------- */
+  function renderStory() {
+    var s = GS.get();
+    var m = CD.currentMission(s);
+    var qv = QE.todayView();
+    var mainQ = qv.list.filter(function (q) { return q.slot === 'main'; })[0];
+    var dl = m.progress.deadline;
+    var days = dl ? GS.daysBetween(GS.todayKey(), dl) : null;
+
+    $('story').innerHTML =
+      '<span class="lore">Chapter ' + m.chapter.n + ' · ' + UI.esc(m.chapter.lore) + '</span>' +
+      '<div class="story-t">' + UI.esc(m.milestone ? m.milestone.name : m.chapter.name) + '</div>' +
+      '<div class="sub">' + UI.esc(m.chapter.name) + ' — ' + UI.esc(m.chapter.objective) + '</div>' +
+      '<div style="margin-top:12px">' + UI.bar(m.progress.pct / 100) + '</div>' +
+      '<div class="banner-meta" style="margin-top:10px">' +
+        '<span class="chip on">' + m.progress.pct + '% complete</span>' +
+        (days != null ? '<span class="chip ' + (days < 0 ? 'bad' : days <= 3 ? 'on' : '') + '">' +
+          (days < 0 ? 'overdue' : 'due in ' + days + 'd') + '</span>' : '') +
+        (mainQ ? '<span class="chip' + (mainQ.done ? ' ok' : '') + '">today: ' + UI.esc(mainQ.practicalTitle) + '</span>' : '') +
+      '</div>' +
+      '<div class="story-cta">' +
+        '<a class="btn gold" href="career.html">Continue Quest ' + UI.icon('arrow', 15) + '</a>' +
+        '<a class="btn" href="guild.html">Projects</a>' +
+      '</div>';
+    $('storyMeta').textContent = m.chapter.name;
+  }
+
+  /* ---------- daily quests ---------- */
+  function renderQuests() {
+    var v = QE.todayView();
+    $('quests').innerHTML = v.list.map(function (q) {
+      return '<div class="card q' + (q.done ? ' done' : '') + (q.pinned ? ' pinned' : '') + '">' +
+        '<button class="q-box' + (q.done ? ' on' : '') + '" data-q="' + UI.esc(q.id) + '" aria-label="Toggle quest">' +
+          UI.icon('check', 14) + '</button>' +
+        '<div class="q-b">' +
+          '<div class="q-lore">' + UI.esc(q.loreTitle) + '</div>' +
+          '<div class="q-t">' + UI.esc(q.practicalTitle) + '</div>' +
+          '<div class="q-d">' + UI.esc(q.description) + '</div>' +
+          '<div class="q-tags">' +
+            '<span class="chip' + (q.pinned ? ' on' : '') + '">' + UI.esc(q.reason || q.slot) + '</span>' +
+            '<span class="chip">' + UI.esc(q.difficulty) + '</span>' +
+            (q.rolledOver ? '<span class="chip on">carried over</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="q-r"><div class="q-xp">+' + q.xp + '</div><div class="q-min">' + q.estimatedMinutes + 'm</div></div>' +
+      '</div>';
+    }).join('');
+
+    $('questMeta').textContent = v.done + ' of ' + v.total + ' complete' +
+      (v.minutes ? ' · about ' + v.minutes + ' minutes left' : ' · board cleared');
+    Array.prototype.forEach.call($('qmode').children, function (b) {
+      b.classList.toggle('on', b.getAttribute('data-mode') === v.mode);
+    });
+    var rb = $('rerollBtn');
+    rb.disabled = v.rerollUsed;
+    rb.innerHTML = UI.icon('dice', 14) + (v.rerollUsed ? ' Used' : ' Reroll');
+  }
+
+  /* ---------- contracts ---------- */
+  function renderContracts() {
+    var c = QE.contracts();
+    $('contracts').innerHTML = c.list.map(function (x) {
+      return '<div class="card ct' + (x.complete ? ' done' : '') + '">' +
+        '<span style="color:' + (x.complete ? 'var(--ok)' : 'var(--text-3)') + '">' +
+          UI.icon(x.complete ? 'check' : 'clock', 15) + '</span>' +
+        '<div class="ct-b">' +
+          '<div class="ct-t">' + UI.esc(x.name) + '</div>' +
+          '<div class="ct-s">' + UI.esc(x.lore) + ' · +' + x.xp + ' XP</div>' +
+          '<div style="margin-top:6px">' + UI.bar(x.pct) + '</div>' +
+        '</div>' +
+        '<span class="ct-n">' + Math.min(x.have, x.need) + '/' + x.need + '</span>' +
+      '</div>';
+    }).join('');
+    $('ctMeta').textContent = c.done + ' / ' + c.total + ' this week';
+  }
+
+  /* ---------- side cards ---------- */
+  function renderSide() {
+    var s = GS.get(), t = GS.totals();
+
+    var done = CD.CHAPTERS.filter(function (ch) { return CD.chapterProgress(s, ch).complete; }).length;
+    var m = CD.currentMission(s);
+    $('camp').innerHTML =
+      '<div class="mini-t">' + UI.esc(m.chapter.name) + '</div>' +
+      '<div class="mini-s">Chapter ' + m.chapter.n + ' of 10 · Career LV ' + t.byId.career.level + '</div>' +
+      '<div style="margin-top:9px">' + UI.bar(done / CD.CHAPTERS.length) + '</div>' +
+      '<div class="mini-s" style="margin-top:6px">' + done + ' chapters complete</div>';
+    $('campMeta').textContent = done + '/10';
+
+    var plans = (s.social.plans || []).filter(function (p) { return !p.done && p.date >= GS.todayKey(); })
+      .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var next = plans[0];
+    $('social').innerHTML = next
+      ? '<div class="mini-t">' + UI.esc(next.title) + '</div>' +
+        '<div class="mini-s">' + (next.who ? UI.esc(next.who) + ' · ' : '') +
+        (GS.daysBetween(GS.todayKey(), next.date) === 0 ? 'today' : 'in ' + GS.daysBetween(GS.todayKey(), next.date) + ' day' + (GS.daysBetween(GS.todayKey(), next.date) === 1 ? '' : 's')) + '</div>'
+      : '<div class="mini-t">No plans yet</div><div class="mini-s">Adding one makes it far more likely to happen.</div>';
+
+    var chron = GS.chronicle(1)[0];
+    var titles = s.player.unlockedTitles || [];
+    $('reward').innerHTML = titles.length
+      ? '<div class="mini-t">Title · ' + UI.esc(titles[titles.length - 1]) + '</div>' +
+        '<div class="mini-s">' + (chron ? UI.esc(chron.text) + ' · +' + chron.xp + ' XP' : 'Unlocked from the campaign') + '</div>'
+      : (chron
+        ? '<div class="mini-t">' + UI.esc(chron.text) + '</div><div class="mini-s">+' + chron.xp + ' XP · ' + UI.ago(chron.at) + ' ago</div>'
+        : '<div class="mini-t">Nothing yet</div><div class="mini-s">Complete a quest to start the Chronicle.</div>');
+    $('rewMeta').textContent = titles.length ? titles.length + ' titles' : '';
+  }
+
+  /* ---------- world ---------- */
+  function renderWorld() {
+    var t = GS.totals();
+    var stat = {
+      quest: function () { var v = QE.todayView(); return v.done + '/' + v.total + ' quests'; },
+      career: function () { return 'LV ' + t.byId.career.level; },
+      guild: function () { return 'LV ' + t.byId.arcana.level; },
+      training: function () { return 'LV ' + t.byId.might.level; },
+      spring: function () { return 'LV ' + t.byId.vitality.level; },
+      treasury: function () { return 'LV ' + t.byId.fortune.level; },
+      tavern: function () { return 'LV ' + t.byId.fellowship.level; },
+      alchemy: function () { return 'tracker'; },
+      hero: function () { return 'LV ' + t.level; },
+      spirit: function () { return 'companion'; }
+    };
+    $('world').innerHTML = UI.WORLD.filter(function (w) { return w.key !== 'hub'; }).map(function (w) {
+      return '<a class="card loc" href="' + w.href + '" style="border-color:' + w.color + '26">' +
+        '<div class="loc-ic" style="color:' + w.color + '">' + UI.icon(w.icon, 22) + '</div>' +
+        '<div class="loc-l">' + UI.esc(w.lore) + '</div>' +
+        '<div class="loc-p">' + UI.esc(w.practical) + '</div>' +
+        '<div class="loc-v" style="color:' + w.color + '">' + (stat[w.key] ? stat[w.key]() : '') + '</div>' +
+      '</a>';
+    }).join('');
+  }
+
+  function renderAll() {
+    renderBanner(); renderStory(); renderQuests();
+    renderContracts(); renderSide(); renderWorld();
+  }
+
+  /* ---------- interactions ---------- */
+  document.addEventListener('click', function (e) {
+    var box = e.target.closest('[data-q]');
+    if (box) {
+      var id = box.getAttribute('data-q');
+      var v = QE.todayView();
+      var q = v.list.filter(function (x) { return x.id === id; })[0];
+      if (!q) return;
+      if (q.done) QE.uncomplete(id);
+      else {
+        QE.complete(id);
+        UI.toast('check', 'Quest complete', q.practicalTitle, '+' + q.xp + ' XP · ' + q.loreTitle);
+      }
+      renderAll();
+    }
+  });
+
+  $('rerollBtn').addEventListener('click', function () {
+    var r = QE.reroll();
+    if (!r.ok) { UI.toast('dice', 'Reroll', r.reason, ''); return; }
+    UI.toast('dice', 'Reroll', 'The board has been redrawn', 'One reroll per day');
+    renderAll();
+  });
+
+  Array.prototype.forEach.call($('qmode').children, function (b) {
+    b.addEventListener('click', function () {
+      QE.setMode(b.getAttribute('data-mode'));
+      renderAll();
+    });
+  });
+
+  /* ---------- Your Data modal (preserved) ---------- */
+  var WATER_KEY = 'po_water_v1';
+  var heightUnit = 'cm', weightUnit = 'kg', sex = 'm';
   function defaultWater() {
     return { unit:'bottle', bottleMl:500, glassMl:250, weightUnit:'kg',
       profile:{ weightKg:75, age:25, sex:'m', activityHrsPerWeek:5 },
       caffeineMgPerDay:200, substances:[], logs:{} };
   }
-
-  /* ---------- unit state ---------- */
-  let heightUnit = 'cm';   // 'cm' | 'ft'
-  let weightUnit = 'kg';   // 'kg' | 'lb'
-  let sex = 'm';
-
   function setHeightUnit(u) {
     heightUnit = u;
-    $('heightUnitSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.u === u));
-    const a = $('heightA'), b = $('heightB');
-    if (u === 'cm') { a.placeholder = 'cm'; b.style.display = 'none'; }
-    else { a.placeholder = 'ft'; b.placeholder = 'in'; b.style.display = ''; }
+    Array.prototype.forEach.call($('heightUnitSeg').children, function (b) { b.classList.toggle('on', b.dataset.u === u); });
+    $('heightB').style.display = u === 'cm' ? 'none' : '';
+    $('heightA').placeholder = u === 'cm' ? 'cm' : 'ft';
   }
   function setWeightUnit(u) {
     weightUnit = u;
-    $('weightUnitSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.u === u));
+    Array.prototype.forEach.call($('weightUnitSeg').children, function (b) { b.classList.toggle('on', b.dataset.u === u); });
   }
-  function setSex(s) {
-    sex = s;
-    $('sexSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  function setSex(v) {
+    sex = v;
+    Array.prototype.forEach.call($('sexSeg').children, function (b) { b.classList.toggle('on', b.dataset.s === v); });
   }
-
   function getHeightCm() {
-    if (heightUnit === 'cm') { const v = parseFloat($('heightA').value); return v > 0 ? v : null; }
-    const ft = parseFloat($('heightA').value) || 0;
-    const inch = parseFloat($('heightB').value) || 0;
-    const cm = ft * 30.48 + inch * 2.54;
+    if (heightUnit === 'cm') { var v = parseFloat($('heightA').value); return v > 0 ? v : null; }
+    var cm = (parseFloat($('heightA').value) || 0) * 30.48 + (parseFloat($('heightB').value) || 0) * 2.54;
     return cm > 0 ? Math.round(cm) : null;
   }
-  function fillHeight(cm) {
-    if (!cm) { $('heightA').value = ''; $('heightB').value = ''; return; }
-    if (heightUnit === 'cm') { $('heightA').value = Math.round(cm); }
-    else { const totalIn = cm / 2.54; $('heightA').value = Math.floor(totalIn / 12); $('heightB').value = Math.round(totalIn % 12); }
-  }
-
-  /* ---------- load existing profile into the form ---------- */
   function populate() {
-    const w = loadJSON(WATER_KEY, defaultWater());
-    const p = w.profile || {};
+    var w = GS.readJSON(WATER_KEY, defaultWater()), p = w.profile || {};
     setWeightUnit(w.weightUnit === 'lb' ? 'lb' : 'kg');
     setHeightUnit(p.heightUnit === 'ft' ? 'ft' : 'cm');
     setSex(p.sex === 'f' ? 'f' : 'm');
-    fillHeight(p.heightCm || null);
-    if (p.weightKg) $('weight').value = weightUnit === 'lb' ? Math.round(p.weightKg * 2.20462) : Math.round(p.weightKg);
-    else $('weight').value = '';
+    if (p.heightCm) {
+      if (heightUnit === 'cm') $('heightA').value = Math.round(p.heightCm);
+      else { var ti = p.heightCm / 2.54; $('heightA').value = Math.floor(ti / 12); $('heightB').value = Math.round(ti % 12); }
+    }
+    $('weight').value = p.weightKg ? (weightUnit === 'lb' ? Math.round(p.weightKg * 2.20462) : Math.round(p.weightKg)) : '';
     $('age').value = p.age || '';
-    $('activity').value = (p.activityHrsPerWeek != null ? p.activityHrsPerWeek : '');
+    $('activity').value = p.activityHrsPerWeek != null ? p.activityHrsPerWeek : '';
   }
-
-  /* ---------- save back into po_water_v1 (merge, never overwrite logs) ---------- */
-  function save() {
-    const w = loadJSON(WATER_KEY, defaultWater());
+  $('openSettings').addEventListener('click', function () { populate(); $('settingsBg').classList.add('show'); });
+  $('settingsClose').addEventListener('click', function () { $('settingsBg').classList.remove('show'); });
+  $('settingsBg').addEventListener('click', function (e) { if (e.target === $('settingsBg')) $('settingsBg').classList.remove('show'); });
+  Array.prototype.forEach.call($('heightUnitSeg').children, function (b) {
+    b.addEventListener('click', function () { var cm = getHeightCm(); setHeightUnit(b.dataset.u);
+      if (cm) { if (heightUnit === 'cm') $('heightA').value = Math.round(cm);
+        else { var ti = cm / 2.54; $('heightA').value = Math.floor(ti / 12); $('heightB').value = Math.round(ti % 12); } } });
+  });
+  Array.prototype.forEach.call($('weightUnitSeg').children, function (b) {
+    b.addEventListener('click', function () {
+      var v = parseFloat($('weight').value);
+      var kg = v > 0 ? (weightUnit === 'lb' ? v / 2.20462 : v) : null;
+      setWeightUnit(b.dataset.u);
+      if (kg) $('weight').value = weightUnit === 'lb' ? Math.round(kg * 2.20462) : Math.round(kg);
+    });
+  });
+  Array.prototype.forEach.call($('sexSeg').children, function (b) {
+    b.addEventListener('click', function () { setSex(b.dataset.s); });
+  });
+  $('settingsSave').addEventListener('click', function () {
+    var w = GS.readJSON(WATER_KEY, defaultWater());
     w.profile = w.profile || {};
-    const cm = getHeightCm();
+    var cm = getHeightCm();
     if (cm) { w.profile.heightCm = cm; w.profile.heightUnit = heightUnit; }
-    const wv = parseFloat($('weight').value);
+    var wv = parseFloat($('weight').value);
     if (wv > 0) { w.profile.weightKg = weightUnit === 'lb' ? +(wv / 2.20462).toFixed(1) : wv; w.weightUnit = weightUnit; }
-    const age = parseInt($('age').value, 10); if (age > 0) w.profile.age = age;
+    var age = parseInt($('age').value, 10); if (age > 0) w.profile.age = age;
     w.profile.sex = sex;
-    const act = parseFloat($('activity').value); if (act >= 0 && !isNaN(act)) w.profile.activityHrsPerWeek = act;
-    saveJSON(WATER_KEY, w);
-    const s = $('settingsStatus'); s.textContent = 'Saved ✓';
-    setTimeout(() => { s.textContent = ''; }, 1800);
-  }
+    var act = parseFloat($('activity').value); if (act >= 0 && !isNaN(act)) w.profile.activityHrsPerWeek = act;
+    GS.writeJSON(WATER_KEY, w);
+    GS.reconcile();
+    $('settingsStatus').textContent = 'Saved ✓';
+    setTimeout(function () { $('settingsStatus').textContent = ''; }, 1600);
+    renderAll();
+  });
 
-  /* ---------- open / close ---------- */
-  function open() { populate(); $('settingsBg').classList.add('show'); }
-  function close() { $('settingsBg').classList.remove('show'); }
-  $('settingsOpen').addEventListener('click', open);
-  $('settingsClose').addEventListener('click', close);
-  $('settingsBg').addEventListener('click', (e) => { if (e.target === $('settingsBg')) close(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-  $('settingsSave').addEventListener('click', save);
-  $('heightUnitSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    const cm = getHeightCm(); setHeightUnit(b.dataset.u); fillHeight(cm);
-  }));
-  $('weightUnitSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    const v = parseFloat($('weight').value);
-    const kg = v > 0 ? (weightUnit === 'lb' ? v / 2.20462 : v) : null;
-    setWeightUnit(b.dataset.u);
-    if (kg) $('weight').value = weightUnit === 'lb' ? Math.round(kg * 2.20462) : Math.round(kg);
-  }));
-  $('sexSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => setSex(b.dataset.s)));
+  /* ---------- boot ---------- */
+  renderAll();
+  if (window.Nova) window.Nova.mount('novaMount', { respectDismiss: true });
+  document.addEventListener('icis:update', renderBanner);
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'icis',
+      syncedKeys: [GS.KEY],
+      onApplied: function () { location.reload(); }
+    });
+  });
 })();
-</script>
-
-<script>
-document.addEventListener('rpg:update', function (e) {
-  const s = e.detail, el = document.getElementById('charSub');
-  if (!s || !el) return;
-  el.textContent = 'Lv ' + s.level + ' ' + s.rank.name + ' · ' +
-    s.questsDone + '/' + s.quests.daily.length + ' quests today';
-});
 </script>
 </body>
 </html>

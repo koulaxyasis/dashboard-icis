@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Tavern</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+.hdr { margin-bottom:16px; }
+.note-card { padding:13px 15px; font-size:12.5px; color:var(--text-3); line-height:1.5; border-color:rgba(244,114,182,.22); }
+
+.plan { display:flex; align-items:center; gap:12px; padding:13px 15px; margin-bottom:9px; }
+.plan.soon { border-color:rgba(244,114,182,.35); }
+.plan.past { opacity:.55; }
+.plan-d {
+  width:46px; flex:none; text-align:center; border-radius:9px; padding:5px 0;
+  background:rgba(244,114,182,.12); border:1px solid rgba(244,114,182,.25);
+}
+.plan-dm { font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#F472B6; }
+.plan-dd { font-family:var(--mono); font-size:16px; font-weight:700; color:var(--text); line-height:1.1; }
+.plan-b { flex:1; min-width:0; }
+.plan-t { font-size:14px; font-weight:650; color:var(--text); }
+.plan-s { font-size:12px; color:var(--text-3); margin-top:2px; }
+.plan-a { flex:none; display:flex; gap:6px; }
+.iconbtn { border:1px solid var(--line); background:var(--panel); color:var(--text-3); border-radius:9px; padding:7px; cursor:pointer; line-height:0; }
+.iconbtn:hover { color:var(--text); border-color:var(--line-2); }
+.iconbtn.ok:hover { color:var(--ok); border-color:rgba(107,227,164,.5); }
+
+.person { display:flex; align-items:center; gap:11px; padding:11px 14px; margin-bottom:8px; }
+.person-av {
+  width:34px; height:34px; flex:none; border-radius:50%; display:grid; place-items:center;
+  font-size:13px; font-weight:700; color:#1B0A14;
+  background:linear-gradient(180deg,#F9C6E0,#D97AAE);
+}
+.person-b { flex:1; min-width:0; }
+.person-n { font-size:13.5px; font-weight:650; color:var(--text); }
+.person-l { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+.person-l.stale { color:var(--warn); }
+
+.sug { display:flex; align-items:center; gap:10px; padding:11px 14px; margin-bottom:8px; }
+.sug-b { flex:1; min-width:0; }
+.sug-t { font-size:13px; font-weight:600; color:var(--text); }
+.sug-s { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+
+.mem { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.05); }
+.mem:last-child { border-bottom:0; }
+.mem-t { flex:1; font-size:13px; color:var(--text-2); }
+.mem-d { flex:none; font-family:var(--mono); font-size:10.5px; color:var(--text-3); }
+
+.addrow { display:grid; grid-template-columns:1fr 130px auto; gap:7px; margin-top:9px; }
+@media (max-width:520px){ .addrow{ grid-template-columns:1fr; } }
+.stat-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px; }
+.st { padding:13px; text-align:center; }
+.st-v { font-family:var(--mono); font-size:19px; font-weight:700; color:var(--text); }
+.st-k { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); margin-top:4px; }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="lore">Tavern</div>
+    <h1 class="h1">Fellowship</h1>
+    <div class="sub">Social life, made deliberate. The reaching out is the quest.</div>
+  </div>
+
+  <section class="card note-card">
+    Fellowship XP is earned for <strong style="color:var(--text-2)">the effort you make</strong> — sending the message,
+    making the invitation, showing up. Whether someone replies or says yes is not scored, and nothing here
+    ranks people or penalises a missed plan.
+  </section>
+
+  <div class="stat-strip">
+    <div class="card st"><div class="st-v" id="stXp">0</div><div class="st-k">Fellowship XP</div></div>
+    <div class="card st"><div class="st-v" id="stLv">1</div><div class="st-k">Level</div></div>
+    <div class="card st"><div class="st-v" id="stMem">0</div><div class="st-k">Memories</div></div>
+  </div>
+
+  <div class="sec"><span class="sec-t">Upcoming Plans</span><span class="sec-m" id="planMeta"></span></div>
+  <div id="plans"></div>
+  <section class="card pad">
+    <label class="fl">Add a plan</label>
+    <div class="addrow">
+      <input id="planTitle" placeholder="Coffee with Dina, badminton, family dinner…" maxlength="80">
+      <input id="planDate" type="date">
+      <button class="btn gold" id="planAdd">Add</button>
+    </div>
+    <div class="addrow" style="grid-template-columns:1fr">
+      <input id="planWho" placeholder="Who's involved (optional)" maxlength="60">
+    </div>
+  </section>
+
+  <div class="sec"><span class="sec-t">People to Reconnect With</span><span class="sec-m" id="peopleMeta"></span></div>
+  <div id="people"></div>
+  <section class="card pad">
+    <label class="fl">Add someone</label>
+    <div class="addrow">
+      <input id="personName" placeholder="Name" maxlength="40">
+      <input id="personDate" type="date" title="Last contact">
+      <button class="btn" id="personAdd">Add</button>
+    </div>
+    <div class="addrow" style="grid-template-columns:1fr">
+      <input id="personNote" placeholder="Private note (optional) — only you see this" maxlength="140">
+    </div>
+  </section>
+
+  <div class="sec"><span class="sec-t">Low-Pressure Suggestions</span><span class="sec-m">no commitment</span></div>
+  <div id="suggestions"></div>
+
+  <div class="sec"><span class="sec-t">Memories</span><span class="sec-m" id="memMeta"></span></div>
+  <section class="card" id="memories"></section>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, UI = window.UI, QL = window.QuestLibrary;
+  var $ = function (id) { return document.getElementById(id); };
+  var MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+  function social() {
+    var s = GS.get();
+    if (!s.social) s.social = { people: [], plans: [], memories: [] };
+    if (!Array.isArray(s.social.plans)) s.social.plans = [];
+    if (!Array.isArray(s.social.people)) s.social.people = [];
+    if (!Array.isArray(s.social.memories)) s.social.memories = [];
+    return s.social;
+  }
+  function uid() { return 'x' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36); }
+
+  // Fellowship XP is keyed per plan/person action, so completing the same
+  // plan twice cannot pay out twice.
+  function awardOnce(key, xp, text) {
+    GS.update(function (s) {
+      s.ledger[key] = { xp: xp, disc: 'fellowship', at: Date.now(), text: text };
+    });
+  }
+
+  function fmtDate(d) {
+    if (!d) return '';
+    var p = d.split('-').map(Number);
+    return { m: MON[p[1] - 1], d: p[2] };
+  }
+
+  function renderStats() {
+    var t = GS.totals();
+    var f = t.byId.fellowship;
+    $('stXp').textContent = UI.fmt(f.xp);
+    $('stLv').textContent = f.level;
+    $('stMem').textContent = social().memories.length;
+  }
+
+  function renderPlans() {
+    var so = social(), today = GS.todayKey();
+    var list = so.plans.filter(function (p) { return !p.done; })
+      .sort(function (a, b) { return (a.date || '9') < (b.date || '9') ? -1 : 1; });
+    $('plans').innerHTML = list.length ? list.map(function (p) {
+      var d = fmtDate(p.date);
+      var days = p.date ? GS.daysBetween(today, p.date) : null;
+      var cls = 'card plan' + (days != null && days < 0 ? ' past' : days != null && days <= 2 ? ' soon' : '');
+      return '<div class="' + cls + '">' +
+        '<div class="plan-d"><div class="plan-dm">' + (d ? d.m : '—') + '</div><div class="plan-dd">' + (d ? d.d : '·') + '</div></div>' +
+        '<div class="plan-b">' +
+          '<div class="plan-t trunc">' + UI.esc(p.title) + '</div>' +
+          '<div class="plan-s trunc">' + (p.who ? UI.esc(p.who) + ' · ' : '') +
+            (days == null ? 'no date' : days === 0 ? 'today' : days < 0 ? Math.abs(days) + 'd ago — needs follow-up' : 'in ' + days + 'd') +
+          '</div>' +
+        '</div>' +
+        '<div class="plan-a">' +
+          '<button class="iconbtn ok" data-pdone="' + p.id + '" title="Happened">' + UI.icon('check', 15) + '</button>' +
+          '<button class="iconbtn" data-pdel="' + p.id + '" title="Remove">' + UI.icon('close', 15) + '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="card empty">No plans yet. One entry makes it far more likely to actually happen.</div>';
+
+    var followUps = list.filter(function (p) { return p.date && GS.daysBetween(today, p.date) < 0; }).length;
+    $('planMeta').textContent = list.length + ' open' + (followUps ? ' · ' + followUps + ' need follow-up' : '');
+  }
+
+  function renderPeople() {
+    var so = social(), today = GS.todayKey();
+    var list = so.people.slice().sort(function (a, b) {
+      return (a.lastContact || '0') < (b.lastContact || '0') ? -1 : 1;
+    });
+    $('people').innerHTML = list.length ? list.map(function (p) {
+      var days = p.lastContact ? GS.daysBetween(p.lastContact, today) : null;
+      var stale = days == null || days >= 21;
+      return '<div class="card person">' +
+        '<div class="person-av">' + UI.esc((p.name || '?').charAt(0).toUpperCase()) + '</div>' +
+        '<div class="person-b">' +
+          '<div class="person-n trunc">' + UI.esc(p.name) + '</div>' +
+          '<div class="person-l' + (stale ? ' stale' : '') + ' trunc">' +
+            (days == null ? 'no contact logged' : days === 0 ? 'spoke today' : days + ' day' + (days === 1 ? '' : 's') + ' since last contact') +
+            (p.note ? ' · ' + UI.esc(p.note) : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="plan-a">' +
+          '<button class="iconbtn ok" data-touch="' + p.id + '" title="Reached out today">' + UI.icon('check', 15) + '</button>' +
+          '<button class="iconbtn" data-pdelp="' + p.id + '" title="Remove">' + UI.icon('close', 15) + '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="card empty">Nobody listed. This is a reminder list, not a ranking.</div>';
+    var stale = list.filter(function (p) {
+      return !p.lastContact || GS.daysBetween(p.lastContact, today) >= 21;
+    }).length;
+    $('peopleMeta').textContent = list.length + ' listed' + (stale ? ' · ' + stale + ' gone quiet' : '');
+  }
+
+  // Pull real social templates from the shared library so the Tavern and
+  // the Quest Board speak the same language.
+  function renderSuggestions() {
+    var picks = QL.all.filter(function (q) { return q.category === 'social' && q.difficulty !== 'hard'; }).slice(0, 6);
+    $('suggestions').innerHTML = picks.map(function (q) {
+      return '<div class="card sug">' +
+        '<span style="color:#F472B6">' + UI.icon('people', 17) + '</span>' +
+        '<div class="sug-b">' +
+          '<div class="sug-t">' + UI.esc(q.practicalTitle) + '</div>' +
+          '<div class="sug-s">' + UI.esc(q.loreTitle) + ' · ' + UI.esc(q.description) + '</div>' +
+        '</div>' +
+        '<button class="btn sm" data-did="' + q.id + '">Did it</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderMemories() {
+    var so = social();
+    var list = so.memories.slice().sort(function (a, b) { return b.at - a.at; }).slice(0, 25);
+    $('memories').innerHTML = list.length ? list.map(function (m) {
+      return '<div class="mem">' +
+        '<span style="color:#F472B6">' + UI.icon('star', 15) + '</span>' +
+        '<span class="mem-t">' + UI.esc(m.text) + '</span>' +
+        '<span class="mem-d">' + UI.ago(m.at) + '</span>' +
+      '</div>';
+    }).join('') : '<div class="empty">Completed plans land here.</div>';
+    $('memMeta').textContent = so.memories.length + ' recorded';
+  }
+
+  function render() { renderStats(); renderPlans(); renderPeople(); renderSuggestions(); renderMemories(); }
+
+  // ---- actions ----
+  $('planAdd').addEventListener('click', function () {
+    var title = $('planTitle').value.trim();
+    if (!title) return;
+    GS.update(function (s) {
+      s.social.plans.push({
+        id: uid(), title: title.slice(0, 80),
+        date: $('planDate').value || '', who: $('planWho').value.trim().slice(0, 60),
+        done: false, at: Date.now()
+      });
+    });
+    $('planTitle').value = ''; $('planDate').value = ''; $('planWho').value = '';
+    render();
+  });
+
+  $('personAdd').addEventListener('click', function () {
+    var name = $('personName').value.trim();
+    if (!name) return;
+    GS.update(function (s) {
+      s.social.people.push({
+        id: uid(), name: name.slice(0, 40),
+        lastContact: $('personDate').value || '',
+        note: $('personNote').value.trim().slice(0, 140)
+      });
+    });
+    $('personName').value = ''; $('personDate').value = ''; $('personNote').value = '';
+    render();
+  });
+
+  document.addEventListener('click', function (e) {
+    var done = e.target.closest('[data-pdone]');
+    if (done) {
+      var id = done.getAttribute('data-pdone');
+      var plan = social().plans.filter(function (p) { return p.id === id; })[0];
+      if (!plan) return;
+      GS.update(function (s) {
+        var p = s.social.plans.filter(function (x) { return x.id === id; })[0];
+        if (p) { p.done = true; p.doneAt = Date.now(); }
+        s.social.memories.push({ text: plan.title + (plan.who ? ' — with ' + plan.who : ''), at: Date.now() });
+      });
+      awardOnce('social:plan:' + id, 45, plan.title);
+      UI.toast('tavern', 'Fellowship', 'Plan completed', '+45 XP · added to Memories');
+      render(); return;
+    }
+    var del = e.target.closest('[data-pdel]');
+    if (del) {
+      var did = del.getAttribute('data-pdel');
+      GS.update(function (s) { s.social.plans = s.social.plans.filter(function (p) { return p.id !== did; }); });
+      render(); return;
+    }
+    var touch = e.target.closest('[data-touch]');
+    if (touch) {
+      var tid = touch.getAttribute('data-touch');
+      GS.update(function (s) {
+        var p = s.social.people.filter(function (x) { return x.id === tid; })[0];
+        if (p) p.lastContact = GS.todayKey();
+      });
+      // Keyed per person per day: reaching out to the same person five
+      // times in one day is still one award.
+      awardOnce('social:touch:' + tid + ':' + GS.todayKey(), 25, 'Reached out');
+      UI.toast('people', 'Fellowship', 'Contact logged', '+25 XP for the effort');
+      render(); return;
+    }
+    var dp = e.target.closest('[data-pdelp]');
+    if (dp) {
+      var pid = dp.getAttribute('data-pdelp');
+      GS.update(function (s) { s.social.people = s.social.people.filter(function (p) { return p.id !== pid; }); });
+      render(); return;
+    }
+    var did2 = e.target.closest('[data-did]');
+    if (did2) {
+      var qid = did2.getAttribute('data-did');
+      var tpl = QL.byId[qid];
+      awardOnce('social:act:' + qid + ':' + GS.todayKey(), tpl.xp, tpl.practicalTitle);
+      GS.update(function (s) { s.social.memories.push({ text: tpl.practicalTitle, at: Date.now() }); });
+      UI.toast('people', 'Fellowship', tpl.practicalTitle, '+' + tpl.xp + ' XP');
+      render();
+    }
+  });
+
+  render();
+  document.addEventListener('icis:update', renderStats);
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({ appKey: 'icis', syncedKeys: [GS.KEY], onApplied: function () { location.reload(); } });
+  });
+})();
+</script>
+</body>
+</html>

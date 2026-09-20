@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<meta name="color-scheme" content="dark">
+<title>Project Manager — Customizable Template</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="hero-art.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+:root {
+  --bg: #050506;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-secondary: rgba(255, 255, 255, 0.035);
+  --bg-input: rgba(0, 0, 0, 0.28);
+  --bg-input-focus: rgba(0, 0, 0, 0.36);
+  --bg-dropdown: rgba(15, 15, 18, 0.96);
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.04);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --text-quaternary: #4D4B47;
+
+  --accent: #1D9E75;
+  --accent-glow: rgba(29, 158, 117, 0.35);
+  --warning: #FF8A4D;
+  --warning-bg: rgba(163, 45, 45, 0.10);
+  --tag-stack: #D8AB30;
+  --tag-stack-bg: rgba(216, 171, 48, 0.15);
+
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body { min-height: 100vh; position: relative; overflow-x: hidden; }
+
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background:
+    radial-gradient(60% 50% at 82% 14%, rgba(224, 118, 88, 0.16) 0%, transparent 60%),
+    radial-gradient(50% 40% at 18% 90%, rgba(180, 180, 200, 0.06) 0%, transparent 60%);
+  filter: blur(40px);
+  pointer-events: none; z-index: 0;
+  animation: drift 36s ease-in-out infinite alternate;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none; z-index: 1;
+}
+@keyframes drift { 0% { transform: translate(0, 0); } 100% { transform: translate(-2%, 2%); } }
+
+main {
+  position: relative; z-index: 2;
+  max-width: 720px; margin: 0 auto;
+  padding: 56px 20px 80px;
+  padding-top: max(56px, env(safe-area-inset-top, 56px));
+}
+
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0 4px 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-title::before { content: '≡'; font-size: 14px; opacity: 0.5; }
+
+.pm-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+.pm-head { margin-bottom: 12px; }
+.pm-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.pm-title {
+  font-size: 24px; font-weight: 700;
+  letter-spacing: -0.022em;
+  color: var(--text-primary);
+  line-height: 1.15; margin-bottom: 2px;
+}
+.pm-progress-text {
+  font-family: var(--font-mono);
+  font-size: 12px; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+.pm-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px; overflow: hidden;
+  margin: 14px 0 18px;
+}
+.pm-progress-track.small { height: 3px; margin: 8px 0 0; }
+.pm-progress-fill {
+  height: 100%; width: 0%;
+  background: #FFFFFF; border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.pm-group { margin-bottom: 10px; }
+.pm-group-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.pm-group-chevron {
+  font-size: 10px; color: var(--text-tertiary);
+  transition: transform 0.18s;
+  display: inline-flex; width: 12px; justify-content: center;
+  flex-shrink: 0;
+}
+.pm-group.collapsed .pm-group-chevron { transform: rotate(-90deg); }
+.pm-group.collapsed .pm-group-body { display: none; }
+.pm-group-count {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.pm-proj {
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pm-proj:hover { background: rgba(255,255,255,0.05); }
+.pm-proj.overdue { border-color: rgba(239, 68, 68, 0.35); }
+
+.pm-proj-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.pm-proj-chevron {
+  font-size: 10px; color: var(--text-tertiary);
+  transition: transform 0.18s;
+  flex-shrink: 0;
+  display: inline-flex; width: 12px; justify-content: center;
+}
+.pm-proj.expanded .pm-proj-chevron { transform: rotate(90deg); }
+.pm-proj-name {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+  flex: 1; min-width: 0;
+}
+.pm-proj.status-done .pm-proj-name { text-decoration: line-through; color: var(--text-tertiary); }
+
+.pm-proj-body { padding: 0 12px 12px 34px; }
+.pm-proj-meta {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px 10px;
+  font-size: 11px; color: var(--text-tertiary);
+}
+.pm-date-edit-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.pm-date-edit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 1px 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.pm-date-edit:hover, .pm-date-edit:focus { border-color: var(--border-strong); background: var(--bg-input); color: var(--text-secondary); outline: none; }
+.pm-date-edit::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+.pm-date-arrow { color: var(--text-quaternary); }
+
+.pm-proj-tasks { margin-top: 12px; display: none; }
+.pm-proj.expanded .pm-proj-tasks { display: block; }
+
+.pm-check {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-card);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: transparent;
+  transition: all 0.2s;
+  flex-shrink: 0; font-family: inherit; padding: 0;
+}
+.pm-check:hover { border-color: var(--accent); }
+.pm-check.checked {
+  background: var(--accent); border-color: var(--accent);
+  color: white;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.pm-check.sm { width: 22px; height: 22px; font-size: 11px; }
+
+.pm-task {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  border-top: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pm-task:hover { background: rgba(255,255,255,0.04); }
+.pm-task.is-drag-over { border-top-color: var(--accent); }
+.pm-task.done .pm-task-name { text-decoration: line-through; color: var(--text-tertiary); }
+.pm-task-handle {
+  width: 12px; flex-shrink: 0;
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-weight: 700; font-size: 13px;
+  letter-spacing: -2px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+.pm-task:hover .pm-task-handle { opacity: 1; }
+.pm-task-handle:active { cursor: grabbing; }
+.pm-task .pm-check.sm { margin-top: 2px; }
+.pm-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pm-task-name { font-size: 13px; line-height: 1.45; color: var(--text-primary); cursor: text; }
+.pm-task-name[contenteditable="true"] {
+  outline: 1px solid rgba(255,255,255,0.25);
+  outline-offset: 4px; border-radius: 4px;
+  cursor: text;
+}
+.pm-task-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pm-task-due { flex-shrink: 0; }
+.pm-task.overdue .pm-task-due { color: #FF8A8A; }
+
+.pm-task-notes-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-quaternary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 5px; border-radius: 6px;
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pm-task:hover .pm-task-notes-btn { opacity: 0.85; }
+.pm-task-notes-btn.has-notes { opacity: 1; color: var(--tag-stack); }
+.pm-task-notes-btn.is-open { opacity: 1; border-color: var(--border-strong); background: var(--bg-input); color: var(--text-secondary); }
+
+.pm-notes-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.pm-notes {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  transition: border-color 0.18s, background 0.18s;
+}
+.pm-notes::placeholder { color: var(--text-tertiary); }
+.pm-notes:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.40);
+  background: var(--bg-input-focus);
+  color: var(--text-primary);
+}
+.pm-task-notes {
+  min-height: 40px;
+  font-size: 12px;
+  margin: -2px 0 8px 34px;
+  width: calc(100% - 34px);
+}
+
+.pm-status-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px; border-radius: 99px;
+  font-weight: 600; letter-spacing: 0.04em;
+  text-transform: lowercase;
+  border: none; cursor: pointer;
+  transition: filter 0.15s;
+  white-space: nowrap;
+}
+.pm-status-pill:hover { filter: brightness(1.15); }
+.pm-status-pill.status-not_started { background: rgba(255,255,255,0.08); color: var(--text-tertiary); }
+.pm-status-pill.status-planning { background: rgba(125,211,252,0.12); color: #7DD3FC; }
+.pm-status-pill.status-in_progress { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-status-pill.status-done { background: var(--accent-glow); color: var(--accent); }
+
+.pm-priority-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px; border-radius: 99px;
+  font-weight: 600; letter-spacing: 0.04em;
+  text-transform: lowercase;
+  border: none; cursor: pointer;
+  transition: filter 0.15s;
+  white-space: nowrap;
+}
+.pm-priority-pill:hover { filter: brightness(1.15); }
+.pm-priority-pill.priority-low { background: var(--accent-glow); color: var(--accent); }
+.pm-priority-pill.priority-medium { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-priority-pill.priority-high { background: rgba(239, 68, 68, 0.15); color: #FF8A8A; }
+
+.pm-item-del {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 10px; border-radius: 6px;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
+  font-family: inherit;
+  line-height: 1;
+  min-width: 28px; min-height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pm-item-del:hover, .pm-item-del:active {
+  color: #FF6B6B;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+  opacity: 1;
+}
+.pm-item-del.sm { min-width: 22px; min-height: 22px; font-size: 13px; padding: 2px 6px; opacity: 0.5; margin-top: 2px; flex-shrink: 0; }
+.pm-task:hover .pm-item-del.sm { opacity: 1; }
+
+.pm-list-empty {
+  font-size: 12px;
+  color: var(--text-quaternary);
+  font-style: italic;
+  padding: 8px 12px;
+}
+
+.pm-task-add-row {
+  display: flex; gap: 6px; align-items: center;
+  margin-top: 8px;
+}
+.pm-task-add-row .pm-input { flex: 1; padding: 7px 10px; font-size: 12px; }
+.pm-task-add-row input[type="date"] { flex: none; width: 130px; }
+.pm-task-add-btn {
+  font-size: 12px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.pm-task-add-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
+.pm-add-wrap {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.pm-add-label { margin-bottom: 10px; }
+.pm-add-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.pm-add-row .pm-input:first-child { flex: 2; }
+.pm-add-row .pm-input:last-child { flex: 1; }
+.pm-add-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 110px 110px 90px;
+  gap: 6px;
+  align-items: center;
+}
+.pm-input {
+  font-size: 13px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  transition: border-color 0.18s, background 0.18s;
+}
+.pm-input::placeholder { color: var(--text-tertiary); }
+.pm-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.40);
+  background: var(--bg-input-focus);
+}
+.pm-select { cursor: pointer; }
+.pm-add-btn {
+  font-size: 13px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.12s, box-shadow 0.18s, background 0.18s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 14px rgba(0, 0, 0, 0.30);
+}
+.pm-add-btn:hover {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F2F0EA 100%);
+  transform: translateY(-1px);
+}
+.pm-add-btn:active { transform: translateY(0) scale(0.97); }
+
+.pm-ref { margin-top: 14px; }
+.pm-ref-toggle {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, color 0.15s;
+}
+.pm-ref-toggle:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.pm-ref-toggle .pm-group-chevron { transform: rotate(-90deg); }
+.pm-ref-toggle[aria-expanded="true"] .pm-group-chevron { transform: rotate(0deg); }
+.pm-ref-body {
+  margin-top: 10px;
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 18px 20px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+.pm-ref-rules { margin: 8px 0 0; padding-left: 18px; }
+.pm-ref-rules li { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 8px; }
+.pm-ref-rules li:last-child { margin-bottom: 0; }
+.pm-ref-table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 8px; }
+.pm-ref-table th, .pm-ref-table td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); }
+.pm-ref-table th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 400; }
+.pm-ref-pill {
+  display: inline-block; font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 99px; font-weight: 600; letter-spacing: 0.04em;
+}
+.pm-ref-pill.core { background: var(--tag-stack-bg); color: var(--tag-stack); }
+.pm-ref-pill.wide { background: var(--accent-glow); color: var(--accent); }
+
+.attribution {
+  text-align: center; margin-top: 28px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-quaternary);
+}
+
+@media (max-width: 600px) {
+  main { padding: 40px 16px 60px; }
+  .pm-card { padding: 18px 16px 14px; }
+  .pm-proj-body { padding-left: 12px; }
+  .pm-add-row2 { grid-template-columns: 1fr 1fr; }
+  .pm-add-row2 .pm-add-btn { grid-column: 1 / -1; }
+}
+
+::selection { background: rgba(224, 118, 88, 0.3); color: var(--text-primary); }
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+</style>
+</head>
+<body>
+
+<main>
+
+  <div class="section-title">Boss Battles</div>
+  <div id="bosses" style="margin-bottom:26px"></div>
+
+  <div class="section-title">Project Manager</div>
+
+  <div class="pm-card">
+    <div class="pm-head">
+      <div class="pm-eyebrow">Projects</div>
+      <div class="pm-title">Track what's in flight</div>
+      <div class="pm-progress-text" id="pmProgressText">— / — done</div>
+    </div>
+
+    <div class="pm-progress-track">
+      <div id="pmProgressBar" class="pm-progress-fill"></div>
+    </div>
+
+    <div id="pmList"></div>
+
+    <div class="pm-add-wrap">
+      <div class="pm-eyebrow pm-add-label">Add a project</div>
+      <div class="pm-add-row">
+        <input id="pmAddName" type="text" placeholder="Project name" class="pm-input" autocomplete="off" spellcheck="false" />
+        <input id="pmAddOwner" type="text" placeholder="Owner (optional)" class="pm-input" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="pm-add-row2">
+        <input id="pmAddStart" type="date" class="pm-input" title="Start date" />
+        <input id="pmAddEnd" type="date" class="pm-input" title="End date" />
+        <select id="pmAddPriority" class="pm-input pm-select">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+        <select id="pmAddStatus" class="pm-input pm-select">
+          <option value="planning" selected>Planning</option>
+          <option value="in_progress">In progress</option>
+          <option value="done">Done</option>
+        </select>
+        <button id="pmAddBtn" class="pm-add-btn">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FP&A ledger reference — ground rules + skill ledger, collapsed by default. -->
+  <div class="pm-ref">
+    <button type="button" class="pm-ref-toggle" id="pmRefToggle" aria-expanded="false">
+      <span class="pm-group-chevron" id="pmRefChevron">▼</span>
+      <span>Reference — ground rules &amp; skill ledger</span>
+    </button>
+    <div class="pm-ref-body" id="pmRefBody" style="display:none">
+      <div class="pm-eyebrow">Ground rules</div>
+      <ul class="pm-ref-rules">
+        <li>Don't apply broadly — go narrow into finance-modeling/FP&amp;A/data postings only, and prefer listings with under ~10 proposals already in.</li>
+        <li>First 2–3 contracts are priced to get reviews, not income: $12–18/hr, or $50–150 fixed for a tightly scoped deliverable. Raise rates every 5–10 completed projects after that.</li>
+        <li>Every finished project gets a link — Contra portfolio, LinkedIn post, or file on request. No proof, no credibility.</li>
+        <li>Learning and applying run in parallel from Phase 4 onward — don't wait to "finish learning" before applying.</li>
+      </ul>
+      <div class="pm-eyebrow" style="margin-top:18px">Skill ledger</div>
+      <table class="pm-ref-table">
+        <tr><th>Skill</th><th>Track</th><th>Proven in</th></tr>
+        <tr><td>3-statement &amp; SOTP/DCF modeling</td><td><span class="pm-ref-pill core">core</span></td><td>INCO equity research</td></tr>
+        <tr><td>Variance analysis &amp; rolling forecasts</td><td><span class="pm-ref-pill core">core</span></td><td>FP&amp;A flagship project</td></tr>
+        <tr><td>Advanced Excel (XLOOKUP, pivots, dynamic arrays)</td><td><span class="pm-ref-pill core">core</span></td><td>Both flagship projects</td></tr>
+        <tr><td>FMVA certification</td><td><span class="pm-ref-pill core">core</span></td><td>Credential — Phase 1</td></tr>
+        <tr><td>SQL (joins → window functions)</td><td><span class="pm-ref-pill wide">wide</span></td><td>Dashboard project</td></tr>
+        <tr><td>Power BI / Tableau</td><td><span class="pm-ref-pill wide">wide</span></td><td>Dashboard project</td></tr>
+        <tr><td>Investor-grade design/presentation</td><td><span class="pm-ref-pill wide">wide</span></td><td>Every deliverable, going forward</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="attribution">// editable template · all data stays in your browser</div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  const STORE_KEY = 'pm:projects';
+  const PROJECT_STATUS_ORDER = ['planning', 'in_progress', 'done'];
+  const PROJECT_STATUS_LABEL = { planning: 'planning', in_progress: 'in progress', done: 'done' };
+  const TASK_STATUS_ORDER = ['not_started', 'in_progress', 'done'];
+  const TASK_STATUS_LABEL = { not_started: 'not started', in_progress: 'in progress', done: 'done' };
+  const PRIORITY_ORDER = ['low', 'medium', 'high'];
+
+  function getProjects() {
+    const list = storeGet(STORE_KEY);
+    if (!Array.isArray(list)) return [];
+    return list.map(p => ({
+      id: p.id, name: p.name || '',
+      status: PROJECT_STATUS_ORDER.includes(p.status) ? p.status : 'planning',
+      owner: p.owner || '',
+      startDate: p.startDate || '',
+      endDate: p.endDate || '',
+      priority: PRIORITY_ORDER.includes(p.priority) ? p.priority : 'medium',
+      notes: p.notes || '',
+      tasks: (Array.isArray(p.tasks) ? p.tasks : []).map(t => ({
+        id: t.id, name: t.name || '',
+        status: TASK_STATUS_ORDER.includes(t.status) ? t.status : 'not_started',
+        dueDate: t.dueDate || '',
+        notes: t.notes || '',
+        createdAt: t.createdAt || 0
+      })),
+      createdAt: p.createdAt || 0
+    }));
+  }
+  function setProjects(list) { storeSet(STORE_KEY, list); }
+
+  function todayISO() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function completionPct(project) {
+    const total = project.tasks.length;
+    if (total === 0) return 0;
+    const done = project.tasks.filter(t => t.status === 'done').length;
+    return Math.round((done / total) * 100);
+  }
+
+  // ---- in-memory UI state (not persisted — resets to all-expanded on reload) ----
+  const expandedProjects = new Set();
+  const collapsedGroups = new Set();
+  const expandedTaskNotes = new Set();
+
+  // ---- project actions ----
+  function addProject(name, owner, startDate, endDate, priority, status) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    items.push({
+      id, name: v,
+      status: PROJECT_STATUS_ORDER.includes(status) ? status : 'planning',
+      owner: String(owner || '').trim(),
+      startDate: String(startDate || '').trim(),
+      endDate: String(endDate || '').trim(),
+      priority: PRIORITY_ORDER.includes(priority) ? priority : 'medium',
+      notes: '',
+      tasks: [],
+      createdAt: Date.now()
+    });
+    setProjects(items);
+    render();
+  }
+  function updateProjectNotes(id, notes) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    p.notes = String(notes || '');
+    setProjects(items);
+    render();
+  }
+  function cycleProjectStatus(id) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    const idx = PROJECT_STATUS_ORDER.indexOf(p.status);
+    p.status = PROJECT_STATUS_ORDER[(idx + 1) % PROJECT_STATUS_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function cyclePriority(id) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    const idx = PRIORITY_ORDER.indexOf(p.priority);
+    p.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function deleteProject(id) {
+    setProjects(getProjects().filter(p => p.id !== id));
+    expandedProjects.delete(id);
+    render();
+  }
+  function updateProjectDate(id, field, value) {
+    const items = getProjects();
+    const p = items.find(p => p.id === id);
+    if (!p) return;
+    p[field] = String(value || '').trim();
+    setProjects(items);
+    render();
+  }
+  function updateTaskDate(projectId, taskId, value) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.dueDate = String(value || '').trim();
+    setProjects(items);
+    render();
+  }
+  function toggleProjectExpand(id) {
+    if (expandedProjects.has(id)) expandedProjects.delete(id); else expandedProjects.add(id);
+    render();
+  }
+  function toggleGroupCollapse(status) {
+    if (collapsedGroups.has(status)) collapsedGroups.delete(status); else collapsedGroups.add(status);
+    render();
+  }
+  function toggleTaskNotes(taskId) {
+    if (expandedTaskNotes.has(taskId)) expandedTaskNotes.delete(taskId); else expandedTaskNotes.add(taskId);
+    render();
+  }
+
+  // ---- task actions ----
+  function addTask(projectId, name, dueDate) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    const id = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    p.tasks.push({ id, name: v, status: 'not_started', dueDate: String(dueDate || '').trim(), notes: '', createdAt: Date.now() });
+    setProjects(items);
+    expandedProjects.add(projectId);
+    render();
+  }
+  function toggleTaskDone(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.status = t.status === 'done' ? 'not_started' : 'done';
+    setProjects(items);
+    render();
+  }
+  function cycleTaskStatus(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    const idx = TASK_STATUS_ORDER.indexOf(t.status);
+    t.status = TASK_STATUS_ORDER[(idx + 1) % TASK_STATUS_ORDER.length];
+    setProjects(items);
+    render();
+  }
+  function deleteTask(projectId, taskId) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    p.tasks = p.tasks.filter(t => t.id !== taskId);
+    setProjects(items);
+    render();
+  }
+  function renameTask(projectId, taskId, name) {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.name = v;
+    setProjects(items);
+    render();
+  }
+  function updateTaskNotes(projectId, taskId, notes) {
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    const t = p && p.tasks.find(t => t.id === taskId);
+    if (!t) return;
+    t.notes = String(notes || '');
+    setProjects(items);
+    render();
+  }
+  function reorderTask(projectId, fromTaskId, toTaskId) {
+    if (fromTaskId === toTaskId) return;
+    const items = getProjects();
+    const p = items.find(p => p.id === projectId);
+    if (!p) return;
+    const fromIdx = p.tasks.findIndex(t => t.id === fromTaskId);
+    const toIdx = p.tasks.findIndex(t => t.id === toTaskId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = p.tasks.splice(fromIdx, 1);
+    p.tasks.splice(toIdx, 0, moved);
+    setProjects(items);
+    render();
+  }
+
+  // ---- rendering ----
+  function renderTask(projectId, t, today) {
+    const isDone = t.status === 'done';
+    const isOverdue = !isDone && t.dueDate && t.dueDate < today;
+    const hasNotes = !!(t.notes && t.notes.trim());
+    const notesOpen = expandedTaskNotes.has(t.id);
+    return `
+      <div class="pm-task${isDone ? ' done' : ''}${isOverdue ? ' overdue' : ''}" draggable="true" data-pid="${projectId}" data-tid="${t.id}">
+        <span class="pm-task-handle" aria-hidden="true">⋮⋮</span>
+        <button class="pm-check sm ${isDone ? 'checked' : ''}" data-action="toggle-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Mark task complete">${isDone ? '✓' : ''}</button>
+        <div class="pm-task-body">
+          <div class="pm-task-name" title="Click to rename">${escapeHtml(t.name)}</div>
+          <div class="pm-task-meta">
+            <input type="date" class="pm-date-edit pm-task-due" data-action="edit-task-due" data-pid="${projectId}" data-tid="${t.id}" value="${t.dueDate || ''}" title="Due date" />
+            <button class="pm-status-pill status-${t.status}" data-action="cycle-task-status" data-pid="${projectId}" data-tid="${t.id}">${TASK_STATUS_LABEL[t.status]}</button>
+            <button class="pm-task-notes-btn${hasNotes ? ' has-notes' : ''}${notesOpen ? ' is-open' : ''}" data-action="toggle-task-notes" data-tid="${t.id}" aria-label="Task notes" title="Notes">📝</button>
+          </div>
+        </div>
+        <button class="pm-item-del sm" data-action="del-task" data-pid="${projectId}" data-tid="${t.id}" aria-label="Delete task">×</button>
+      </div>
+      ${notesOpen ? `<textarea class="pm-notes pm-task-notes" data-action="edit-task-notes" data-pid="${projectId}" data-tid="${t.id}" placeholder="Notes…">${escapeHtml(t.notes || '')}</textarea>` : ''}`;
+  }
+
+  function renderProject(p, today) {
+    const isExpanded = expandedProjects.has(p.id);
+    const isDone = p.status === 'done';
+    const isOverdue = !isDone && p.endDate && p.endDate < today;
+    const pct = completionPct(p);
+    const doneCount = p.tasks.filter(t => t.status === 'done').length;
+
+    const tasksHtml = p.tasks.length
+      ? p.tasks.map(t => renderTask(p.id, t, today)).join('')
+      : `<div class="pm-list-empty">No tasks yet — add one below.</div>`;
+
+    return `
+      <div class="pm-proj${isExpanded ? ' expanded' : ''} status-${p.status}${isOverdue ? ' overdue' : ''}" data-id="${p.id}">
+        <div class="pm-proj-head" data-action="expand-project" data-id="${p.id}">
+          <span class="pm-proj-chevron">▶</span>
+          <div class="pm-proj-name">${escapeHtml(p.name)}</div>
+          <button class="pm-priority-pill priority-${p.priority}" data-action="cycle-priority" data-id="${p.id}">${p.priority}</button>
+          <button class="pm-item-del" data-action="del-project" data-id="${p.id}" aria-label="Delete project">×</button>
+        </div>
+        <div class="pm-proj-body">
+          <div class="pm-proj-meta">
+            <button class="pm-status-pill status-${p.status}" data-action="cycle-project-status" data-id="${p.id}">${PROJECT_STATUS_LABEL[p.status]}</button>
+            ${p.owner ? `<span>${escapeHtml(p.owner)}</span>` : ''}
+            <span class="pm-date-edit-wrap">
+              <input type="date" class="pm-date-edit" data-action="edit-start" data-id="${p.id}" value="${p.startDate || ''}" title="Start date" />
+              <span class="pm-date-arrow">→</span>
+              <input type="date" class="pm-date-edit" data-action="edit-end" data-id="${p.id}" value="${p.endDate || ''}" title="End date" />
+            </span>
+            <span>${pct}% · ${doneCount}/${p.tasks.length} tasks</span>
+          </div>
+          <div class="pm-progress-track small"><div class="pm-progress-fill" style="width:${pct}%"></div></div>
+          <div class="pm-proj-tasks">
+            <div class="pm-notes-label">Notes</div>
+            <textarea class="pm-notes" data-action="edit-project-notes" data-id="${p.id}" placeholder="Notes…">${escapeHtml(p.notes || '')}</textarea>
+            ${tasksHtml}
+            <div class="pm-task-add-row">
+              <input type="text" class="pm-input pm-task-add-name" placeholder="Task name" autocomplete="off" spellcheck="false" />
+              <input type="date" class="pm-input pm-task-add-due" />
+              <button class="pm-task-add-btn" data-action="add-task" data-id="${p.id}">+ Add task</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    const projects = getProjects();
+    const total = projects.length;
+    const done = projects.filter(p => p.status === 'done').length;
+    document.getElementById('pmProgressText').textContent = `${done} / ${total} projects done`;
+    const pct = total === 0 ? 0 : (done / total) * 100;
+    document.getElementById('pmProgressBar').style.width = pct + '%';
+
+    const listEl = document.getElementById('pmList');
+
+    if (total === 0) {
+      listEl.innerHTML = `<div class="pm-list-empty">No projects yet — add one below to get started.</div>`;
+      return;
+    }
+
+    const today = todayISO();
+    listEl.innerHTML = PROJECT_STATUS_ORDER.map(status => {
+      const groupItems = projects.filter(p => p.status === status).sort((a, b) => a.createdAt - b.createdAt);
+      const isCollapsed = collapsedGroups.has(status);
+      return `
+        <div class="pm-group${isCollapsed ? ' collapsed' : ''}" data-status="${status}">
+          <div class="pm-group-head" data-action="toggle-group" data-status="${status}">
+            <span class="pm-group-chevron">▼</span>
+            <span class="pm-status-pill status-${status}">${PROJECT_STATUS_LABEL[status]}</span>
+            <span class="pm-group-count">${groupItems.length}</span>
+          </div>
+          <div class="pm-group-body">${groupItems.map(p => renderProject(p, today)).join('')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function startTaskNameEdit(el) {
+    const row = el.closest('.pm-task');
+    const pid = row.dataset.pid, tid = row.dataset.tid;
+    const original = el.textContent;
+    row.draggable = false;
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+
+    function commit() {
+      const next = el.textContent.trim();
+      if (next && next !== original) renameTask(pid, tid, next);
+      else render();
+    }
+    function cancel() { render(); }
+    el.addEventListener('blur', commit, { once: true });
+    el.addEventListener('keydown', function onKey(ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); el.removeEventListener('keydown', onKey); el.blur(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); el.removeEventListener('keydown', onKey); el.removeEventListener('blur', commit); cancel(); }
+    });
+  }
+
+  document.getElementById('pmList').addEventListener('click', (e) => {
+    const nameEl = e.target.closest('.pm-task-name');
+    if (nameEl && nameEl.getAttribute('contenteditable') !== 'true') {
+      startTaskNameEdit(nameEl);
+      return;
+    }
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'toggle-group') toggleGroupCollapse(btn.dataset.status);
+    else if (action === 'expand-project') toggleProjectExpand(btn.dataset.id);
+    else if (action === 'cycle-project-status') cycleProjectStatus(btn.dataset.id);
+    else if (action === 'cycle-priority') cyclePriority(btn.dataset.id);
+    else if (action === 'del-project') deleteProject(btn.dataset.id);
+    else if (action === 'toggle-task') toggleTaskDone(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'cycle-task-status') cycleTaskStatus(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'toggle-task-notes') toggleTaskNotes(btn.dataset.tid);
+    else if (action === 'del-task') deleteTask(btn.dataset.pid, btn.dataset.tid);
+    else if (action === 'add-task') {
+      const row = btn.closest('.pm-task-add-row');
+      addTask(btn.dataset.id, row.querySelector('.pm-task-add-name').value, row.querySelector('.pm-task-add-due').value);
+    }
+  });
+
+  let dragTask = null;
+  document.getElementById('pmList').addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row) return;
+    dragTask = { pid: row.dataset.pid, tid: row.dataset.tid };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dataset.tid);
+  });
+  document.getElementById('pmList').addEventListener('dragover', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row || !dragTask || row.dataset.pid !== dragTask.pid) return;
+    e.preventDefault();
+    row.classList.add('is-drag-over');
+  });
+  document.getElementById('pmList').addEventListener('dragleave', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (row) row.classList.remove('is-drag-over');
+  });
+  document.getElementById('pmList').addEventListener('drop', (e) => {
+    const row = e.target.closest('.pm-task');
+    if (!row || !dragTask || row.dataset.pid !== dragTask.pid) return;
+    e.preventDefault();
+    row.classList.remove('is-drag-over');
+    reorderTask(dragTask.pid, dragTask.tid, row.dataset.tid);
+    dragTask = null;
+  });
+
+  document.getElementById('pmList').addEventListener('change', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    if (action === 'edit-start') updateProjectDate(el.dataset.id, 'startDate', el.value);
+    else if (action === 'edit-end') updateProjectDate(el.dataset.id, 'endDate', el.value);
+    else if (action === 'edit-task-due') updateTaskDate(el.dataset.pid, el.dataset.tid, el.value);
+    else if (action === 'edit-project-notes') updateProjectNotes(el.dataset.id, el.value);
+    else if (action === 'edit-task-notes') updateTaskNotes(el.dataset.pid, el.dataset.tid, el.value);
+  });
+
+  document.getElementById('pmList').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const row = e.target.closest('.pm-task-add-row');
+    if (!row) return;
+    e.preventDefault();
+    row.querySelector('.pm-task-add-btn').click();
+  });
+
+  const nameInput = document.getElementById('pmAddName');
+  const ownerInput = document.getElementById('pmAddOwner');
+  const startInput = document.getElementById('pmAddStart');
+  const endInput = document.getElementById('pmAddEnd');
+  const prioritySelect = document.getElementById('pmAddPriority');
+  const statusSelect = document.getElementById('pmAddStatus');
+  const addBtn = document.getElementById('pmAddBtn');
+
+  addBtn.addEventListener('click', () => {
+    addProject(nameInput.value, ownerInput.value, startInput.value, endInput.value, prioritySelect.value, statusSelect.value);
+    nameInput.value = '';
+    ownerInput.value = '';
+    startInput.value = '';
+    endInput.value = '';
+    prioritySelect.value = 'medium';
+    statusSelect.value = 'planning';
+    nameInput.focus();
+  });
+
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click(); });
+
+  const refToggle = document.getElementById('pmRefToggle');
+  refToggle.addEventListener('click', () => {
+    const expanded = refToggle.getAttribute('aria-expanded') === 'true';
+    refToggle.setAttribute('aria-expanded', String(!expanded));
+    document.getElementById('pmRefBody').style.display = expanded ? 'none' : 'block';
+  });
+
+  // ---- one-time import: FP&A Freelance Ledger (12-week plan) ----
+  // Adds these as real projects the first time this loads after the
+  // update that introduced them; never re-adds on later visits, and
+  // never touches whatever projects already exist.
+  function importFpnaLedgerOnce() {
+    const FLAG_KEY = 'pm:fpna_imported_v1';
+    const EXPECTED_NAMES = ['Foundation sprint', 'Versatility build', 'Flagship FP&A project', 'Upwork launch', 'Scale & diversify'];
+    // The flag alone isn't reliable proof the import actually stuck: on
+    // an older build, the sync-race bug (now fixed) could set this flag
+    // and then get the freshly-imported projects wiped out by a stale
+    // cloud pull moments later, since the flag itself isn't a synced
+    // key. So also check the projects are actually present — if the
+    // flag says "done" but none of them exist, treat it as not done.
+    if (storeGet(FLAG_KEY)) {
+      const existingNames = getProjects().map(p => p.name);
+      if (EXPECTED_NAMES.some(n => existingNames.includes(n))) return;
+    }
+    const now = Date.now();
+    const mkTask = (name, notes) => ({
+      id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7),
+      name, status: 'not_started', dueDate: '', notes: notes || '', createdAt: now
+    });
+    const mkProject = (name, notes, tasks) => ({
+      id: 'p_' + now + '_' + Math.random().toString(36).slice(2, 7),
+      name, status: 'planning', owner: '', startDate: '', endDate: '',
+      priority: 'medium', notes, tasks, createdAt: now
+    });
+    const fpnaProjects = [
+      mkProject(
+        'Foundation sprint',
+        "Wk 1–3. Close the FMVA out and build the specific Excel muscles FP&A tests that valuation work doesn't — variance analysis, rolling forecasts, budget-vs-actual — not more modeling depth, which you already have.",
+        [
+          mkTask('Finish remaining FMVA modules + sit the exam', 'Target: certificate in hand by end of week 3'),
+          mkTask('Excel: XLOOKUP / INDEX-MATCH, pivot tables, dynamic arrays, data validation', "Drill until it's reflexive, not looked-up"),
+          mkTask('Build one budget-vs-actual variance template from scratch', 'Line-item actuals vs. budget, %/abs variance, flagged thresholds'),
+          mkTask('Build one rolling 12-month forecast template', 'Roll-forward logic, not a static annual budget')
+        ]
+      ),
+      mkProject(
+        'Versatility build',
+        "Wk 3–5. The two tools that let one profile serve FP&A and data-analyst postings. Overlaps with the tail of Phase 1 — don't wait for a clean handoff.",
+        [
+          mkTask('SQL: joins, group by, subqueries', 'Mode Analytics or SQLZoo, daily practice problems'),
+          mkTask('SQL: window functions + CTEs', 'The part that separates "took a course" from "can actually query"'),
+          mkTask("Pick one: Power BI or Tableau — commit, don't split time", 'Power BI if targeting Microsoft-stack corporates; Tableau if more analytics-first employers'),
+          mkTask('Build one real dashboard end-to-end, not a tutorial clone', 'Own dataset, own question, own conclusion')
+        ]
+      ),
+      mkProject(
+        'Flagship FP&A project',
+        'Wk 5–7. The second portfolio piece, at the same caliber as the INCO work — but proving FP&A judgment (an internal decision-support artifact) instead of a sell-side thesis.',
+        [
+          mkTask('Pick a public Indonesian company with clean quarterly disclosures', 'F&B, retail, or telco — something with real line-item detail'),
+          mkTask('Build the budget-vs-actual variance analysis on real disclosed figures', 'Apply the Phase 1 template to real numbers, not a mock dataset'),
+          mkTask('Build the rolling 12-month forecast on top of it', ''),
+          mkTask('Write the 1–2 page management commentary', 'Explain the "why" — FX, input costs, volume/price mix — not just the numbers'),
+          mkTask('Design it as a one-pager reporting pack and publish (Contra + LinkedIn)', '')
+        ]
+      ),
+      mkProject(
+        'Upwork launch',
+        'Wk 7–9. Go live with two finished, linked portfolio pieces behind you. Volume and targeting both matter — the market is genuinely competitive, so this phase is about discipline, not luck.',
+        [
+          mkTask('Build the Upwork profile: niche headline, both projects linked, FMVA listed', ''),
+          mkTask('Draft 3 reusable proposal templates', "Financial modeling / variance-forecast / dashboard-build — tailor each, don't send blind"),
+          mkTask('Apply daily: 5–10 tailored proposals, niche-only, <10 existing proposals preferred', ''),
+          mkTask('Land and deliver first 2–3 contracts at rep-building price', '$12–18/hr or $50–150 fixed — treat each as disproportionately important')
+        ]
+      ),
+      mkProject(
+        'Scale & diversify',
+        'Wk 9–12. Reviews are in hand or close to it. Widen the pipeline and start behaving like someone with a track record, not someone still auditioning.',
+        [
+          mkTask('Raise rates a few dollars every 5–10 completed projects', ''),
+          mkTask('Start the SQL+BI dashboard flagship project (third portfolio piece)', ''),
+          mkTask('Widen applications to We Work Remotely once SQL/BI + reviews are in hand', ''),
+          mkTask('Revisit CFA Level 1 as a next step — only once income is flowing', '')
+        ]
+      )
+    ];
+    setProjects(getProjects().concat(fpnaProjects));
+    storeSet(FLAG_KEY, true);
+  }
+  importFpnaLedgerOnce();
+
+  render();
+
+  // Re-render when a cloud sync pull actually changes pm:projects (e.g.
+  // an edit made on another device, or the initial pull resolving after
+  // this page already rendered) — otherwise the UI can silently go
+  // stale until the next manual reload.
+  window.addEventListener('storage', render);
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof initCloudSync !== 'function') return;
+  initCloudSync({
+    appKey: 'health',
+    syncedKeys: ['pm:projects'],
+    syncedPrefixes: [],
+    onApplied: function () {
+      window.dispatchEvent(new Event('storage'));
+    }
+  });
+});
+</script>
+
+<!-- =============================================================
+     Boss-battle layer. Reads the SAME `pm:projects` data the manager
+     below writes — this is a view over it, not a second store. Each
+     unfinished project becomes a boss whose HP is its remaining tasks,
+     so clearing a task in the manager damages the boss automatically.
+     ============================================================= -->
+<style>
+.boss { padding:16px; margin-bottom:10px; position:relative; overflow:hidden;
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg); }
+.boss.slain { border-color:rgba(107,227,164,.3); }
+.boss-top { display:flex; align-items:flex-start; gap:12px; }
+.boss-ic { color:var(--bad); flex:none; margin-top:2px; }
+.boss.slain .boss-ic { color:var(--ok); }
+.boss-id { flex:1; min-width:0; }
+.boss-lore { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+.boss-name { font-size:16px; font-weight:700; color:var(--text); margin-top:2px; letter-spacing:-.01em; }
+.boss-proj { font-size:12px; color:var(--text-3); margin-top:2px; }
+.boss-rank { flex:none; }
+.hpwrap { margin-top:13px; }
+.hprow { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+.hplabel { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); }
+.hpnum { font-family:var(--mono); font-size:11px; color:var(--text-2); }
+.hptrack { height:11px; border-radius:6px; background:rgba(0,0,0,.5); border:1px solid var(--line); overflow:hidden; }
+.hpfill { height:100%; border-radius:5px; background:linear-gradient(90deg,#8E2C33,#F2777A 70%,#FF9DA0); transition:width .6s cubic-bezier(.22,1,.36,1); }
+.boss.slain .hpfill { background:linear-gradient(90deg,#2E7A56,#6BE3A4); }
+.phases { margin-top:13px; display:grid; gap:5px; }
+.phase { display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--text-2); padding:5px 0; }
+.phase.on { color:var(--text-3); text-decoration:line-through; }
+.phase-n { width:19px; height:19px; flex:none; border-radius:5px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:9.5px; font-weight:800; background:rgba(255,255,255,.07); color:var(--text-3); }
+.phase.on .phase-n { background:var(--ok); color:#08130E; }
+.boss-foot { display:flex; gap:7px; flex-wrap:wrap; margin-top:13px; align-items:center; }
+</style>
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, UI = window.UI;
+  if (!GS || !UI) return;
+
+  // Difficulty scales with how much work is actually left in the project.
+  function rankFor(total) {
+    if (total >= 12) return { r: 'S',  label: 'S-Rank' };
+    if (total >= 9)  return { r: 'A',  label: 'A-Rank' };
+    if (total >= 6)  return { r: 'B',  label: 'B-Rank' };
+    if (total >= 3)  return { r: 'C',  label: 'C-Rank' };
+    return { r: 'D', label: 'D-Rank' };
+  }
+  // A stable, non-random epithet so a project's boss name never changes.
+  var EPITHETS = ['Trial', 'Reckoning', 'Ordeal', 'Gauntlet', 'Crucible', 'Verdict', 'Siege'];
+  function bossName(p) {
+    var s = GS.get();
+    var override = (s.projects[p.id] || {}).bossName;
+    if (override) return override;
+    var h = 0;
+    for (var i = 0; i < p.id.length; i++) h = (h * 31 + p.id.charCodeAt(i)) >>> 0;
+    return 'The ' + (p.name || 'Nameless') + ' ' + EPITHETS[h % EPITHETS.length];
+  }
+
+  function render() {
+    var el = document.getElementById('bosses');
+    if (!el) return;
+    var projects = GS.readJSON('pm:projects', []) || [];
+    if (!Array.isArray(projects) || !projects.length) {
+      el.innerHTML = '<div class="boss"><div class="boss-name">No bosses yet</div>' +
+        '<div class="boss-proj">Add a project below and it becomes a boss battle. ' +
+        'Its HP is however many tasks are still open.</div></div>';
+      return;
+    }
+    el.innerHTML = projects.map(function (p) {
+      var tasks = Array.isArray(p.tasks) ? p.tasks : [];
+      var total = tasks.length;
+      var done = tasks.filter(function (t) { return t && t.status === 'done'; }).length;
+      var hp = Math.max(0, total - done);
+      var pct = total ? hp / total : (p.status === 'done' ? 0 : 1);
+      var slain = p.status === 'done' || (total > 0 && hp === 0);
+      var rk = rankFor(total);
+      var dl = p.endDate ? GS.daysBetween(GS.todayKey(), p.endDate) : null;
+
+      return '<section class="boss' + (slain ? ' slain' : '') + '">' +
+        '<div class="boss-top">' +
+          '<span class="boss-ic">' + UI.icon(slain ? 'trophy' : 'skull', 24) + '</span>' +
+          '<span class="boss-id">' +
+            '<span class="boss-lore">' + (slain ? 'Slain' : rk.label) + '</span>' +
+            '<div class="boss-name">' + UI.esc(bossName(p)) + '</div>' +
+            '<div class="boss-proj">Project: ' + UI.esc(p.name || 'Untitled') +
+              (p.owner ? ' · ' + UI.esc(p.owner) : '') + '</div>' +
+          '</span>' +
+          '<span class="boss-rank"><span class="rank r-' + rk.r + '">' + rk.r + '</span></span>' +
+        '</div>' +
+        '<div class="hpwrap">' +
+          '<div class="hprow"><span class="hplabel">' + (slain ? 'Defeated' : 'Boss HP') + '</span>' +
+            '<span class="hpnum">' + hp + ' / ' + (total || 1) + ' phases left</span></div>' +
+          '<div class="hptrack"><div class="hpfill" style="width:' + (pct * 100).toFixed(1) + '%"></div></div>' +
+        '</div>' +
+        (total ? '<div class="phases">' + tasks.map(function (t, i) {
+          var on = t && t.status === 'done';
+          return '<div class="phase' + (on ? ' on' : '') + '">' +
+            '<span class="phase-n">' + (on ? '✓' : (i + 1)) + '</span>' +
+            '<span class="grow">' + UI.esc(t && t.name ? t.name : 'Phase ' + (i + 1)) + '</span>' +
+          '</div>';
+        }).join('') + '</div>' : '') +
+        '<div class="boss-foot">' +
+          '<span class="chip' + (slain ? ' ok' : '') + '">' + (total ? Math.round((done / total) * 100) : 0) + '% cleared</span>' +
+          '<span class="chip">' + UI.esc(String(p.priority || 'medium')) + ' priority</span>' +
+          (dl != null ? '<span class="chip ' + (dl < 0 ? 'bad' : dl <= 3 ? 'on' : '') + '">' +
+            (dl < 0 ? Math.abs(dl) + 'd overdue' : 'due in ' + dl + 'd') + '</span>' : '') +
+          '<span class="chip on">+' + (25 * (total || 1) + 200) + ' XP total</span>' +
+        '</div>' +
+      '</section>';
+    }).join('');
+  }
+
+  // The manager below writes pm:projects directly, so re-read on any
+  // storage write and after the shared state reconciles.
+  render();
+  document.addEventListener('icis:update', render);
+  window.addEventListener('storage', function () { GS.reconcile(); render(); });
+  // The project manager re-renders its list on its own; poll cheaply for
+  // same-tab edits it does not announce.
+  var lastSig = '';
+  setInterval(function () {
+    var sig = localStorage.getItem('pm:projects') || '';
+    if (sig !== lastSig) { lastSig = sig; GS.reconcile(); render(); }
+  }, 1200);
+})();
+</script>
+
+</body>
+</html>

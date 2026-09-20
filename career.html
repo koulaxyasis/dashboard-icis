@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Career Guild</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+.hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.campaign-bar { display:flex; align-items:center; gap:10px; margin-top:12px; }
+.campaign-pct { font-family:var(--mono); font-size:12px; color:var(--gold); flex:none; }
+
+/* chapter */
+.ch { margin-bottom:10px; }
+.ch-top { display:flex; align-items:center; gap:12px; padding:15px 16px; cursor:pointer; }
+.ch-n {
+  width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px;
+  font-family:var(--mono); font-size:12px; font-weight:800;
+  background:rgba(255,255,255,.06); color:var(--text-3); border:1px solid var(--line);
+}
+.ch.done .ch-n { background:linear-gradient(180deg,#9FD8C0,#4E8C74); color:#08130E; border-color:transparent; }
+.ch.active .ch-n { background:linear-gradient(180deg,var(--gold-hi),var(--gold-dim)); color:#241905; border-color:transparent; }
+.ch-id { flex:1; min-width:0; }
+.ch-lore { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+.ch-name { font-size:15px; font-weight:700; color:var(--text); letter-spacing:-.01em; margin-top:1px; }
+.ch-obj { font-size:12px; color:var(--text-3); margin-top:3px; }
+.ch-right { flex:none; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+.ch-pct { font-family:var(--mono); font-size:13px; font-weight:700; color:var(--text); }
+.ch-body { display:none; padding:0 16px 16px; border-top:1px solid var(--line); }
+.ch.open .ch-body { display:block; }
+.ch-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+@media (max-width:620px){ .ch-grid{ grid-template-columns:1fr; } }
+
+.ms { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.ms:last-child { border-bottom:0; }
+.ms-box {
+  width:20px; height:20px; flex:none; margin-top:1px; border-radius:6px; cursor:pointer;
+  border:1.5px solid var(--line-2); background:transparent; display:grid; place-items:center;
+  color:transparent; padding:0;
+}
+.ms-box.on { background:var(--ok); border-color:var(--ok); color:#08130E; }
+.ms-t { flex:1; font-size:13px; color:var(--text-2); line-height:1.35; }
+.ms.on .ms-t { color:var(--text-3); text-decoration:line-through; }
+
+.meta-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.meta-row .fl { margin:0; }
+.reward { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--text-3); }
+.ev-list { margin:8px 0 0; padding:0; list-style:none; }
+.ev-list li { display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2); padding:5px 0; }
+.ev-list button { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:0; line-height:0; }
+
+/* skills */
+.sk { padding:13px 14px; }
+.sk-top { display:flex; align-items:center; gap:9px; margin-bottom:9px; }
+.sk-name { flex:1; font-size:13px; font-weight:650; color:var(--text); }
+.sk-lv { font-family:var(--mono); font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+.sk-foot { display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:7px; font-family:var(--mono); }
+
+.mission { padding:16px; border-color:rgba(233,190,110,.28);
+  background:radial-gradient(circle at 92% 0%, rgba(233,190,110,.12), transparent 58%), var(--panel); }
+.mission-t { font-size:17px; font-weight:700; color:var(--text); margin:4px 0 4px; }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div class="hdr">
+    <div>
+      <div class="lore">Career Guild</div>
+      <h1 class="h1">Main Story</h1>
+      <div class="sub">Your finance career, as the campaign everything else supports.</div>
+    </div>
+  </div>
+
+  <section class="card ornate mission" id="mission"></section>
+
+  <div class="sec"><span class="sec-t">Campaign Chapters</span><span class="sec-m" id="chMeta"></span></div>
+  <div id="chapters"></div>
+
+  <div class="sec"><span class="sec-t">Skill Trees</span><span class="sec-m" id="skMeta"></span></div>
+  <div class="grid auto" id="skills"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, CD = window.CareerData, UI = window.UI;
+  var $ = function (id) { return document.getElementById(id); };
+  var openId = null;
+
+  // Chapter completion is the one place career XP is granted in bulk:
+  // keyed per milestone so ticking, unticking and re-ticking cannot stack.
+  function milestoneKey(ch, ms) { return 'career:' + ch.id + ':' + ms.id; }
+  function chapterKey(ch) { return 'career:' + ch.id + ':complete'; }
+
+  function toggleMilestone(ch, ms) {
+    GS.update(function (s) {
+      var cs = CD.chapterState(s, ch.id);
+      var on = !cs.done[ms.id];
+      if (on) {
+        cs.done[ms.id] = Date.now();
+        s.ledger[milestoneKey(ch, ms)] = {
+          xp: 60, disc: 'career', at: Date.now(),
+          text: ch.name + ' — ' + ms.name,
+          skill: ch.requiredSkills[0] || ''
+        };
+        s.career.lastActionAt = Date.now();
+      } else {
+        delete cs.done[ms.id];
+        delete s.ledger[milestoneKey(ch, ms)];
+      }
+      // Chapter bonus applies only while every milestone is ticked.
+      var all = ch.milestones.every(function (m) { return cs.done[m.id]; });
+      if (all) {
+        s.ledger[chapterKey(ch)] = {
+          xp: ch.reward.xp, disc: 'career', at: Date.now(),
+          text: 'Chapter complete: ' + ch.name, skill: ch.requiredSkills[0] || ''
+        };
+        if (ch.reward.title && s.player.unlockedTitles.indexOf(ch.reward.title) === -1) {
+          s.player.unlockedTitles.push(ch.reward.title);
+        }
+        if (ch.reward.cosmetic && s.player.unlockedCosmetics.indexOf(ch.reward.cosmetic) === -1) {
+          s.player.unlockedCosmetics.push(ch.reward.cosmetic);
+        }
+      } else {
+        delete s.ledger[chapterKey(ch)];
+      }
+    });
+    render();
+  }
+
+  function renderMission() {
+    var s = GS.get();
+    var m = CD.currentMission(s);
+    var t = GS.totals();
+    var dl = m.progress.deadline;
+    var dlDays = dl ? GS.daysBetween(GS.todayKey(), dl) : null;
+    $('mission').innerHTML =
+      '<div class="lore">Current Mission · Chapter ' + m.chapter.n + '</div>' +
+      '<div class="mission-t">' + UI.esc(m.milestone ? m.milestone.name : 'Chapter complete') + '</div>' +
+      '<div class="sub">' + UI.esc(m.chapter.name) + ' — ' + UI.esc(m.chapter.objective) + '</div>' +
+      '<div class="campaign-bar">' + UI.bar(m.progress.pct / 100) +
+        '<span class="campaign-pct">' + m.progress.pct + '%</span></div>' +
+      '<div class="row wrap" style="margin-top:12px;gap:8px">' +
+        (dl ? '<span class="chip ' + (dlDays < 0 ? 'bad' : dlDays <= 3 ? 'on' : '') + '">' +
+              (dlDays < 0 ? 'overdue ' + Math.abs(dlDays) + 'd' : 'due in ' + dlDays + 'd') + '</span>' : '') +
+        '<span class="chip">Career LV ' + t.byId.career.level + '</span>' +
+        '<span class="chip on">Reward ' + UI.fmt(m.chapter.reward.xp) + ' XP</span>' +
+      '</div>';
+  }
+
+  function renderChapters() {
+    var s = GS.get();
+    var active = CD.activeChapter(s).chapter;
+    var done = 0;
+    $('chapters').innerHTML = CD.CHAPTERS.map(function (ch) {
+      var p = CD.chapterProgress(s, ch);
+      if (p.complete) done++;
+      var isOpen = openId ? openId === ch.id : ch.id === active.id;
+      var cls = 'card ch' + (p.complete ? ' done' : '') + (ch.id === active.id ? ' active' : '') + (isOpen ? ' open' : '');
+      var dlDays = p.deadline ? GS.daysBetween(GS.todayKey(), p.deadline) : null;
+
+      return '<section class="' + cls + '" data-ch="' + ch.id + '">' +
+        '<div class="ch-top" data-toggle="' + ch.id + '">' +
+          '<span class="ch-n">' + (p.complete ? UI.icon('check', 15) : ch.n) + '</span>' +
+          '<span class="ch-id">' +
+            '<span class="ch-lore">' + UI.esc(ch.lore) + (ch.boss ? ' · Boss' : '') + '</span>' +
+            '<div class="ch-name">' + UI.esc(ch.name) + '</div>' +
+            '<div class="ch-obj trunc">' + UI.esc(ch.objective) + '</div>' +
+          '</span>' +
+          '<span class="ch-right">' +
+            '<span class="ch-pct mono">' + p.pct + '%</span>' +
+            (dlDays != null ? '<span class="chip ' + (dlDays < 0 ? 'bad' : dlDays <= 3 ? 'on' : '') + '">' +
+              (dlDays < 0 ? 'overdue' : dlDays + 'd') + '</span>' : '') +
+          '</span>' +
+        '</div>' +
+        '<div class="ch-body">' +
+          '<div class="ch-grid">' +
+            '<div>' +
+              '<label class="fl">Milestones</label>' +
+              ch.milestones.map(function (ms) {
+                var on = !!CD.chapterState(s, ch.id).done[ms.id];
+                return '<div class="ms' + (on ? ' on' : '') + '">' +
+                  '<button class="ms-box' + (on ? ' on' : '') + '" data-ms="' + ch.id + '|' + ms.id + '" ' +
+                    'aria-label="Toggle milestone">' + UI.icon('check', 13) + '</button>' +
+                  '<span class="ms-t">' + UI.esc(ms.name) + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            '<div>' +
+              '<div class="meta-row">' +
+                '<div class="grow"><label class="fl">Deadline</label>' +
+                  '<input type="date" data-dl="' + ch.id + '" value="' + UI.esc(p.deadline) + '"></div>' +
+              '</div>' +
+              '<label class="fl">Why this chapter</label>' +
+              '<div class="sub" style="margin-bottom:10px">' + UI.esc(ch.why) + '</div>' +
+              '<label class="fl">Reward</label>' +
+              '<div class="reward" style="margin-bottom:10px">' +
+                '<span class="chip on">' + UI.fmt(ch.reward.xp) + ' XP</span>' +
+                '<span class="chip">Title · ' + UI.esc(ch.reward.title) + '</span>' +
+              '</div>' +
+              '<label class="fl">Required skills</label>' +
+              '<div class="reward" style="margin-bottom:10px">' +
+                ch.requiredSkills.map(function (id) {
+                  var sk = CD.skillById[id];
+                  return '<span class="chip">' + UI.esc(sk ? sk.name : id) + '</span>';
+                }).join('') +
+              '</div>' +
+              '<label class="fl">Evidence</label>' +
+              '<ul class="ev-list">' + (p.evidence.length ? p.evidence.map(function (e, i) {
+                return '<li>' + UI.icon('check', 13) + '<span class="grow">' + UI.esc(e.text) + '</span>' +
+                  '<button data-ev="' + ch.id + '|' + i + '" aria-label="Remove">' + UI.icon('close', 13) + '</button></li>';
+              }).join('') : '<li class="sub">Nothing recorded yet.</li>') + '</ul>' +
+              '<div class="row" style="margin-top:8px;gap:6px">' +
+                '<input placeholder="Link or note…" data-evin="' + ch.id + '">' +
+                '<button class="btn sm" data-evadd="' + ch.id + '">' + UI.icon('plus', 14) + '</button>' +
+              '</div>' +
+              '<label class="fl" style="margin-top:12px">Notes</label>' +
+              '<textarea rows="2" data-notes="' + ch.id + '" placeholder="Anything worth remembering…">' + UI.esc(p.notes) + '</textarea>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</section>';
+    }).join('');
+    $('chMeta').textContent = done + ' / ' + CD.CHAPTERS.length + ' chapters complete';
+  }
+
+  function renderSkills() {
+    var s = GS.get();
+    var skills = CD.skillTotals(s);
+    $('skills').innerHTML = skills.map(function (sk) {
+      return '<div class="card sk">' +
+        '<div class="sk-top">' +
+          '<span style="color:' + sk.color + '">' + UI.icon('bolt', 17) + '</span>' +
+          '<span class="sk-name">' + UI.esc(sk.name) + '</span>' +
+          '<span class="sk-lv" style="color:' + sk.color + ';background:' + sk.color + '1f;border:1px solid ' + sk.color + '44">LV ' + sk.level + '</span>' +
+        '</div>' +
+        UI.bar(sk.pct, sk.color) +
+        '<div class="sk-foot"><span>' + UI.fmt(sk.xp) + ' XP</span><span>' + sk.into + '/' + sk.need + '</span></div>' +
+      '</div>';
+    }).join('');
+    var top = skills.slice().sort(function (a, b) { return b.xp - a.xp; })[0];
+    $('skMeta').textContent = top && top.xp ? 'strongest · ' + top.name : 'no skill XP yet';
+  }
+
+  function render() { renderMission(); renderChapters(); renderSkills(); }
+
+  // ---- events (delegated, so re-rendering never loses handlers) ----
+  document.addEventListener('click', function (e) {
+    var tog = e.target.closest('[data-toggle]');
+    if (tog) {
+      var id = tog.getAttribute('data-toggle');
+      openId = (openId === id) ? '__none' : id;
+      renderChapters();
+      return;
+    }
+    var box = e.target.closest('[data-ms]');
+    if (box) {
+      var parts = box.getAttribute('data-ms').split('|');
+      var ch = CD.byId[parts[0]];
+      var ms = ch.milestones.filter(function (m) { return m.id === parts[1]; })[0];
+      openId = ch.id;
+      toggleMilestone(ch, ms);
+      return;
+    }
+    var add = e.target.closest('[data-evadd]');
+    if (add) {
+      var cid = add.getAttribute('data-evadd');
+      var inp = document.querySelector('[data-evin="' + cid + '"]');
+      var val = (inp && inp.value || '').trim();
+      if (!val) return;
+      GS.update(function (s) { CD.chapterState(s, cid).evidence.push({ text: val.slice(0, 160), at: Date.now() }); });
+      openId = cid; render();
+      return;
+    }
+    var rm = e.target.closest('[data-ev]');
+    if (rm) {
+      var p2 = rm.getAttribute('data-ev').split('|');
+      GS.update(function (s) { CD.chapterState(s, p2[0]).evidence.splice(Number(p2[1]), 1); });
+      openId = p2[0]; render();
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var dl = e.target.closest('[data-dl]');
+    if (dl) {
+      var id = dl.getAttribute('data-dl');
+      GS.update(function (s) { CD.chapterState(s, id).deadline = dl.value || ''; });
+      openId = id; render();
+    }
+  });
+  document.addEventListener('input', function (e) {
+    var nt = e.target.closest('[data-notes]');
+    if (nt) {
+      var id = nt.getAttribute('data-notes');
+      GS.update(function (s) { CD.chapterState(s, id).notes = nt.value.slice(0, 2000); });
+    }
+  });
+
+  render();
+  document.addEventListener('icis:update', function () { renderMission(); renderSkills(); });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'icis', syncedKeys: [GS.KEY],
+      onApplied: function () { location.reload(); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

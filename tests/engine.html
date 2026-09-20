@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+// Safety guard: these pages seed and CLEAR localStorage. Refuse to run
+// anywhere except a local dev server so they can never wipe live data.
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML =
+      '<body style="background:#0B0E1A;color:#AFB4C6;font:14px system-ui;padding:40px">' +
+      '<h1 style="color:#F2777A">Blocked</h1>' +
+      '<p>This is a local test harness. It clears localStorage, so it only runs on localhost.</p></body>';
+    throw new Error('test harness blocked off localhost');
+  }
+})();
+</script>
+<title>engine test</title>
+<script>
+// Seed a known world BEFORE the modules boot.
+(function () {
+  localStorage.clear();
+  function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  var today=new Date(); today.setHours(12,0,0,0);
+  var off=function(n){var d=new Date(today);d.setDate(d.getDate()+n);return d;};
+
+  // Goals: 5 perfect past days (4 each) + today 3/5
+  for(var i=1;i<=5;i++){
+    var arr=[]; for(var j=0;j<4;j++) arr.push({text:'Goal '+j,done:true,doneAt:off(-i).getTime()});
+    localStorage.setItem('goals:'+dk(off(-i)),JSON.stringify(arr));
+  }
+  var t=[]; for(var j=0;j<5;j++) t.push({text:'Today '+j,done:j<3,doneAt:Date.now()});
+  localStorage.setItem('goals:'+dk(today),JSON.stringify(t));
+
+  // Gym: 3 days, 12,000 kg
+  var la=[],lb=[];
+  // Keep the hour offsets small so the ISO timestamps stay on the same
+  // local day as `off(-i)` — otherwise the seed silently spans 4 days.
+  for(var i=1;i<=3;i++) for(var s=0;s<2;s++){
+    la.push({weight:100,reps:10,date:new Date(off(-i).getTime()+2*3600000).toISOString()});
+    lb.push({weight:100,reps:10,date:new Date(off(-i).getTime()+3*3600000).toISOString()});
+  }
+  localStorage.setItem('po_coach_v1',JSON.stringify({units:'kg',exercises:[{id:'e1',name:'Bench'},{id:'e2',name:'Squat'}],logs:{e1:la,e2:lb}}));
+  var done={}; for(var i=1;i<=3;i++) done[dk(off(-i))]=true;
+  localStorage.setItem('po_coach_workout_done',JSON.stringify(done));
+
+  // Water 4 hit + 1 partial, caffeine 2 clean days
+  var wl={}; for(var i=1;i<=4;i++) wl[dk(off(-i))]=6; wl[dk(off(-5))]=2;
+  localStorage.setItem('po_water_v1',JSON.stringify({unit:'bottle',bottleMl:500,glassMl:250,profile:{weightKg:75},caffeineMgPerDay:200,logs:wl}));
+  localStorage.setItem('caf:logs',JSON.stringify([
+    {id:'c1',mg:95,ts:off(-1).getTime()+9*3600000},{id:'c2',mg:95,ts:off(-2).getTime()+9*3600000}]));
+
+  // Projects: 1 shipped (4 done), 1 active (2 done, 1 overdue)
+  localStorage.setItem('pm:projects',JSON.stringify([
+    {id:'p1',name:'Shipped',status:'done',tasks:[{id:'t1',name:'a',status:'done'},{id:'t2',name:'b',status:'done'},{id:'t3',name:'c',status:'done'},{id:'t4',name:'d',status:'done'}]},
+    {id:'p2',name:'Active',status:'in_progress',tasks:[{id:'t5',name:'e',status:'done'},{id:'t6',name:'f',status:'done'},{id:'t7',name:'g',status:'not_started'},{id:'t8',name:'h',status:'not_started',dueDate:'2020-01-01'}]}]));
+
+  // Finance
+  var h=[]; for(var i=0;i<5;i++) h.push({t:off(-5+i).getTime(),v:1000+i*1000});
+  localStorage.setItem('nw:history',JSON.stringify(h));
+  var a=[]; for(var i=0;i<6;i++) a.push({ts:off(-3).getTime()+i*3600000,name:'Move '+i,delta:100});
+  localStorage.setItem('nw:activity',JSON.stringify(a));
+
+  localStorage.setItem('goal_streak_v1',JSON.stringify({count:5}));
+  // v1 hero profile, to prove migration carries it over
+  localStorage.setItem('rpg:hero',JSON.stringify({name:'Rizky',className:'Strategist'}));
+})();
+</script>
+<script src="../game-state.js"></script>
+<script src="../quest-library.js"></script>
+<script src="../career-data.js"></script>
+<script src="../quest-engine.js"></script>
+</head>
+<body>
+<pre id="out">pending</pre>
+<script>
+var L=[];
+function chk(label, actual, expected){
+  var ok=String(actual)===String(expected);
+  L.push((ok?'PASS ':'FAIL ')+label+' = '+actual+(ok?'':'  (expected '+expected+')'));
+  return ok;
+}
+function note(s){ L.push('--- '+s); }
+
+try {
+  var GS=window.GameState, QE=window.QuestEngine, CD=window.CareerData, QL=window.QuestLibrary;
+
+  // ---- library shape
+  chk('library total', QL.all.length, 100);
+  chk('career count', QL.counts.career, 40);
+  chk('social count', QL.counts.social, 20);
+  chk('fitness count', QL.counts.fitness, 15);
+  chk('finance count', QL.counts.finance, 10);
+  chk('recovery count', QL.counts.recovery, 10);
+  chk('recreation count', QL.counts.recreation, 5);
+  var missingField=QL.all.filter(function(q){
+    return ['id','practicalTitle','loreTitle','description','category','subcategory','difficulty','xp',
+            'estimatedMinutes','tags','prerequisites','cooldownDays','weekdayOnly','weekendOnly',
+            'minimumLevel','maximumUsesPerWeek','active'].some(function(f){ return q[f]===undefined; });
+  });
+  chk('all templates have full schema', missingField.length, 0);
+
+  // ---- migration
+  chk('migrated hero name', GS.totals().name, 'Rizky');
+
+  // ---- XP totals (derived, reconciled)
+  var t1=GS.totals();
+  note('level='+t1.level+' xp='+t1.totalXp+' score='+t1.score);
+  chk('resolve xp', t1.byId.resolve.xp, 545);
+  // 3 training days x (70 base + floor(4000kg / 300)) = 3 x 83.
+  // Volume is floored PER DAY, not across all time, so each day is one
+  // idempotent ledger entry.
+  chk('might xp', t1.byId.might.xp, 249);
+  chk('vitality xp', t1.byId.vitality.xp, 154);
+  chk('arcana xp', t1.byId.arcana.xp, 350);
+  chk('fortune xp', t1.byId.fortune.xp, 228);
+
+  // ---- IDEMPOTENCE: reconciling again must not move anything
+  GS.reconcile(); GS.reconcile(); GS.reconcile();
+  var t2=GS.totals();
+  chk('xp stable after 3 reconciles', t2.totalXp, t1.totalXp);
+  chk('level stable after 3 reconciles', t2.level, t1.level);
+
+  // ---- quest generation
+  var v1=QE.todayView();
+  chk('quest count', v1.list.length, 5);
+  chk('slot order', v1.list.map(function(q){return q.slot;}).join(','), 'main,career,body,social,flex');
+  chk('slot1 is career', v1.list[0].category, 'career');
+  chk('slot4 is social', v1.list[3].category, 'social');
+  var uniq={}; v1.list.forEach(function(q){uniq[q.id]=1;});
+  chk('no duplicate quests', Object.keys(uniq).length, 5);
+  note('board: '+v1.list.map(function(q){return q.slot+'='+q.id;}).join('  '));
+
+  // ---- DETERMINISM: re-reading must give the identical board
+  var v2=QE.todayView();
+  chk('board stable on re-read', v2.list.map(function(q){return q.id;}).join(','), v1.list.map(function(q){return q.id;}).join(','));
+  // Simulate a full page reload: drop the module cache and re-read from storage
+  var raw=JSON.parse(localStorage.getItem('icisGameStateV2'));
+  chk('board persisted to storage', raw.quests.list.length, 5);
+  chk('persisted board matches', raw.quests.list.map(function(q){return q.id;}).join(','), v1.list.map(function(q){return q.id;}).join(','));
+
+  // ---- completing a quest awards XP exactly once
+  var before=GS.totals().totalXp;
+  var q0=v1.list[0];
+  QE.complete(q0.id);
+  var afterOne=GS.totals().totalXp;
+  chk('xp rose by quest xp', afterOne-before, q0.xp);
+  QE.complete(q0.id); QE.complete(q0.id);
+  chk('re-completing does not stack', GS.totals().totalXp, afterOne);
+  GS.reconcile();
+  chk('reconcile does not wipe quest xp', GS.totals().totalXp, afterOne);
+  QE.uncomplete(q0.id);
+  chk('uncomplete revokes xp', GS.totals().totalXp, before);
+  QE.complete(q0.id);
+
+  // ---- reroll: once only, keeps completed
+  var r1=QE.reroll();
+  chk('first reroll ok', r1.ok, 'true');
+  var after=QE.todayView();
+  chk('completed quest survived reroll', after.list.some(function(q){return q.id===q0.id&&q.done;}), 'true');
+  var r2=QE.reroll();
+  chk('second reroll blocked', r2.ok, 'false');
+
+  // ---- preview must not persist
+  var snapBefore=localStorage.getItem('icisGameStateV2');
+  var pv=QE.preview();
+  chk('preview returns 5', pv.list.length, 5);
+  chk('preview is flagged', pv.preview, 'true');
+  chk('preview did not write state', localStorage.getItem('icisGameStateV2')===snapBefore, 'true');
+
+  // ---- no repeat within 7 days
+  var hist={}, today=GS.todayKey();
+  var probe=QL.all.filter(function(q){return q.category==='social'&&q.cooldownDays>2;})[0];
+  hist[GS.shiftKey(today,-3)]={list:[{id:probe.id,slot:'social',done:true,category:'social'}],mode:'normal'};
+  GS.update(function(s){ s.questHistory=hist; });
+  var gen=QE._generate(today,'normal',0);
+  chk('7-day no-repeat honoured', gen.some(function(q){return q.id===probe.id;}), 'false');
+
+  // ---- weekend-only quest never lands on a weekday
+  var weekendOnly=QL.all.filter(function(q){return q.weekendOnly;}).map(function(q){return q.id;});
+  var weekdayViolations=0;
+  for (var d=0; d<21; d++){
+    var key=GS.shiftKey(today,d);
+    var p=key.split('-').map(Number);
+    var dow=new Date(p[0],p[1]-1,p[2]).getDay();
+    var isWe=(dow===0||dow===6);
+    var g=QE._generate(key,'normal',0);
+    if(!isWe && g.some(function(q){return weekendOnly.indexOf(q.id)!==-1;})) weekdayViolations++;
+  }
+  chk('weekend-only never on weekdays (21d)', weekdayViolations, 0);
+
+  // ---- 60-day soak: always 5 slots, never a duplicate within a day
+  var badDays=0, dupDays=0;
+  for (var d=0; d<60; d++){
+    var g=QE._generate(GS.shiftKey(today,d),'normal',0);
+    if (g.length!==5) badDays++;
+    var u={}; g.forEach(function(q){u[q.id]=1;});
+    if (Object.keys(u).length!==g.length) dupDays++;
+  }
+  chk('60-day soak: always 5 quests', badDays, 0);
+  chk('60-day soak: no intra-day duplicates', dupDays, 0);
+
+  // ---- career campaign
+  var s=GS.get();
+  var mission=CD.currentMission(s);
+  chk('active chapter is FMVA', mission.chapter.id, 'ch_fmva');
+  chk('first milestone pending', mission.milestone.id, 'm1');
+  chk('skill tree count', CD.SKILLS.length, 9);
+  chk('chapter count', CD.CHAPTERS.length, 10);
+
+  // ---- deadline override pins slot 1
+  GS.update(function(st){
+    CD.chapterState(st,'ch_sql').deadline = GS.shiftKey(GS.todayKey(),1);
+  });
+  var g2=QE._generate(GS.todayKey(),'normal',0);
+  chk('deadline pins main slot', g2[0].pinned, 'true');
+  chk('pinned to the deadline chapter', g2[0].chapterId, 'ch_sql');
+  note('pin reason: '+g2[0].reason);
+
+} catch (e) {
+  L.push('FAIL threw: '+e.message+'\n'+e.stack);
+}
+
+var fails=L.filter(function(x){return x.indexOf('FAIL')===0;}).length;
+L.unshift(fails===0?'### ALL PASS ('+L.filter(function(x){return x.indexOf('PASS')===0;}).length+') ###':'### '+fails+' FAILURES ###');
+document.getElementById('out').textContent=L.join('\n');
+</script>
+</body></html>
