@@ -5,8 +5,8 @@
 <script src="/api/config"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050506">
-<title>Icis Dashboard</title>
+<meta name="theme-color" content="#0B0E1A">
+<title>Quest Board</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="game-state.js"></script>
@@ -15,597 +15,251 @@
 <script src="quest-engine.js"></script>
 <script src="hero-art.js"></script>
 <script src="ui-kit.js"></script>
+<script src="quest-ui.js"></script>
 <style>
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --success: #6BE3A4;
-  --warning: #F2C063;
-  --danger: #FF6B6B;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
+/* =============================================================
+   Quest Board — restyled onto the shared design system.
 
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: #050506;
-  color: var(--text-secondary);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-body {
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
-}
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(224, 118, 88, 0.16), transparent 45%),
-    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
-  filter: blur(40px);
-  pointer-events: none;
-  z-index: -2;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-body::after {
-  content: '';
-  position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px;
-  pointer-events: none;
-  z-index: -1;
-}
-@keyframes drift {
-  0%   { transform: translate3d(0,0,0); }
-  100% { transform: translate3d(-22px, 14px, 0); }
-}
+   Every class name here is one the existing markup or JS already
+   uses, so the page's behaviour (ticker, day ring, rollover, drag
+   reorder, streak) is untouched; only the skin changed.
+   ============================================================= */
+.page { max-width: 1120px; margin: 0 auto; }
 
-.page {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-/* ===== Component 1: page title ===== */
 .dash-title {
-  margin: 0 0 14px;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  margin: 0; font-size: 26px; font-weight: 700;
+  letter-spacing: -0.025em; color: var(--text);
 }
-@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+.qb-lore { font-size: 11px; font-weight: 700; letter-spacing: .18em;
+           text-transform: uppercase; color: var(--gold); }
+.qb-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.qb-head { margin-bottom: 16px; }
 
-/* ===== Component 2: Goal Ticker ===== */
-.ticker-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  margin-bottom: 18px;
-}
-.goal-ticker {
-  position: relative; overflow: hidden;
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 12px;
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.30) 100%),
-    repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
-.goal-ticker::after {
-  content: '';
-  position: absolute; top: 0; bottom: 0;
-  width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
-  pointer-events: none;
-  animation: ticker-sweep 8s linear infinite;
-}
-@keyframes ticker-sweep {
-  0%   { left: -40%; }
-  100% { left: 110%; }
-}
-.goal-ticker-led { display: inline-flex; align-items: center; }
-.goal-ticker-led-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #6BE3A4;
-  box-shadow: 0 0 8px rgba(107,227,164,0.7);
-  animation: led-pulse 1.6s ease-in-out infinite;
-}
-@keyframes led-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.45; transform: scale(0.85); }
-}
-.goal-ticker-label {
-  font-family: var(--font-mono);
-  font-size: 9.5px; font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--text-tertiary);
-}
-.goal-ticker-stage {
-  position: relative; overflow: hidden;
-  flex: 1; height: 22px;
-}
-.goal-ticker-row {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 12.5px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-  white-space: nowrap;
-  opacity: 1;
-  transition: opacity 0.22s ease;
-}
-.goal-ticker-row.is-fading { opacity: 0; }
-.goal-ticker-status {
-  display: inline-flex; justify-content: center;
-  width: 18px;
-  color: var(--text-tertiary);
-}
-.goal-ticker-status[data-status="done"]    { color: var(--success); }
-.goal-ticker-status[data-status="pending"] { color: var(--text-tertiary); }
-.goal-ticker-text {
-  flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.goal-ticker-meta {
-  font-family: var(--font-mono);
-  font-size: 11px; font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.04);
-}
-@media (max-width: 480px) {
-  .goal-ticker { padding: 9px 12px; }
-  .goal-ticker-label { font-size: 9px; letter-spacing: 0.14em; }
-  .goal-ticker-row { font-size: 12px; }
-  .goal-ticker-meta { font-size: 10px; padding: 2px 7px; }
-}
-
-/* ===== Component 3: Day Ring ===== */
-.day-ring-wrap {
-  display: flex; flex-wrap: wrap;
-  align-items: center; justify-content: center;
-  gap: 26px;
-  padding: 22px;
-  margin-bottom: 22px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-}
-.day-ring {
-  position: relative;
-  width: 168px; height: 168px;
-  flex-shrink: 0;
-}
-.day-ring svg { width: 100%; height: 100%; display: block; }
-.day-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
-.day-ring-fill {
-  fill: none;
-  stroke-width: 8;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: 60px 60px;
-  transition: stroke 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-              stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.day-ring-overlay {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  pointer-events: none;
-}
-.day-ring-percent {
-  font-size: 40px; font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
-  color: var(--text-primary);
-  line-height: 1;
-}
-.day-ring-phase {
-  margin-top: 5px;
-  font-family: var(--font-mono);
-  font-size: 9.5px; font-weight: 800;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.day-ring-clock {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-tertiary);
-  margin-top: 2px;
-}
-.day-ring-text {
-  display: flex; flex-direction: column;
-  gap: 6px;
-  max-width: 280px;
-}
-.day-ring-status { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.day-ring-remaining { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
-.day-ring-hours { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
-@media (max-width: 480px) {
-  .day-ring { width: 144px; height: 144px; }
-  .day-ring-percent { font-size: 32px; }
-  .day-ring-status { font-size: 13px; }
-}
-
-/* ===== Component 4: section + To Do List ===== */
 .section { margin-top: 8px; }
 .section-title {
-  font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--text-tertiary);
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 12px;
-}
-.section-title::before {
-  content: ''; width: 18px; height: 1px;
-  background: var(--text-tertiary); opacity: 0.6;
-}
-.section-title::after {
-  content: ''; flex: 1; height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+  font-size: 11px; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--gold);
+  margin: 26px 0 12px;
 }
 
-.gm-card {
-  position: relative;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 14px;
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-  transition: background 0.4s;
+/* ---------- goal ticker ---------- */
+.ticker-row { margin-bottom: 12px; }
+.goal-ticker {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 14px; border-radius: var(--r-lg);
+  background: var(--panel); border: 1px solid var(--line);
   overflow: hidden;
 }
-.gm-card.gm-all-done::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(circle at 50% 0%, rgba(107,227,164,0.10), transparent 60%);
-  pointer-events: none;
+.goal-ticker-led { flex: none; display: grid; place-items: center; }
+.goal-ticker-led-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 9px var(--ok);
 }
-.gm-card.gm-all-done .gm-progress-num,
-.gm-card.gm-all-done .gm-progress-label { color: var(--success); }
+.goal-ticker-label {
+  flex: none; font-size: 9.5px; font-weight: 800; letter-spacing: .16em;
+  color: var(--gold);
+}
+.goal-ticker-stage { flex: 1; min-width: 0; height: 20px; position: relative; overflow: hidden; }
+.goal-ticker-row {
+  display: flex; align-items: center; gap: 8px;
+  height: 20px; white-space: nowrap;
+}
+.goal-ticker-status { flex: none; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.goal-ticker-status[data-status="done"] { color: var(--ok); }
+.goal-ticker-status[data-status="pending"] { color: var(--warn); }
+.goal-ticker-text {
+  font-size: 12.5px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.goal-ticker-meta {
+  flex: none; font-family: var(--mono); font-size: 11px; color: var(--text-3);
+}
 
+/* ---------- day ring ---------- */
+.day-ring-wrap {
+  display: flex; align-items: center; gap: 18px;
+  padding: 16px; margin-bottom: 4px;
+  border-radius: var(--r-lg);
+  background: var(--panel); border: 1px solid var(--line);
+}
+.day-ring { position: relative; width: 120px; height: 120px; flex: none; }
+.day-ring svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+.day-ring-track {
+  fill: none; stroke: rgba(255,255,255,.07); stroke-width: 9;
+}
+.day-ring-fill {
+  fill: none; stroke: var(--gold); stroke-width: 9; stroke-linecap: round;
+  transition: stroke-dashoffset .6s cubic-bezier(.22,1,.36,1);
+}
+.day-ring-overlay {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+}
+.day-ring-percent {
+  font-family: var(--mono); font-size: 25px; font-weight: 700; color: var(--text); line-height: 1;
+}
+.day-ring-phase {
+  font-size: 8.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text-3); margin-top: 4px;
+}
+.day-ring-clock { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.day-ring-text { flex: 1; min-width: 0; }
+.day-ring-status { font-size: 15px; font-weight: 650; color: var(--text); }
+.day-ring-remaining { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
+.day-ring-hours { font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+/* ---------- card ---------- */
+.gm-card {
+  position: relative; padding: 18px; margin-bottom: 10px;
+  border-radius: var(--r-lg);
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 10px 34px rgba(0,0,0,.42);
+}
+.gm-card-tomorrow { border-style: dashed; }
 .gm-header {
   display: flex; align-items: flex-start; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px;
-  margin-bottom: 14px;
-  position: relative;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 13px;
 }
-.gm-header-left { display: flex; flex-direction: column; }
+.gm-header-left { display: flex; flex-direction: column; min-width: 0; }
 .gm-eyebrow {
-  font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 5px;
 }
-.gm-progress-row { display: flex; align-items: baseline; gap: 6px; }
+.gm-progress-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .gm-progress-num {
-  font-size: 42px; font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.045em;
-  color: var(--text-primary);
-  line-height: 1;
+  font-family: var(--mono); font-size: 34px; font-weight: 700;
+  letter-spacing: -.03em; color: var(--text); line-height: 1;
 }
-.gm-progress-total {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  color: var(--text-tertiary);
-}
+.gm-progress-total { font-family: var(--mono); font-size: 16px; color: var(--text-3); }
 .gm-progress-label {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.10em; text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-left: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-3); margin-left: 4px;
 }
-.gm-tomorrow-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
-.gm-tomorrow-count {
-  font-family: var(--font-mono);
-  font-size: 11px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.gm-card-tomorrow .gm-progress-row { display: none; }
+.gm-tomorrow-sub { font-size: 12px; color: var(--text-3); }
+.gm-tomorrow-count { font-family: var(--mono); font-size: 11px; color: var(--text-3); flex: none; }
 
+/* streak pill */
 .gm-streak {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  color: var(--text-tertiary);
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.10em; text-transform: uppercase;
-  transition: background 0.25s, color 0.25s, border-color 0.25s;
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 6px 11px; border-radius: 999px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line);
+  color: var(--text-3); font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
 }
-.gm-streak-icon { font-size: 13px; }
-.gm-streak-num {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.gm-streak.gm-streak-active {
-  background: rgba(242,192,99,0.10);
-  color: #F2C063;
-  border-color: rgba(242,192,99,0.32);
-}
-.gm-streak.gm-streak-active .gm-streak-icon {
-  filter: drop-shadow(0 0 6px rgba(242,192,99,0.6));
-}
+.gm-streak-num { font-family: var(--mono); font-size: 13px; color: var(--text); }
+.gm-streak-active { border-color: rgba(233,190,110,.45); color: var(--gold); background: rgba(233,190,110,.1); }
+.gm-streak-active .gm-streak-num { color: var(--gold); }
+.gm-streak-icon { filter: grayscale(1) brightness(1.4); }
 
-.gm-bar {
-  display: flex; gap: 4px;
-  height: 6px;
-  margin-bottom: 16px;
-}
-.gm-bar:empty { display: none; }
+/* segmented progress bar */
+.gm-bar { display: flex; gap: 4px; margin-bottom: 14px; }
 .gm-bar-seg {
-  flex: 1;
-  background: rgba(255,255,255,0.06);
-  border-radius: 3px;
-  transition: background 0.3s, box-shadow 0.3s;
+  flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08);
+  transition: background .3s;
 }
-.gm-bar-seg-done {
-  background: #6BE3A4;
-  box-shadow: 0 0 6px rgba(107,227,164,0.40);
-}
+.gm-bar-seg-done { background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+.gm-all-done .gm-bar-seg { background: var(--ok); }
 
-.goal-list { list-style: none; margin: 0; padding: 0; }
-.empty-state {
-  text-align: center;
-  font-size: 12px; font-style: italic;
-  color: var(--text-tertiary);
-  padding: 14px 0;
-}
-
+/* rows */
+.goal-list, .gm-list { list-style: none; margin: 0; padding: 0; }
 .gm-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: 6px;
-  background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  transition: background 0.2s, opacity 0.3s;
-  position: relative;
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 12px; margin-bottom: 7px;
+  border-radius: var(--r); background: rgba(255,255,255,.03);
+  border: 1px solid var(--line);
+  transition: border-color .15s, background .15s, opacity .2s;
 }
-.gm-row:hover { background: rgba(255,255,255,0.06); }
-.gm-row.gm-row-done {
-  opacity: 0.45;
-  background: rgba(107,227,164,0.04);
-}
-.gm-row.gm-row-done .gm-text {
-  text-decoration: line-through;
-  text-decoration-color: rgba(255,255,255,0.4);
-}
-.gm-row.gm-row-queued {
-  background: rgba(242,192,99,0.10);
-  box-shadow: inset 3px 0 0 0 #F2C063;
-}
-.gm-row.gm-row-queued .gm-text { color: #FFE2A8; }
-.gm-row.is-drag-over { border-top: 2px solid #6BE3A4; }
-.gm-row.is-queue-flashing { animation: gm-queue-flash 0.48s ease-out; }
-@keyframes gm-queue-flash {
-  0%   { background: rgba(255,255,255,0.035); transform: scale(1); }
-  40%  { background: rgba(242,192,99,0.32); transform: scale(1.015); }
-  100% { background: rgba(255,255,255,0.035); transform: scale(1); }
-}
-
+.gm-row:hover { border-color: var(--line-2); }
+.gm-row-done { border-color: rgba(107,227,164,.26); background: rgba(107,227,164,.05); }
+.gm-row-queued { border-color: rgba(233,190,110,.3); }
+.gm-row.is-fading { opacity: 0; transform: translateX(8px); }
+.gm-row.is-drag-over { border-color: var(--gold); }
 .gm-handle {
-  width: 14px; flex-shrink: 0;
-  color: var(--text-tertiary);
-  font-weight: 700; font-size: 14px;
-  letter-spacing: -2px;
-  cursor: grab;
-  opacity: 0;
-  transition: opacity 0.2s;
-  user-select: none;
+  flex: none; cursor: grab; color: var(--text-3); opacity: 0; transition: opacity .15s;
+  font-size: 13px; line-height: 1;
 }
-.gm-row:hover .gm-handle { opacity: 1; }
+.gm-row:hover .gm-handle { opacity: .7; }
 .gm-handle:active { cursor: grabbing; }
-
 .gm-check {
+  width: 22px; height: 22px; flex: none; cursor: pointer;
   appearance: none; -webkit-appearance: none;
-  width: 22px; height: 22px; flex-shrink: 0;
-  margin: 0;
-  border: 1.5px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.28);
-  border-radius: 7px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
+  border: 1.5px solid var(--line-2); border-radius: 7px;
+  background: transparent; display: grid; place-items: center;
+  transition: background .15s, border-color .15s;
 }
-.gm-check:checked {
-  background: #6BE3A4;
-  border-color: #6BE3A4;
-  box-shadow: 0 0 12px rgba(107,227,164,0.40);
-}
+.gm-check:checked { background: var(--ok); border-color: var(--ok); }
 .gm-check:checked::after {
-  content: '';
-  position: absolute; left: 6px; top: 2px;
-  width: 6px; height: 11px;
-  border: solid #0A0A0B;
-  border-width: 0 2.5px 2.5px 0;
-  transform: rotate(45deg);
-  animation: gm-check-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  content: ''; width: 5px; height: 9px; margin-top: -2px;
+  border: solid #08130E; border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
-@keyframes gm-check-pop {
-  from { transform: rotate(45deg) scale(0); }
-  to   { transform: rotate(45deg) scale(1); }
-}
-.gm-check:disabled { cursor: not-allowed; opacity: 0.55; }
-
 .gm-text {
-  flex: 1;
-  font-size: 14px;
-  color: var(--text-primary);
-  cursor: text;
-  outline: none;
-  border-radius: 4px;
-  padding: 2px 4px;
-  margin: -2px -4px;
+  flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.4;
+  color: var(--text); cursor: text; outline: none;
 }
-.gm-text[contenteditable="true"] {
-  outline: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.28);
+.gm-row-done .gm-text { color: var(--text-3); text-decoration: line-through; }
+.goal-delete, .gm-queue-btn {
+  flex: none; border: 0; background: transparent; color: var(--text-3);
+  cursor: pointer; padding: 3px; line-height: 0; font-size: 15px;
+  border-radius: 6px; transition: color .15s;
 }
-
-.gm-queue-btn {
-  border: 0; background: transparent;
-  color: var(--text-tertiary);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  opacity: 0.55;
-  transition: opacity 0.2s, color 0.2s, transform 0.1s;
-}
-.gm-queue-btn:hover { opacity: 1; }
-.gm-queue-btn.gm-queue-active {
-  color: #F2C063;
-  opacity: 1;
-  filter: drop-shadow(0 0 4px rgba(242,192,99,0.65));
-}
-.gm-queue-btn:disabled { cursor: not-allowed; opacity: 0.3; }
-
-.goal-delete {
-  border: 0; background: transparent;
-  color: var(--text-tertiary);
-  font-size: 18px;
-  cursor: pointer;
-  padding: 0 4px;
-  opacity: 0.5;
-  transition: opacity 0.2s, color 0.2s;
-}
-.gm-row:hover .goal-delete { opacity: 1; }
-.goal-delete:hover { color: var(--danger); }
-
+.goal-delete:hover { color: var(--bad); }
+.gm-queue-btn:hover { color: var(--gold); }
+.gm-queue-btn.is-queue-flashing { color: var(--gold); }
 .gm-show-toggle {
-  width: 100%;
-  margin: 6px 0 0;
-  padding: 9px;
-  border: 1px dashed rgba(255,255,255,0.12);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-family: inherit;
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  border: 0; background: transparent; color: var(--text-3);
+  font: inherit; font-size: 11.5px; font-weight: 650; cursor: pointer;
+  padding: 6px 0;
 }
-.gm-show-toggle:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.22); }
+.gm-show-toggle:hover { color: var(--text); }
+
+.empty-state { padding: 20px 12px; text-align: center; font-size: 13px; color: var(--text-3); }
 
 .gm-push-btn {
-  width: 100%;
-  margin-top: 14px;
-  padding: 11px;
-  border: 1px dashed rgba(255,255,255,0.16);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-family: inherit;
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.10em; text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  width: 100%; margin: 4px 0 12px; padding: 10px;
+  border: 1px dashed var(--line-2); border-radius: var(--r);
+  background: transparent; color: var(--text-3);
+  font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+  transition: color .15s, border-color .15s;
 }
-.gm-push-btn:hover {
-  color: var(--text-primary);
-  border-color: rgba(255,255,255,0.30);
-  border-style: solid;
-  background: rgba(255,255,255,0.04);
-}
+.gm-push-btn:hover { color: var(--gold); border-color: rgba(233,190,110,.45); }
 
-.goal-input-wrap.gm-input-wrap {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-}
+/* add row */
+.goal-input-wrap, .gm-input-wrap { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
 .gm-input {
-  flex: 1; min-width: 0;
-  padding: 11px 14px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px;
-  background: rgba(0,0,0,0.28);
-  color: var(--text-primary);
-  font-family: inherit; font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s, background 0.2s;
+  flex: 1; min-width: 0; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: rgba(0,0,0,.3); color: var(--text);
+  font: inherit; font-size: 13px; outline: none;
 }
-.gm-input::placeholder { color: var(--text-tertiary); }
-.gm-input:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
-
+.gm-input:focus { border-color: rgba(233,190,110,.5); }
 .gm-add {
-  padding: 11px 20px;
-  border: 0; border-radius: 12px;
-  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
-  color: #0A0A0B;
-  font-family: inherit; font-size: 13px; font-weight: 700;
-  cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.9),
-    0 2px 8px rgba(0,0,0,0.35),
-    0 8px 22px rgba(0,0,0,0.25);
-  transition: transform 0.1s, filter 0.15s;
+  flex: none; padding: 10px 15px; border-radius: var(--r);
+  border: 1px solid rgba(233,190,110,.7);
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold-dim));
+  color: #241905; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
-.gm-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
-.gm-add:active { transform: translateY(0); }
+.gm-add:active { transform: translateY(1px); }
+.gm-status { flex-basis: 100%; font-size: 11.5px; color: var(--text-3); min-height: 14px; }
+.gm-status-error { color: var(--bad); }
 
-.gm-polish {
-  padding: 11px 18px;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-  color: var(--text-primary);
-  font-family: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.gm-polish:hover {
-  background: rgba(255,255,255,0.07);
-  border-color: rgba(255,255,255,0.18);
-}
-
-.gm-status {
-  flex-basis: 100%;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  min-height: 14px;
-  margin-top: 4px;
-}
-.gm-status.gm-status-error { color: var(--danger); }
-
-@media (max-width: 480px) {
-  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
-  .gm-card { padding: 16px; }
-  .gm-progress-num { font-size: 36px; }
+@media (max-width: 560px) {
+  .dash-title { font-size: 22px; }
+  .day-ring-wrap { gap: 13px; padding: 14px; }
+  .day-ring, .day-ring svg { width: 92px; height: 92px; }
+  .day-ring-percent { font-size: 20px; }
+  .gm-card { padding: 15px; }
+  .gm-progress-num { font-size: 29px; }
 }
 </style>
 </head>
-<body>
+<body data-icis>
 <div class="page">
 
-  <h1 class="dash-title">Icis Dashboard</h1>
+  <div class="qb-head">
+    <div class="qb-lore">Quest Board</div>
+    <h1 class="dash-title">Today</h1>
+    <div class="qb-sub">Five quests chosen for you, and however many you set yourself.</div>
+  </div>
 
   <div class="ticker-row">
     <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
@@ -646,8 +300,12 @@ body::after {
     </div>
   </div>
 
+  <!-- The five automated quests, rendered by the same component the Hub
+       uses so the two surfaces cannot drift apart. -->
+  <div id="dailyQuests"></div>
+
   <div class="section">
-    <div class="section-title">To Do List</div>
+    <div class="section-title">My Quests</div>
 
     <!-- TODAY -->
     <div class="gm-card" id="gmCardToday">
@@ -668,12 +326,11 @@ body::after {
       </div>
       <div class="gm-bar" id="gmBar"></div>
       <ul id="goalList" class="goal-list gm-list"></ul>
-      <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
+      <div id="emptyState" class="empty-state">Nothing of your own yet — add a quest below.</div>
       <button type="button" id="gmPushBtn" class="gm-push-btn" style="display:none;">Push remaining to tomorrow</button>
       <div class="goal-input-wrap gm-input-wrap">
-        <input id="goalInput" class="gm-input" type="text" placeholder="Add a goal for today…" autocomplete="off">
+        <input id="goalInput" class="gm-input" type="text" placeholder="Add a quest for today…" autocomplete="off">
         <button type="button" id="goalAddBtn"    class="gm-add">+ Add</button>
-        <button type="button" id="goalPolishBtn" class="gm-polish">✨ Polish</button>
         <div class="gm-status" id="polishStatus"></div>
       </div>
     </div>
@@ -690,9 +347,8 @@ body::after {
       <ul id="tomorrowList" class="goal-list gm-list"></ul>
       <div id="tomorrowEmpty" class="empty-state">Nothing planned for tomorrow yet</div>
       <div class="goal-input-wrap gm-input-wrap">
-        <input id="tomorrowInput" class="gm-input" type="text" placeholder="Add a goal for tomorrow…" autocomplete="off">
+        <input id="tomorrowInput" class="gm-input" type="text" placeholder="Add a quest for tomorrow…" autocomplete="off">
         <button type="button" id="tomorrowAddBtn"    class="gm-add">+ Add</button>
-        <button type="button" id="tomorrowPolishBtn" class="gm-polish">✨ Polish</button>
         <div class="gm-status" id="tomorrowStatus"></div>
       </div>
     </div>
@@ -704,8 +360,6 @@ body::after {
 (function () {
   'use strict';
 
-  // Paste your Anthropic key here to enable ✨ Polish. Empty = falls back to plain add.
-  const ANTHROPIC_API_KEY = '';
 
   const WAKE_HOUR  = 7;
   const SLEEP_HOUR = 22;
@@ -1219,34 +873,10 @@ body::after {
     el._t = setTimeout(() => { el.textContent = ''; el.classList.remove('gm-status-error'); }, 3500);
   }
 
-  async function polishOne(text) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content:
-            'Rewrite this single goal so it is concrete, action-oriented, and under 60 characters. ' +
-            'Return ONLY a JSON array with exactly one string, no preamble, no code fences.\n\nGoal: ' + text
-        }]
-      })
-    });
-    const data = await res.json();
-    const content = (data && data.content && data.content[0] && data.content[0].text) || '';
-    const arr = JSON.parse(content);
-    if (!Array.isArray(arr) || arr.length < 1 || typeof arr[0] !== 'string') throw new Error('bad response');
-    return arr[0].trim();
-  }
 
-  function makeAddHandlers(input, addBtn, polishBtn, key, statusEl, reload) {
+  // Plain add only. The old "Polish" button posted the goal text to the
+  // Anthropic API from the browser with a pasted key; that is gone.
+  function makeAddHandlers(input, addBtn, key, statusEl, reload) {
     function plainAdd(text) {
       const list = getGoals(key);
       list.push({ text, done: false });
@@ -1262,31 +892,11 @@ body::after {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
     });
-    polishBtn.addEventListener('click', async () => {
-      const text = input.value.trim();
-      if (!text) return;
-      if (!ANTHROPIC_API_KEY) {
-        plainAdd(text);
-        showStatus(statusEl, 'Polish needs an Anthropic API key — added as-typed.', false);
-        return;
-      }
-      polishBtn.disabled = true;
-      try {
-        const polished = await polishOne(text);
-        plainAdd(polished);
-      } catch (e) {
-        plainAdd(text);
-        showStatus(statusEl, 'Polish failed — added as-typed.', true);
-      } finally {
-        polishBtn.disabled = false;
-      }
-    });
   }
 
   makeAddHandlers(
     document.getElementById('goalInput'),
     document.getElementById('goalAddBtn'),
-    document.getElementById('goalPolishBtn'),
     todayKey(),
     document.getElementById('polishStatus'),
     loadToday
@@ -1294,7 +904,6 @@ body::after {
   makeAddHandlers(
     document.getElementById('tomorrowInput'),
     document.getElementById('tomorrowAddBtn'),
-    document.getElementById('tomorrowPolishBtn'),
     tomorrowKey(),
     document.getElementById('tomorrowStatus'),
     loadTomorrow
@@ -1329,6 +938,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+</script>
+
+<!-- The five automated quests, using the same component as the Hub. -->
+<script>
+(function () {
+  'use strict';
+  if (!window.QuestUI) return;
+  window.QuestUI.mountDaily('dailyQuests', {
+    onChange: function () {
+      // Completing an automated quest moves XP, which the streak pill and
+      // the HUD both read.
+      if (window.GameState) window.GameState.reconcile();
+    }
+  });
+})();
 </script>
 
 <!-- =============================================================

@@ -15,6 +15,7 @@
 <script src="quest-engine.js"></script>
 <script src="hero-art.js"></script>
 <script src="ui-kit.js"></script>
+<script src="quest-ui.js"></script>
 <script src="nova.js"></script>
 <style>
 /* ---- hero banner ---- */
@@ -34,25 +35,7 @@
 .story-t { font-size:18px; font-weight:700; color:var(--text); margin:5px 0 3px; letter-spacing:-.015em; }
 .story-cta { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
 
-/* ---- quests ---- */
-.qmode { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-.qmode button { border:0; background:transparent; color:var(--text-3); font:inherit; font-size:11px; font-weight:700; padding:6px 10px; cursor:pointer; }
-.qmode button.on { background:rgba(233,190,110,.16); color:var(--gold); }
-.q { display:flex; align-items:flex-start; gap:12px; padding:13px 14px; margin-bottom:8px; }
-.q.done { border-color:rgba(107,227,164,.28); background:rgba(107,227,164,.05); }
-.q.pinned { border-color:rgba(233,190,110,.38); }
-.q-box { width:23px; height:23px; flex:none; margin-top:1px; border-radius:7px; cursor:pointer; padding:0;
-  border:1.5px solid var(--line-2); background:transparent; display:grid; place-items:center; color:transparent; }
-.q-box.on { background:var(--ok); border-color:var(--ok); color:#08130E; }
-.q-b { flex:1; min-width:0; }
-.q-lore { font-size:9.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
-.q-t { font-size:13.5px; font-weight:650; color:var(--text); margin-top:2px; line-height:1.3; }
-.q.done .q-t { color:var(--ok); text-decoration:line-through; }
-.q-d { font-size:11.5px; color:var(--text-3); margin-top:3px; line-height:1.4; }
-.q-tags { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
-.q-r { flex:none; text-align:right; }
-.q-xp { font-family:var(--mono); font-size:12px; font-weight:700; color:var(--gold); }
-.q-min { font-size:9.5px; color:var(--text-3); margin-top:2px; }
+/* quest card styles now live in quest-ui.js, shared with the Quest Board */
 
 /* ---- contracts ---- */
 .ct { display:flex; align-items:center; gap:11px; padding:11px 13px; margin-bottom:7px; }
@@ -123,20 +106,9 @@
   <div class="sec"><span class="sec-t">Main Story</span><span class="sec-m" id="storyMeta"></span></div>
   <section class="card ornate story" id="story"></section>
 
-  <!-- 5 — five daily quests -->
-  <div class="sec">
-    <span class="sec-t">Daily Quests</span>
-    <span class="row" style="gap:8px">
-      <span class="qmode" id="qmode">
-        <button data-mode="light">Light</button>
-        <button data-mode="normal">Normal</button>
-        <button data-mode="ambitious">Ambitious</button>
-      </span>
-      <button class="btn sm" id="rerollBtn" title="One reroll per day"></button>
-    </span>
-  </div>
-  <div id="quests"></div>
-  <div class="sub" id="questMeta" style="margin-top:6px"></div>
+  <!-- 5 — the five automated daily quests, then the ones you write -->
+  <div id="dailyQuests"></div>
+  <div id="myQuests"></div>
 
   <div class="two" style="margin-top:22px">
     <div>
@@ -258,36 +230,6 @@
   }
 
   /* ---------- daily quests ---------- */
-  function renderQuests() {
-    var v = QE.todayView();
-    $('quests').innerHTML = v.list.map(function (q) {
-      return '<div class="card q' + (q.done ? ' done' : '') + (q.pinned ? ' pinned' : '') + '">' +
-        '<button class="q-box' + (q.done ? ' on' : '') + '" data-q="' + UI.esc(q.id) + '" aria-label="Toggle quest">' +
-          UI.icon('check', 14) + '</button>' +
-        '<div class="q-b">' +
-          '<div class="q-lore">' + UI.esc(q.loreTitle) + '</div>' +
-          '<div class="q-t">' + UI.esc(q.practicalTitle) + '</div>' +
-          '<div class="q-d">' + UI.esc(q.description) + '</div>' +
-          '<div class="q-tags">' +
-            '<span class="chip' + (q.pinned ? ' on' : '') + '">' + UI.esc(q.reason || q.slot) + '</span>' +
-            '<span class="chip">' + UI.esc(q.difficulty) + '</span>' +
-            (q.rolledOver ? '<span class="chip on">carried over</span>' : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="q-r"><div class="q-xp">+' + q.xp + '</div><div class="q-min">' + q.estimatedMinutes + 'm</div></div>' +
-      '</div>';
-    }).join('');
-
-    $('questMeta').textContent = v.done + ' of ' + v.total + ' complete' +
-      (v.minutes ? ' · about ' + v.minutes + ' minutes left' : ' · board cleared');
-    Array.prototype.forEach.call($('qmode').children, function (b) {
-      b.classList.toggle('on', b.getAttribute('data-mode') === v.mode);
-    });
-    var rb = $('rerollBtn');
-    rb.disabled = v.rerollUsed;
-    rb.innerHTML = UI.icon('dice', 14) + (v.rerollUsed ? ' Used' : ' Reroll');
-  }
-
   /* ---------- contracts ---------- */
   function renderContracts() {
     var c = QE.contracts();
@@ -365,40 +307,23 @@
   }
 
   function renderAll() {
-    renderBanner(); renderStory(); renderQuests();
+    renderBanner(); renderStory();
+    if (daily) daily.redraw();
+    if (mine) mine.redraw();
     renderContracts(); renderSide(); renderWorld();
   }
 
   /* ---------- interactions ---------- */
-  document.addEventListener('click', function (e) {
-    var box = e.target.closest('[data-q]');
-    if (box) {
-      var id = box.getAttribute('data-q');
-      var v = QE.todayView();
-      var q = v.list.filter(function (x) { return x.id === id; })[0];
-      if (!q) return;
-      if (q.done) QE.uncomplete(id);
-      else {
-        QE.complete(id);
-        UI.toast('check', 'Quest complete', q.practicalTitle, '+' + q.xp + ' XP · ' + q.loreTitle);
-      }
-      renderAll();
-    }
-  });
+  // The daily board and the personal list are mounted from quest-ui.js so
+  // the Hub and the Quest Board stay identical. Both call back here to
+  // refresh the banner, contracts and side cards after a change.
+  var daily = window.QuestUI.mountDaily('dailyQuests', { onChange: afterQuestChange });
+  var mine  = window.QuestUI.mountPersonal('myQuests', { onChange: afterQuestChange });
 
-  $('rerollBtn').addEventListener('click', function () {
-    var r = QE.reroll();
-    if (!r.ok) { UI.toast('dice', 'Reroll', r.reason, ''); return; }
-    UI.toast('dice', 'Reroll', 'The board has been redrawn', 'One reroll per day');
-    renderAll();
-  });
-
-  Array.prototype.forEach.call($('qmode').children, function (b) {
-    b.addEventListener('click', function () {
-      QE.setMode(b.getAttribute('data-mode'));
-      renderAll();
-    });
-  });
+  function afterQuestChange() {
+    GS.reconcile();
+    renderBanner(); renderContracts(); renderSide(); renderWorld();
+  }
 
   /* ---------- Your Data modal (preserved) ---------- */
   var WATER_KEY = 'po_water_v1';

@@ -324,6 +324,16 @@
       changed = true;
     }
 
+    // The removed gym-coach and Nova-lite panels stored a pasted Anthropic
+    // API key in the browser. Nothing reads it any more, and a live
+    // credential sitting in localStorage on a deployed site is worth
+    // clearing rather than leaving behind. Rotate the key if it was real.
+    try {
+      if (localStorage.getItem('nova_lite_api_key') != null) {
+        localStorage.removeItem('nova_lite_api_key');
+      }
+    } catch (e) {}
+
     if (s.v !== SCHEMA) { s.v = SCHEMA; changed = true; }
     return { state: s, changed: changed };
   }

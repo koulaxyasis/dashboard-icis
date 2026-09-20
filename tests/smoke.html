@@ -35,14 +35,14 @@ var GS = window.GameState, QE = window.QuestEngine, HA = window.HeroArt;
 // Containers that MUST have content. If a page's script throws mid-render
 // these stay empty, which is the signal we key on.
 var PAGES = {
-  '../index.html':        ['bName','story','quests','contracts','world','camp','social','reward'],
+  '../index.html':        ['bName','story','dailyQuests','myQuests','contracts','world','camp','social','reward'],
   '../career.html':       ['mission','chapters','skills'],
   '../tavern.html':       ['plans','people','suggestions','memories','stXp'],
   '../character.html':    ['bName','oLv','oShield','oQuests','oContract','oNext','oDisc'],
   '../quest-editor.html': ['list','filters','meta'],
   '../guild.html':        ['bosses'],
   '../nova.html':         ['novaMain'],
-  '../main.html':         ['goalTickerStage'],
+  '../main.html':         ['goalTickerStage','dailyQuests','gmCardToday'],
   '../gym.html':          [],
   '../po-water.html':     [],
   '../caffeine.html':     ['logList'],
@@ -52,6 +52,7 @@ var NO_NAV = { '../finance.html': true };
 var WIDTHS = [320, 390, 768, 1100];   // phone → desktop
 
 var baseline = null;   // what every page's HUD must agree with
+var dailySeen = {};    // page -> the daily quest titles it rendered
 
 function snapshot() {
   GS.reload();
@@ -112,11 +113,19 @@ function probe(page, ids) {
               'body=' + bodyStreak.textContent.trim() + ' expected ' + baseline.streak);
         }
 
-        // 4. an ordinary load must never re-announce progress
+        // 4. the shared daily board: record what this page showed
+        var dq = d.getElementById('dailyQuests');
+        if (dq) {
+          dailySeen[page] = Array.prototype.map.call(
+            dq.querySelectorAll('.q-t'), function (n) { return n.textContent.trim(); }).join(' | ');
+          chk(page + ' :: daily board rendered', !!dailySeen[page], dailySeen[page] || 'empty');
+        }
+
+        // 5. an ordinary load must never re-announce progress
         chk(page + ' :: no level-up overlay on ordinary load', !d.querySelector('.lvlup'));
         chk(page + ' :: no milestone toast on ordinary load', !d.querySelector('.toast'));
 
-        // 5. responsive: no horizontal overflow at any width
+        // 6. responsive: no horizontal overflow at any width
         WIDTHS.forEach(function (w) {
           f.style.width = w + 'px';
           var sw = Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
@@ -176,6 +185,15 @@ function probe(page, ids) {
   eq('second pass :: total XP still unchanged', after2.xp, baseline.xp);
   eq('second pass :: streak still unchanged', after2.streak, baseline.streak);
   eq('second pass :: board still unchanged', after2.board, baseline.board);
+
+  // ---- the Hub and the Quest Board must show the SAME daily quests -----
+  var hubDaily = dailySeen['../index.html'];
+  var boardDaily = dailySeen['../main.html'];
+  chk('Hub rendered the daily board', !!hubDaily, hubDaily || '');
+  chk('Quest Board rendered the daily board', !!boardDaily, boardDaily || '');
+  eq('Hub and Quest Board show the same five daily quests', boardDaily, hubDaily);
+  eq('daily board matches the engine',
+     hubDaily, QE.todayView().list.map(function (q) { return q.practicalTitle; }).join(' | '));
 
   // ---- a real level-up must announce exactly ONCE ----------------------
   // Loads index.html and reports whether the level-up overlay appeared.
