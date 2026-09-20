@@ -44,7 +44,17 @@ function probe(page) {
         L.push(page);
         L.push('   hud: ' + box(hud));
         L.push('   nav: ' + box(nav));
-        var ok = hud && hud.getBoundingClientRect().height > 20;
+        // PWA wiring: topbar.js used to add these and was removed, which
+        // silently broke installing to the home screen.
+        var man = d.querySelector('link[rel="manifest"]');
+        var touch = d.querySelector('link[rel="apple-touch-icon"]');
+        var theme = d.querySelector('meta[name="theme-color"]');
+        L.push('   pwa: manifest=' + (man ? man.getAttribute('href') : 'MISSING') +
+               '  apple-touch-icon=' + (touch ? touch.getAttribute('href') : 'MISSING') +
+               '  theme=' + (theme ? theme.getAttribute('content') : 'MISSING'));
+        var ok = hud && hud.getBoundingClientRect().height > 20 &&
+                 !!d.querySelector('link[rel="manifest"]') &&
+                 !!d.querySelector('link[rel="apple-touch-icon"]');
         L.push('   -> ' + (ok ? 'VISIBLE' : 'NOT VISIBLE'));
         f.remove(); resolve();
       }, 1100);

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- ==========================================================
+       ICIS app icon — a knight's helm in the dashboard's gold on
+       its deep-navy ground. Original artwork, drawn as vectors so
+       it stays crisp at every size and can be re-rendered to PNG
+       from this one source (see tools/render-icons.html).
+
+       Maskable-safe: everything meaningful sits inside the middle
+       80%, so a circular or squircle mask cannot clip the helm.
+       ========================================================== -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#161C32"/>
+      <stop offset="1" stop-color="#080B14"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="70%" cy="10%" r="74%">
+      <stop offset="0" stop-color="#E9BE6E" stop-opacity=".30"/>
+      <stop offset="1" stop-color="#E9BE6E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0.15" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#FBEBC6"/>
+      <stop offset="0.38" stop-color="#EEC77C"/>
+      <stop offset="0.72" stop-color="#D3A052"/>
+      <stop offset="1" stop-color="#8E601F"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF8E6"/>
+      <stop offset="1" stop-color="#B9873C"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#ground)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <!-- faint heraldic rays behind the helm, kept short so none of them
+       escape past the silhouette and read as a stray line -->
+  <g stroke="#E9BE6E" stroke-opacity=".12" stroke-width="4" stroke-linecap="round">
+    <path d="M150 168L104 122M362 168l46-46M132 286H74M380 286h58"/>
+  </g>
+
+  <!-- helm: rounded crown tapering to a bascinet point -->
+  <path d="M256 96c58 0 102 45 102 106v78c0 42-19 74-51 91l-51 27-51-27c-32-17-51-49-51-91v-78C154 141 198 96 256 96z"
+        fill="url(#gold)" stroke="url(#edge)" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- centre ridge, a soft highlight rather than a drawn line -->
+  <path d="M256 96c-10 0-20 1-29 4v296l29 15 29-15V100c-9-3-19-4-29-4z"
+        fill="#FFF8E6" fill-opacity=".15"/>
+
+  <!-- visor slit -->
+  <rect x="174" y="222" width="164" height="26" rx="13" fill="#0B0E1A" fill-opacity=".9"/>
+
+  <!-- brow bevel -->
+  <path d="M166 204c28-17 58-26 90-26s62 9 90 26" fill="none"
+        stroke="#0B0E1A" stroke-opacity=".26" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- breaths, following the taper of the jaw -->
+  <g fill="#0B0E1A" fill-opacity=".82">
+    <rect x="215" y="280" width="19" height="46" rx="9.5" transform="rotate(-7 224 303)"/>
+    <rect x="247" y="282" width="19" height="50" rx="9.5"/>
+    <rect x="279" y="280" width="19" height="46" rx="9.5" transform="rotate(7 288 303)"/>
+  </g>
+</svg>

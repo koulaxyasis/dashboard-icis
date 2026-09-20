@@ -585,11 +585,40 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
     return t;
   }
 
+  // PWA wiring. topbar.js used to do this and was removed during the
+  // rebuild, which quietly broke installing to the home screen and the
+  // service worker along with it. It lives here now because every page
+  // loads ui-kit.
+  function injectPwa() {
+    function head(tag, attrs) {
+      var sel = tag + Object.keys(attrs).map(function (k) {
+        return '[' + k + '="' + attrs[k] + '"]';
+      }).join('');
+      if (document.querySelector(sel)) return;
+      var el = document.createElement(tag);
+      Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+      document.head.appendChild(el);
+    }
+    if (!document.querySelector('link[rel="manifest"]')) {
+      head('link', { rel: 'manifest', href: '/manifest.json' });
+    }
+    head('link', { rel: 'apple-touch-icon', href: '/icon-192.png' });
+    head('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+    head('meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' });
+    if (!document.querySelector('meta[name="theme-color"]')) {
+      head('meta', { name: 'theme-color', content: '#0B0E1A' });
+    }
+    if ('serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('/sw.js'); } catch (e) {}
+    }
+  }
+
   function boot() {
     injectCss();
     // Opt-in layout: new pages carry data-icis, legacy trackers keep theirs.
     if (document.body.hasAttribute('data-icis')) document.body.classList.add('icis');
     applyMotionPref();
+    injectPwa();
     injectHud();
     injectNav();
     refresh();

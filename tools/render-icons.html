@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>icon render</title>
+<!-- =============================================================
+     Renders icon-src.svg to a PNG at a given size, using the browser
+     as the rasteriser (no image libraries needed on this machine).
+
+       ?size=512   draw at that size, page is exactly that big
+       ?size=192
+
+     Screenshot the page at the same --window-size and you get the
+     icon. tools/ is not part of the app; nothing links to it.
+     ============================================================= -->
+<style>
+  html,body { margin:0; padding:0; background:transparent; }
+  img { display:block; }
+</style>
+</head>
+<body>
+<img id="icon" alt="">
+<script>
+var size = Number(new URLSearchParams(location.search).get('size') || 512);
+document.documentElement.style.width = size + 'px';
+document.documentElement.style.height = size + 'px';
+document.body.style.width = size + 'px';
+document.body.style.height = size + 'px';
+var img = document.getElementById('icon');
+img.width = size; img.height = size;
+img.src = '../icon-src.svg';
+</script>
+</body></html>
