@@ -112,7 +112,11 @@ function probe(page, ids) {
               'body=' + bodyStreak.textContent.trim() + ' expected ' + baseline.streak);
         }
 
-        // 4. responsive: no horizontal overflow at any width
+        // 4. an ordinary load must never re-announce progress
+        chk(page + ' :: no level-up overlay on ordinary load', !d.querySelector('.lvlup'));
+        chk(page + ' :: no milestone toast on ordinary load', !d.querySelector('.toast'));
+
+        // 5. responsive: no horizontal overflow at any width
         WIDTHS.forEach(function (w) {
           f.style.width = w + 'px';
           var sw = Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
@@ -172,6 +176,46 @@ function probe(page, ids) {
   eq('second pass :: total XP still unchanged', after2.xp, baseline.xp);
   eq('second pass :: streak still unchanged', after2.streak, baseline.streak);
   eq('second pass :: board still unchanged', after2.board, baseline.board);
+
+  // ---- a real level-up must announce exactly ONCE ----------------------
+  // Loads index.html and reports whether the level-up overlay appeared.
+  function loadAndSeeOverlay(page) {
+    return new Promise(function (resolve) {
+      var f = document.createElement('iframe');
+      f.style.width = '390px'; f.style.height = '700px';
+      f.src = page + '?t=' + Date.now();     // defeat the bfcache
+      f.addEventListener('load', function () {
+        setTimeout(function () {
+          var saw = false;
+          try { saw = !!f.contentWindow.document.querySelector('.lvlup'); } catch (e) {}
+          f.remove(); resolve(saw);
+        }, 1200);
+      });
+      document.body.appendChild(f);
+    });
+  }
+
+  // Jump several levels in one go.
+  GS.award('test:levelup', 4000, 'resolve', { text: 'test grant' });
+  var lvlNow = GS.totals().level;
+  chk('setup :: level actually rose', lvlNow > baseline.level, 'now ' + lvlNow);
+  chk('level-up announced on the load after it happens', await loadAndSeeOverlay('../index.html'));
+  chk('NOT announced again on the next load', !(await loadAndSeeOverlay('../index.html')));
+  chk('NOT announced on a third load', !(await loadAndSeeOverlay('../index.html')));
+  chk('NOT announced on a different page either', !(await loadAndSeeOverlay('../character.html')));
+  GS.revoke('test:levelup');
+
+  // ---- a stale marker inside the SYNCED blob must not re-announce ------
+  // This is what cloud sync does when another device pushes an older
+  // snapshot. The notification marker is device-local, so it must survive.
+  chk('device-local seen marker exists', !!GS.readJSON('icis:seen', null));
+  var seenBefore = (GS.readJSON('icis:seen', {}) || {}).level;
+  GS.update(function (s) {
+    s.lastSeen = { level: 1, disciplines: {}, achievements: [] };   // stale, as if restored by sync
+  });
+  chk('stale synced marker does not re-announce', !(await loadAndSeeOverlay('../index.html')));
+  eq('stale synced marker did not clobber the local one',
+     (GS.readJSON('icis:seen', {}) || {}).level, seenBefore);
 
   QE.deleteQuest('u_smoke_probe');
 

@@ -446,6 +446,8 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
   // Tap anywhere to skip.
   function levelUp(level, rankName, sub) {
     injectCss();
+    // Never stack overlays — one at a time, whatever calls in.
+    if (document.querySelector('.lvlup')) return;
     var el = document.createElement('div');
     el.className = 'lvlup';
     el.innerHTML = '<div class="lvlup-in">' +
@@ -462,29 +464,51 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
   // ---------------------------------------------------------------
   // Milestone watcher — fires toasts only for genuinely new progress.
   // ---------------------------------------------------------------
+  // "Have I already shown this notification HERE?" is per-device state, so
+  // it lives in its own localStorage key and is deliberately NOT part of
+  // the synced blob. When it was inside the synced state, cloud sync kept
+  // restoring another device's older copy and every page load re-announced
+  // the same level-up.
+  var SEEN_KEY = 'icis:seen';
+
+  function loadSeen() {
+    var seen = GS.readJSON(SEEN_KEY, null);
+    if (seen && typeof seen.level === 'number') return seen;
+    // One-time migration out of the synced state.
+    var legacy = GS.get().lastSeen;
+    if (legacy && typeof legacy.level === 'number' && legacy.level > 0) {
+      GS.writeJSON(SEEN_KEY, legacy);
+      return legacy;
+    }
+    return null;
+  }
+
   function checkMilestones(t) {
-    var s = GS.get();
-    var seen = s.lastSeen || { level: 0, disciplines: {}, achievements: [] };
-    var firstRun = !seen.level;
-    var next = { level: t.level, disciplines: {}, achievements: seen.achievements || [] };
+    var seen = loadSeen();
+    var next = { level: t.level, disciplines: {}, achievements: (seen && seen.achievements) || [] };
     t.disciplines.forEach(function (d) { next.disciplines[d.id] = d.level; });
 
-    if (!firstRun) {
-      if (t.level > seen.level) {
-        levelUp(t.level, t.rank.name, t.nextRank ? 'Next: ' + t.nextRank.name + ' at ' + t.nextRank.at : '');
-      }
-      t.disciplines.forEach(function (d) {
-        var before = (seen.disciplines && seen.disciplines[d.id]) || 1;
-        if (d.level > before) toast('star', d.lore, d.name + ' reached level ' + d.level, d.practical);
-      });
+    // No record on this device yet: bank the baseline silently rather than
+    // announcing progress the user already made.
+    if (!seen) { GS.writeJSON(SEEN_KEY, next); return; }
+
+    if (t.level > seen.level) {
+      levelUp(t.level, t.rank.name, t.nextRank ? 'Next: ' + t.nextRank.name + ' at ' + t.nextRank.at : '');
     }
-    // Only write when something actually moved. An unconditional save here
-    // meant every page load mutated the shared state, which cloud-sync then
-    // pushed — and any other open surface reloaded in response, forever.
-    if (JSON.stringify(seen) !== JSON.stringify(next)) {
-      s.lastSeen = next;
-      GS.save();
-    }
+    t.disciplines.forEach(function (d) {
+      var before = (seen.disciplines && seen.disciplines[d.id]) || 1;
+      if (d.level > before) toast('star', d.lore, d.name + ' reached level ' + d.level, d.practical);
+    });
+
+    // Store a high-water mark, never a lower one. If sync momentarily
+    // restores an older snapshot the level can dip; without this, climbing
+    // back to a level already announced would announce it a second time.
+    next.level = Math.max(next.level, seen.level);
+    t.disciplines.forEach(function (d) {
+      var before = (seen.disciplines && seen.disciplines[d.id]) || 1;
+      next.disciplines[d.id] = Math.max(next.disciplines[d.id], before);
+    });
+    if (JSON.stringify(seen) !== JSON.stringify(next)) GS.writeJSON(SEEN_KEY, next);
   }
 
   // ---------------------------------------------------------------
