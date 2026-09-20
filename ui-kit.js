@@ -126,6 +126,70 @@ body.icis {
 }
 /* Every page that gets the nav needs room under it. */
 body.has-nav { padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important; }
+
+/* =============================================================
+   LEGACY TRACKER SKIN
+   caffeine / po-water / gym / finance predate the design system and
+   carry their own token names. Rather than rewrite ~350KB of their CSS
+   (and risk their charts, drag handles and modals), we remap those
+   tokens onto the new palette. They are defined on the body element,
+   which is a descendant of the :root each page declares, so these win
+   without needing !important and without touching page structure.
+   ============================================================= */
+html { background: var(--bg); }
+
+body:not(.icis) {
+  background: var(--bg);
+  font-family: var(--font);
+
+  /* caffeine.html */
+  --text-primary: #F2F3F7;
+  --text-secondary: #AFB4C6;
+  --text-tertiary: #767D95;
+  --success: #6BE3A4;
+  --warning: #F0A868;
+  --danger:  #F2777A;
+  --energy:  #6BE3A4;
+
+  /* po-water.html + gym.html */
+  --bg-card: rgba(255,255,255,0.045);
+  --text-1: #F2F3F7;
+  --text-2: #AFB4C6;
+  --text-3: #767D95;
+  --text-4: rgba(255,255,255,0.28);
+  --border: rgba(255,255,255,0.09);
+  --border-strong: rgba(255,255,255,0.16);
+  --good: #6BE3A4;
+  --warn: #F0A868;
+  --bad:  #F2777A;
+  --info: #60A5FA;
+
+  /* finance.html */
+  --bg-deep: #080B14;
+  --bg-secondary: rgba(255,255,255,0.03);
+  --glass-bg: rgba(255,255,255,0.045);
+  --glass-border: rgba(255,255,255,0.09);
+  --glass-border-strong: rgba(255,255,255,0.16);
+  --glass-shadow:
+    0 1px 0 0 rgba(255,255,255,0.05) inset,
+    0 10px 34px rgba(0,0,0,0.42);
+  --text-quaternary: rgba(255,255,255,0.28);
+  --border-soft: rgba(255,255,255,0.06);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+}
+
+/* The app's accent is gold everywhere. gym keeps a neutral accent because
+   it uses it for plain emphasis rather than as a highlight colour. */
+body:not(.icis) { --accent: #E9BE6E; }
+body:not(.icis).gym-page { --accent: #F2F3F7; }
+
+/* Shared polish that is safe to apply across the old pages. */
+body:not(.icis) input:focus,
+body:not(.icis) select:focus,
+body:not(.icis) textarea:focus { border-color: rgba(233,190,110,0.5); }
+body:not(.icis) ::selection { background: rgba(233,190,110,0.28); }
 /* One static gradient. No perpetual motion behind the text. */
 body.icis::before {
   content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;

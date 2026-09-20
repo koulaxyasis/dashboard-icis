@@ -85,9 +85,18 @@ function probe(page, ids) {
         });
         chk(page, empty.length === 0, empty.length ? 'not rendered: ' + empty.join(', ') : '');
 
-        // 2. shared chrome
-        chk(page + ' :: hud', !!d.getElementById('icisHud'));
-        if (!NO_NAV[page]) chk(page + ' :: nav', !!d.getElementById('icisNav'));
+        // 2. shared chrome — VISIBLE, not merely present. A module that
+        //    dies on load leaves these missing; a page whose own layout
+        //    covers them leaves them zero-height.
+        function visible(id) {
+          var el = d.getElementById(id);
+          if (!el) return false;
+          var r = el.getBoundingClientRect();
+          var cs = f.contentWindow.getComputedStyle(el);
+          return r.height > 20 && cs.display !== 'none' && cs.visibility !== 'hidden';
+        }
+        chk(page + ' :: hud visible', visible('icisHud'));
+        if (!NO_NAV[page]) chk(page + ' :: nav visible', visible('icisNav'));
 
         // 3. the HUD must agree with the shared state on every page
         var orb = d.getElementById('hudOrb');

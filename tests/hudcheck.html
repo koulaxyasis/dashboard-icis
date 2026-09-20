@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+})();
+</script>
+<title>hud check</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px;width:420px;height:800px}pre{white-space:pre-wrap;padding:10px}</style>
+</head>
+<body>
+<pre id="out">pending…</pre>
+<script>
+// Is the shared chrome actually VISIBLE on each page, not merely present
+// in the DOM? A page whose own layout hides or overlaps it still passes a
+// simple "does the element exist" check.
+var PAGES = ['../index.html','../main.html','../caffeine.html','../po-water.html',
+             '../gym.html','../finance.html','../guild.html','../career.html'];
+var L = [];
+
+function probe(page) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe');
+    f.src = page;
+    f.addEventListener('load', function () {
+      setTimeout(function () {
+        var d = f.contentWindow.document, w = f.contentWindow;
+        var hud = d.getElementById('icisHud');
+        var nav = d.getElementById('icisNav');
+        function box(el) {
+          if (!el) return 'MISSING';
+          var r = el.getBoundingClientRect();
+          var cs = w.getComputedStyle(el);
+          return 'x=' + Math.round(r.left) + ' y=' + Math.round(r.top) +
+                 ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height) +
+                 ' display=' + cs.display + ' vis=' + cs.visibility +
+                 ' op=' + cs.opacity + ' z=' + cs.zIndex;
+        }
+        L.push(page);
+        L.push('   hud: ' + box(hud));
+        L.push('   nav: ' + box(nav));
+        var ok = hud && hud.getBoundingClientRect().height > 20;
+        L.push('   -> ' + (ok ? 'VISIBLE' : 'NOT VISIBLE'));
+        f.remove(); resolve();
+      }, 1100);
+    });
+    document.body.appendChild(f);
+  });
+}
+(async function () {
+  for (var i = 0; i < PAGES.length; i++) await probe(PAGES[i]);
+  document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>
