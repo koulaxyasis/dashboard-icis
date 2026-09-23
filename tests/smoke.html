@@ -22,6 +22,7 @@ iframe{border:0;position:absolute;left:-9999px;top:0}pre{white-space:pre-wrap;pa
 <script src="../career-data.js"></script>
 <script src="../quest-engine.js"></script>
 <script src="../hero-art.js"></script>
+<script src="../codex.js"></script>
 </head>
 <body>
 <pre id="out">pending…</pre>
@@ -35,13 +36,14 @@ var GS = window.GameState, QE = window.QuestEngine, HA = window.HeroArt;
 // Containers that MUST have content. If a page's script throws mid-render
 // these stay empty, which is the signal we key on.
 var PAGES = {
-  '../index.html':        ['bName','story','dailyQuests','myQuests','contracts','world','camp','social','reward'],
+  '../index.html':        ['bName','story','codexCard','dailyQuests','myQuests','contracts','world','camp','social','reward'],
   '../career.html':       ['mission','chapters','skills'],
   '../tavern.html':       ['plans','people','suggestions','memories','stXp'],
   '../character.html':    ['bName','oLv','oShield','oQuests','oContract','oNext','oDisc'],
   '../quest-editor.html': ['list','filters','meta'],
   '../guild.html':        ['bosses'],
   '../nova.html':         ['novaMain'],
+  '../codex.html':        ['todayCard','filters','list'],
   '../main.html':         ['goalTickerStage','dailyQuests','gmCardToday'],
   '../gym.html':          [],
   '../po-water.html':     [],

@@ -70,6 +70,7 @@
 <script src="../career-data.js"></script>
 <script src="../quest-engine.js"></script>
 <script src="../hero-art.js"></script>
+<script src="../codex.js"></script>
 </head>
 <body>
 <pre id="out">pending</pre>
@@ -568,6 +569,83 @@ try {
   chk('  rebuilds streak object', typeof migrated.streak.shields, 'number');
   chk('  rebuilds questCustom', Array.isArray(migrated.questCustom), 'true');
   chk('  seeds the legacy streak baseline', migrated.streak.legacyBaseline, 12);
+
+  // =============================================================
+  // CODEX — one passage a day, derived purely from the date
+  // =============================================================
+  var CX = window.Codex;
+  chk('codex has entries (' + CX.count + ')', CX.count > 20, 'true');
+  var cxIds = {}, cxBad = 0;
+  CX.ENTRIES.forEach(function (e) {
+    if (cxIds[e.id]) cxBad++;
+    cxIds[e.id] = 1;
+    if (!e.id || !e.title || !e.text || !e.theme) cxBad++;
+    if (e.text.length < 200) cxBad++;   // these are passages, not one-liners
+  });
+  chk('every entry is complete and unique', cxBad, 0);
+  chk('entry ids are unique', Object.keys(cxIds).length, CX.count);
+
+  // stable within a day
+  chk('same date gives the same entry',
+    CX.entryFor('2026-05-05').id, CX.entryFor('2026-05-05').id);
+  chk('re-reading is stable a third time',
+    CX.entryFor('2026-05-05').id, CX.entryFor('2026-05-05').id);
+
+  // changes day to day
+  var d1 = CX.entryFor('2026-05-05').id, d2 = CX.entryFor('2026-05-06').id;
+  chk('the next day differs', d1 !== d2, 'true');
+
+  // Find a date that sits on a cycle boundary, so the window below is one
+  // whole pass through the deck rather than straddling two.
+  var alignStart = '2026-01-01';
+  for (var ai = 0; ai < CX.count; ai++) {
+    var cand = GS.shiftKey('2026-01-01', ai);
+    if (CX.entryFor(cand).dayOfCycle === 1) { alignStart = cand; break; }
+  }
+
+  // one aligned cycle shows every entry exactly once
+  var seen = {}, dupes = 0;
+  for (var ci = 0; ci < CX.count; ci++) {
+    var id = CX.entryFor(GS.shiftKey(alignStart, ci)).id;
+    if (seen[id]) dupes++;
+    seen[id] = 1;
+  }
+  chk('a full cycle shows every entry once', Object.keys(seen).length, CX.count);
+  chk('  with no repeats inside the cycle', dupes, 0);
+
+  // the next cycle reshuffles rather than repeating the same order
+  var cycleA = [], cycleB = [];
+  for (var cj = 0; cj < CX.count; cj++) {
+    cycleA.push(CX.entryFor(GS.shiftKey(alignStart, cj)).id);
+    cycleB.push(CX.entryFor(GS.shiftKey(alignStart, cj + CX.count)).id);
+  }
+  chk('the next cycle is a different order', cycleA.join() !== cycleB.join(), 'true');
+  chk('  but covers the same set',
+    cycleA.slice().sort().join() === cycleB.slice().sort().join(), 'true');
+
+  // and across cycle seams, the same entry never lands two days running
+  var sameTwice = 0, prevId = null;
+  for (var si = 0; si < CX.count * 6; si++) {
+    var sid = CX.entryFor(GS.shiftKey('2026-01-01', si)).id;
+    if (sid === prevId) sameTwice++;
+    prevId = sid;
+  }
+  chk('never the same entry two days running (6 cycles)', sameTwice, 0);
+
+  // reading the codex must not write anything
+  var cxBefore = localStorage.getItem('icisGameStateV2');
+  CX.today(); CX.tomorrow(); CX.entryFor('2027-03-03'); CX.today();
+  chk('reading the codex writes nothing', localStorage.getItem('icisGameStateV2') === cxBefore, 'true');
+
+  // saving is user-initiated and does persist
+  var cxFirst = CX.ENTRIES[0].id;
+  chk('not saved to begin with', CX.isSaved(cxFirst), 'false');
+  CX.toggleSave(cxFirst);
+  chk('save persists', CX.isSaved(cxFirst), 'true');
+  chk('  and reaches storage',
+    (JSON.parse(localStorage.getItem('icisGameStateV2')).codexSaved || []).indexOf(cxFirst) !== -1, 'true');
+  CX.toggleSave(cxFirst);
+  chk('unsave persists', CX.isSaved(cxFirst), 'false');
 
   // =============================================================
   // STALE SYNC WRITES must not undo what you just did.

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Codex</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="hero-art.js"></script>
+<script src="ui-kit.js"></script>
+<script src="codex.js"></script>
+<style>
+.filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.pill { border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:6px 11px;
+  color:var(--text-3); font:inherit; font-size:11.5px; font-weight:650; cursor:pointer; }
+.pill.on { border-color:rgba(233,190,110,.5); color:var(--gold); background:rgba(233,190,110,.1); }
+
+.entry { padding:17px 19px; margin-bottom:10px; }
+.entry.is-today { border-color:rgba(233,190,110,.42);
+  background:radial-gradient(circle at 92% 0%, rgba(233,190,110,.10), transparent 60%), var(--panel); }
+.e-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.e-theme { font-size:9.5px; font-weight:700; letter-spacing:.15em; text-transform:uppercase; color:var(--gold); }
+.e-title { font-size:16px; font-weight:700; color:var(--text); letter-spacing:-.015em; margin:6px 0 8px; line-height:1.3; }
+.e-text { font-size:14px; line-height:1.65; color:var(--text-2); }
+.e-foot { display:flex; gap:8px; align-items:center; margin-top:12px; }
+.savebtn { border:1px solid var(--line); background:transparent; color:var(--text-3); border-radius:9px;
+  padding:5px 10px; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+.savebtn.on { border-color:rgba(233,190,110,.5); color:var(--gold); background:rgba(233,190,110,.1); }
+@media (max-width:460px){ .entry { padding:15px; } .e-text { font-size:13.5px; } }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div style="margin-bottom:14px">
+    <div class="lore">Codex</div>
+    <h1 class="h1">Things worth re-reading</h1>
+    <div class="sub" id="sub"></div>
+  </div>
+
+  <div class="sec"><span class="sec-t">Today</span><span class="sec-m" id="todayMeta"></span></div>
+  <section id="todayCard"></section>
+
+  <div class="sec"><span class="sec-t">All Entries</span><span class="sec-m" id="allMeta"></span></div>
+  <div class="filters" id="filters"></div>
+  <div id="list"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, UI = window.UI, CX = window.Codex;
+  var $ = function (id) { return document.getElementById(id); };
+  var filter = 'all';
+
+  CX.injectCss();
+
+  var todayEntry = CX.today();
+  $('sub').textContent =
+    'One passage a day, chosen by the date. Every entry appears once before any repeats, ' +
+    'so the order is different each time round.';
+  $('todayMeta').textContent = todayEntry.dayOfCycle + ' of ' + todayEntry.cycleLength;
+
+  function renderToday() {
+    var el = $('todayCard');
+    el.className = 'card ornate cx';
+    el.innerHTML = CX.cardHtml(CX.today(), { noActions: true }) +
+      '<div class="e-foot">' +
+        '<button class="savebtn' + (CX.isSaved(todayEntry.id) ? ' on' : '') + '" data-save="' +
+          UI.esc(todayEntry.id) + '">' + (CX.isSaved(todayEntry.id) ? 'Saved' : 'Save') + '</button>' +
+      '</div>';
+  }
+
+  function renderList() {
+    var themes = ['all', 'saved'].concat(CX.themes);
+    $('filters').innerHTML = themes.map(function (t) {
+      var n = t === 'all' ? CX.count
+            : t === 'saved' ? CX.saved().length
+            : CX.ENTRIES.filter(function (e) { return e.theme === t; }).length;
+      return '<button class="pill' + (filter === t ? ' on' : '') + '" data-filter="' +
+        UI.esc(t) + '">' + UI.esc(t) + ' ' + n + '</button>';
+    }).join('');
+
+    var shown = CX.ENTRIES.filter(function (e) {
+      if (filter === 'all') return true;
+      if (filter === 'saved') return CX.isSaved(e.id);
+      return e.theme === filter;
+    });
+
+    $('list').innerHTML = shown.length ? shown.map(function (e) {
+      var isToday = e.id === todayEntry.id;
+      return '<section class="card entry' + (isToday ? ' is-today' : '') + '">' +
+        '<div class="e-head">' +
+          '<span class="e-theme">' + UI.esc(e.theme) + (isToday ? ' · today' : '') + '</span>' +
+        '</div>' +
+        '<div class="e-title">' + UI.esc(e.title) + '</div>' +
+        '<div class="e-text">' + UI.esc(e.text) + '</div>' +
+        '<div class="e-foot">' +
+          '<button class="savebtn' + (CX.isSaved(e.id) ? ' on' : '') + '" data-save="' +
+            UI.esc(e.id) + '">' + (CX.isSaved(e.id) ? 'Saved' : 'Save') + '</button>' +
+        '</div>' +
+      '</section>';
+    }).join('') : '<div class="card empty">Nothing saved yet. Use Save on an entry you want to keep.</div>';
+
+    $('allMeta').textContent = shown.length + ' of ' + CX.count;
+  }
+
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-filter]');
+    if (f) { filter = f.getAttribute('data-filter'); renderList(); return; }
+    var s = e.target.closest('[data-save]');
+    if (s) { CX.toggleSave(s.getAttribute('data-save')); renderToday(); renderList(); }
+  });
+
+  renderToday();
+  renderList();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'icis', syncedKeys: [GS.KEY],
+      onApplied: function () {
+        if (GS.onRemoteApplied() === 'adopted' && !UI.isTyping()) { renderToday(); renderList(); }
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

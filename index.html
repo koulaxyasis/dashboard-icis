@@ -16,6 +16,7 @@
 <script src="hero-art.js"></script>
 <script src="ui-kit.js"></script>
 <script src="quest-ui.js"></script>
+<script src="codex.js"></script>
 <script src="nova.js"></script>
 <style>
 /* ---- hero banner ---- */
@@ -101,6 +102,10 @@
 
   <!-- 9 — Nova -->
   <div id="novaMount" style="margin-top:10px"></div>
+
+  <!-- Codex: one long-form passage a day, derived from the date -->
+  <div class="sec"><span class="sec-t">Codex</span><span class="sec-m" id="cxMeta">changes daily</span></div>
+  <section id="codexCard"></section>
 
   <!-- 3,4 — Main Story + Continue Quest -->
   <div class="sec"><span class="sec-t">Main Story</span><span class="sec-m" id="storyMeta"></span></div>
@@ -404,6 +409,10 @@
   /* ---------- boot ---------- */
   renderAll();
   if (window.Nova) window.Nova.mount('novaMount', { respectDismiss: true });
+  if (window.Codex) {
+    window.Codex.mount('codexCard');
+    $('cxMeta').textContent = window.Codex.count + ' entries · changes daily';
+  }
   document.addEventListener('icis:update', renderBanner);
 
   document.addEventListener('DOMContentLoaded', function () {
