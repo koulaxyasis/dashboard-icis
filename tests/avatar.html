@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+})();
+</script>
+<title>avatar preview</title>
+<script src="../game-state.js"></script>
+<script src="../hero-art.js"></script>
+<style>
+  body { margin:0; background:#0B0E1A; color:#AFB4C6;
+         font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:22px; }
+  h2 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#E9BE6E; margin:22px 0 10px; }
+  .row { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; }
+  .cell { text-align:center; }
+  .cap { margin-top:7px; font-size:11px; color:#767D95; }
+</style>
+</head>
+<body>
+<!-- Renders every palette at the sizes the app actually uses, so the
+     avatar can be eyeballed at small sizes rather than only at 120px. -->
+<h2>Palettes at 120</h2>
+<div class="row" id="big"></div>
+<h2>Sizes (aurora)</h2>
+<div class="row" id="sizes"></div>
+<h2>With border + tool + companion</h2>
+<div class="row" id="equipped"></div>
+<script>
+var HA = window.HeroArt;
+var st = document.createElement('style'); st.textContent = HA.CSS; document.head.appendChild(st);
+
+document.getElementById('big').innerHTML = Object.keys(HA.PALETTES).map(function (k) {
+  return '<div class="cell">' + HA.framed({ portrait:k, size:120 }) +
+         '<div class="cap">' + k + '</div></div>';
+}).join('');
+
+document.getElementById('sizes').innerHTML = [44, 64, 84, 120].map(function (s) {
+  return '<div class="cell">' + HA.framed({ portrait:'aurora', size:s }) +
+         '<div class="cap">' + s + 'px</div></div>';
+}).join('');
+
+document.getElementById('equipped').innerHTML = [
+  { portrait:'ember',   border:'border_emberwrought', tool:'modelblade', companion:'fox'  },
+  { portrait:'verdant', border:'border_verdant',      tool:'terminal',   companion:'owl'  },
+  { portrait:'dusk',    border:'border_sovereign',    tool:'crown',      companion:'sprite' }
+].map(function (o) {
+  o.size = 108;
+  return '<div class="cell">' + HA.framed(o) + '<div class="cap">' + o.portrait + '</div></div>';
+}).join('');
+</script>
+</body></html>

@@ -1,18 +1,30 @@
 // =============================================================
-// ICIS — hero portrait. Original anime-inspired SVG, drawn from
-// primitives so there is no image asset and no generative service.
+// ICIS — hero portrait: an armoured knight, drawn as original SVG
+// from primitives so there is no image asset and no generative
+// service. Matches the app icon's helm.
 //
-// Four palettes ("portraits") and five frame borders make it
-// customisable without needing artwork per combination.
+// Four palettes and seven frame borders make it customisable without
+// needing artwork per combination. The palette KEYS are unchanged
+// (aurora / ember / verdant / dusk), so an existing saved choice
+// still resolves — only what they render changed.
+//
+// Nova keeps her own separate look on purpose: you are the knight,
+// she is the spirit, and they should not read as the same character.
 // =============================================================
 (function () {
   'use strict';
 
+  // metal1/2/3 = highlight, midtone, shadow. `glow` lights the visor,
+  // which is what stops an empty helm looking lifeless.
   var PALETTES = {
-    aurora:  { hair1:'#CFE4FF', hair2:'#6E9BE0', hair3:'#38548F', cloak1:'#1E2A4A', cloak2:'#141C33', trim:'#E9BE6E' },
-    ember:   { hair1:'#FFD9BC', hair2:'#E28457', hair3:'#8E4324', cloak1:'#3A2018', cloak2:'#221310', trim:'#F0A868' },
-    verdant: { hair1:'#D6F2D8', hair2:'#69B583', hair3:'#2F6B4A', cloak1:'#16301F', cloak2:'#0E2016', trim:'#6BE3A4' },
-    dusk:    { hair1:'#E4D4FF', hair2:'#9B7DE0', hair3:'#523A8E', cloak1:'#271E44', cloak2:'#17112B', trim:'#A78BFA' }
+    aurora:  { metal1:'#EDF3FF', metal2:'#9FB2D0', metal3:'#46587C',
+               cloak1:'#1E2A4A', cloak2:'#131B31', trim:'#E9BE6E', glow:'#A8D4FF' },
+    ember:   { metal1:'#FFE7CF', metal2:'#D89A66', metal3:'#7A4520',
+               cloak1:'#3A2018', cloak2:'#20120E', trim:'#F0A868', glow:'#FFB673' },
+    verdant: { metal1:'#E4F6E9', metal2:'#8FC3A2', metal3:'#37684E',
+               cloak1:'#16301F', cloak2:'#0D1E14', trim:'#6BE3A4', glow:'#93FFC4' },
+    dusk:    { metal1:'#F0E6FF', metal2:'#B39CE0', metal3:'#584490',
+               cloak1:'#271E44', cloak2:'#161028', trim:'#A78BFA', glow:'#CBB5FF' }
   };
 
   var BORDERS = {
@@ -82,8 +94,8 @@
     return owned.indexOf(req) !== -1;
   }
 
-  // The portrait is deliberately calm: a three-quarter bust, no
-  // expression changes (that is Nova's job), readable at 44px.
+  // Deliberately still: a helmed bust with no expression changes (that
+  // is Nova's job), and heavy enough shapes to stay readable at 44px.
   function portrait(opts) {
     opts = opts || {};
     var p = PALETTES[opts.portrait] || PALETTES.aurora;
@@ -92,42 +104,71 @@
     var uid = 'h' + Math.random().toString(36).slice(2, 8);
 
     return '' +
-'<svg viewBox="0 0 200 200" width="' + size + '" height="' + size + '" role="img" aria-label="Your hero portrait">' +
+'<svg viewBox="0 0 200 200" width="' + size + '" height="' + size + '" role="img" aria-label="Your knight">' +
   '<defs>' +
     '<linearGradient id="bg' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="' + bg.a + '"/><stop offset="100%" stop-color="' + bg.b + '"/></linearGradient>' +
-    '<linearGradient id="hr' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="' + p.hair1 + '"/><stop offset="55%" stop-color="' + p.hair2 + '"/>' +
-      '<stop offset="100%" stop-color="' + p.hair3 + '"/></linearGradient>' +
-    '<linearGradient id="sk' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="#FFE7D6"/><stop offset="100%" stop-color="#EFC4A6"/></linearGradient>' +
+    // plate: lit from the upper left, shadowed lower right
+    '<linearGradient id="mt' + uid + '" x1="0.15" y1="0" x2="0.8" y2="1">' +
+      '<stop offset="0%" stop-color="' + p.metal1 + '"/>' +
+      '<stop offset="42%" stop-color="' + p.metal2 + '"/>' +
+      '<stop offset="100%" stop-color="' + p.metal3 + '"/></linearGradient>' +
+    '<linearGradient id="mt2' + uid + '" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="' + p.metal2 + '"/>' +
+      '<stop offset="100%" stop-color="' + p.metal3 + '"/></linearGradient>' +
     '<linearGradient id="cl' + uid + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0%" stop-color="' + p.cloak1 + '"/><stop offset="100%" stop-color="' + p.cloak2 + '"/></linearGradient>' +
+      '<stop offset="0%" stop-color="' + p.cloak1 + '"/>' +
+      '<stop offset="100%" stop-color="' + p.cloak2 + '"/></linearGradient>' +
+    '<radialGradient id="gl' + uid + '" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="0%" stop-color="' + p.glow + '" stop-opacity=".95"/>' +
+      '<stop offset="100%" stop-color="' + p.glow + '" stop-opacity="0"/></radialGradient>' +
     '<clipPath id="cp' + uid + '"><circle cx="100" cy="100" r="96"/></clipPath>' +
   '</defs>' +
   '<g clip-path="url(#cp' + uid + ')">' +
     '<rect width="200" height="200" fill="url(#bg' + uid + ')"/>' +
     // faint heraldic rays
-    '<g opacity=".16" stroke="' + p.trim + '" stroke-width="1.4">' +
-      '<path d="M100 200V96M100 96l72 46M100 96L28 142M100 96l54-52M100 96L46 44"/></g>' +
-    // shoulders
-    '<path d="M36 200c0-32 28-50 64-50s64 18 64 50z" fill="url(#cl' + uid + ')"/>' +
-    '<path d="M64 200c4-20 16-32 36-32s32 12 36 32z" fill="' + p.trim + '" opacity=".16"/>' +
-    // collar gem
-    '<path d="M100 156l-11 15 11 11 11-11z" fill="' + p.trim + '"/>' +
-    // hair (back)
-    '<path d="M100 26c-33 0-51 23-51 53 0 22 5 33 3 47l-11 18c20-6 28-14 28-14s-6-30-6-47c0-21 14-33 37-33s37 12 37 33c0 17-6 47-6 47s8 8 28 14l-11-18c-2-14 3-25 3-47 0-30-18-53-51-53z" fill="url(#hr' + uid + ')"/>' +
-    // face
-    '<ellipse cx="100" cy="96" rx="34" ry="38" fill="url(#sk' + uid + ')"/>' +
-    // fringe
-    '<path d="M66 90c0-25 15-38 34-38s34 13 34 38c-6-13-15-21-21-17-8 5-13 3-19-2-8-6-21 4-28 19z" fill="url(#hr' + uid + ')"/>' +
-    // eyes + brows, fixed calm expression
-    '<g fill="#2A2440">' +
-      '<ellipse cx="88" cy="97" rx="5.4" ry="6.6"/><ellipse cx="112" cy="97" rx="5.4" ry="6.6"/></g>' +
-    '<circle cx="86.2" cy="94.6" r="1.8" fill="#fff" opacity=".9"/>' +
-    '<circle cx="110.2" cy="94.6" r="1.8" fill="#fff" opacity=".9"/>' +
-    '<g fill="none" stroke="#2A2440" stroke-width="2.4" stroke-linecap="round">' +
-      '<path d="M81 86h13M106 86h13"/><path d="M96 113q4 3 8 0"/></g>' +
+    '<g opacity=".14" stroke="' + p.trim + '" stroke-width="1.6">' +
+      '<path d="M100 200V104M100 104l70 44M100 104L30 148M100 104l54-52M100 104L46 52"/></g>' +
+
+    // ---- cloak behind the shoulders ----
+    '<path d="M24 200c0-34 22-56 50-64l26 12 26-12c28 8 50 30 50 64z" fill="url(#cl' + uid + ')"/>' +
+
+    // ---- pauldrons ----
+    '<path d="M22 200c0-26 12-44 32-52 10 12 14 32 13 52z" fill="url(#mt2' + uid + ')" ' +
+      'stroke="' + p.metal1 + '" stroke-opacity=".35" stroke-width="1.6"/>' +
+    '<path d="M178 200c0-26-12-44-32-52-10 12-14 32-13 52z" fill="url(#mt2' + uid + ')" ' +
+      'stroke="' + p.metal1 + '" stroke-opacity=".35" stroke-width="1.6"/>' +
+    // pauldron lames
+    '<g fill="none" stroke="' + p.metal3 + '" stroke-opacity=".55" stroke-width="1.6">' +
+      '<path d="M30 176c10-3 21-3 32-1M34 162c8-3 17-3 26-2M170 176c-10-3-21-3-32-1M166 162c-8-3-17-3-26-2"/></g>' +
+
+    // ---- breastplate + gorget ----
+    '<path d="M72 152h56l6 48H66z" fill="url(#mt' + uid + ')"/>' +
+    '<path d="M100 163l11 4v10c0 8-5 14-11 17-6-3-11-9-11-17v-10z" ' +
+      'fill="' + p.trim + '" opacity=".9"/>' +
+    '<path d="M100 170v14" stroke="' + p.cloak2 + '" stroke-opacity=".5" stroke-width="2"/>' +
+    '<path d="M74 150c8 7 16 10 26 10s18-3 26-10l3 10c-9 8-18 12-29 12s-20-4-29-12z" ' +
+      'fill="url(#mt2' + uid + ')" stroke="' + p.metal1 + '" stroke-opacity=".3" stroke-width="1.4"/>' +
+
+    // ---- helm ----
+    '<path d="M67 78a33 33 0 0 1 66 0v26c0 16-8 28-20 34l-13 7-13-7c-12-6-20-18-20-34z" ' +
+      'fill="url(#mt' + uid + ')" stroke="' + p.metal1 + '" stroke-opacity=".45" stroke-width="1.8" ' +
+      'stroke-linejoin="round"/>' +
+    // centre ridge
+    '<path d="M100 45c-6 0-11 1-16 3v90l16 8 16-8V48c-5-2-10-3-16-3z" fill="' + p.metal1 + '" opacity=".14"/>' +
+    // brow bevel
+    '<path d="M70 76c9-6 19-9 30-9s21 3 30 9" fill="none" stroke="' + p.metal3 + '" ' +
+      'stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round"/>' +
+    // visor slit, with the glow that gives it life
+    '<ellipse cx="100" cy="90" rx="30" ry="11" fill="url(#gl' + uid + ')" opacity=".55"/>' +
+    '<rect x="76" y="85" width="48" height="10" rx="5" fill="#070A12" fill-opacity=".92"/>' +
+    '<rect x="82" y="88" width="14" height="4" rx="2" fill="' + p.glow + '" opacity=".9"/>' +
+    '<rect x="104" y="88" width="14" height="4" rx="2" fill="' + p.glow + '" opacity=".9"/>' +
+    // breaths
+    '<g fill="#070A12" fill-opacity=".8">' +
+      '<rect x="88" y="106" width="6" height="18" rx="3"/>' +
+      '<rect x="97" y="107" width="6" height="19" rx="3"/>' +
+      '<rect x="106" y="106" width="6" height="18" rx="3"/></g>' +
   '</g>' +
 '</svg>';
   }
