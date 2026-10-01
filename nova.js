@@ -9,7 +9,7 @@
 // Priority order (first match wins within a tier):
 //   1 urgent deadline within 3 days
 //   2 overdue career or project task
-//   3 unfinished Main Story quest
+//   3 the next Main Story milestone
 //   4 daily quests close to completion
 //   5 neglected career skill
 //   6 upcoming social plan
@@ -114,7 +114,6 @@
     var QE = window.QuestEngine;
 
     var qv = QE ? QE.todayView() : { list: [], done: 0, total: 0 };
-    var mainQuest = qv.list.filter(function (q) { return q.slot === 'main'; })[0] || null;
 
     var deadlines = CD ? CD.upcomingDeadlines(s, 3) : [];
     var mission = CD ? CD.currentMission(s) : null;
@@ -192,7 +191,7 @@
       s: s, t: t, today: today, hour: hour,
       morning: hour >= 5 && hour < 12, afternoon: hour >= 12 && hour < 18,
       evening: hour >= 18 && hour < 23, night: hour >= 23 || hour < 5,
-      quests: qv, mainQuest: mainQuest,
+      quests: qv,
       questsDone: qv.done, questsTotal: qv.total,
       deadline: deadlines[0] || null,
       mission: mission,
@@ -254,15 +253,17 @@
       msg: function (c) { return 'A task on ' + (c.overdueProject ? c.overdueProject.name : 'one of your projects') + ' is overdue. It is usually smaller than it looks.'; } },
 
     // --- 3. Main Story quest -------------------------------------
-    { id: 'main_pinned', tier: 3, expr: 'focused', act: A.quests,
-      when: function (c) { return c.mainQuest && !c.mainQuest.done && c.mainQuest.pinned; },
-      msg: function (c) { return 'Deadline pressure has set your Main Story quest: "' + c.mainQuest.practicalTitle + '".'; } },
-    { id: 'main_open', tier: 3, expr: 'neutral', act: A.quests,
-      when: function (c) { return c.mainQuest && !c.mainQuest.done; },
-      msg: function (c) { return 'Your Main Story quest is "' + c.mainQuest.practicalTitle + '". Start with one small step.'; } },
-    { id: 'main_morning', tier: 3, expr: 'pleased', act: A.quests,
-      when: function (c) { return c.mainQuest && !c.mainQuest.done && c.morning; },
-      msg: function (c) { return 'Morning is the cheapest time to move the Main Story. "' + c.mainQuest.practicalTitle + '" is waiting.'; } },
+    // The daily board no longer carries career work, so the Main Story
+    // tier points at the campaign milestone itself.
+    { id: 'main_morning', tier: 3, expr: 'pleased', act: A.career,
+      when: function (c) { return c.mission && c.mission.milestone && c.morning; },
+      msg: function (c) { return 'Morning is the cheapest time to move the Main Story. Next: ' + c.mission.milestone.name + '.'; } },
+    { id: 'main_open', tier: 3, expr: 'neutral', act: A.career,
+      when: function (c) { return c.mission && c.mission.milestone; },
+      msg: function (c) { return 'Your next Main Story milestone is "' + c.mission.milestone.name + '". Write yourself one quest toward it.'; } },
+    { id: 'main_none', tier: 3, expr: 'focused', act: A.quests,
+      when: function (c) { return c.mission && !c.mission.milestone; },
+      msg: function () { return 'The current chapter is complete. Open the Career Guild and start the next one.'; } },
 
     // --- 4. Daily quests close to done ---------------------------
     { id: 'q_one_left', tier: 4, expr: 'pleased', act: A.quests,

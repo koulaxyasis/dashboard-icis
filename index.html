@@ -212,7 +212,8 @@
     var s = GS.get();
     var m = CD.currentMission(s);
     var qv = QE.todayView();
-    var mainQ = qv.list.filter(function (q) { return q.slot === 'main'; })[0];
+    // Career is no longer dealt onto the daily board, so the Main Story
+    // chip shows the next campaign milestone rather than a quest.
     var dl = m.progress.deadline;
     var days = dl ? GS.daysBetween(GS.todayKey(), dl) : null;
 
@@ -225,7 +226,7 @@
         '<span class="chip on">' + m.progress.pct + '% complete</span>' +
         (days != null ? '<span class="chip ' + (days < 0 ? 'bad' : days <= 3 ? 'on' : '') + '">' +
           (days < 0 ? 'overdue' : 'due in ' + days + 'd') + '</span>' : '') +
-        (mainQ ? '<span class="chip' + (mainQ.done ? ' ok' : '') + '">today: ' + UI.esc(mainQ.practicalTitle) + '</span>' : '') +
+        (m.milestone ? '<span class="chip">next: ' + UI.esc(m.milestone.name) + '</span>' : '') +
       '</div>' +
       '<div class="story-cta">' +
         '<a class="btn gold" href="career.html">Continue Quest ' + UI.icon('arrow', 15) + '</a>' +

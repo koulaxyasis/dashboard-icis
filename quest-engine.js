@@ -13,14 +13,16 @@
 // Local midnight. `GameState.todayKey()` is the only clock.
 //
 // ---- Slots ----------------------------------------------------
-//   1  main    Main Story quest from the active career chapter
-//   2  career  Rotating career / skill development
+//   1  habit   A trivial daily habit
+//   2  habit   Another trivial daily habit
 //   3  body    Fitness, health or recovery
 //   4  social  Social / fellowship
 //   5  flex    Whatever life category has been most neglected
 //
-// A career deadline inside `DEADLINE_WINDOW` days overrides slot 1
-// and pins it to that chapter.
+// CAREER AND ACADEMIC WORK IS NOT DEALT OUT HERE. Those are written by
+// hand — in My Quests for a one-off, or as a custom template in the
+// Quest Editor. The automated board carries the small repeatable things
+// so it never competes with the real work on the career page.
 // =============================================================
 (function () {
   'use strict';
@@ -28,11 +30,19 @@
   var GS = window.GameState;
   var LIB = window.QuestLibrary;
 
-  var DEADLINE_WINDOW = 3;      // days — a deadline this close takes over slot 1
   var NO_REPEAT_DAYS = 7;       // spec: no repeats within 7 days …
   var REPEATABLE_CD = 2;        // … unless the template is explicitly short-cooldown
   var HISTORY_LIMIT = 120;      // days of quest history to keep
   var NEGLECT_WINDOW = 14;      // days used to measure category neglect
+
+  // The only categories the generator may draw from. 'career' is absent
+  // on purpose: career and academic quests are written by hand, not
+  // dealt out. eligible() enforces this, so a new slot cannot bypass it.
+  var AUTO_CATEGORIES = ['habit', 'fitness', 'recovery', 'social', 'finance', 'recreation'];
+
+  // The flex slot draws from everything except habits, which already have
+  // two dedicated slots of their own.
+  var FLEX_CATEGORIES = ['finance', 'recreation', 'recovery', 'fitness', 'social'];
 
   var MODES = {
     light:     { label: 'Light',     minutes: 60,  note: 'A quieter day. Still counts.' },
@@ -93,7 +103,8 @@
   var DIFFICULTIES = ['light', 'normal', 'hard'];
   var DISCIPLINE_FOR = {
     career: 'career', social: 'fellowship', fitness: 'might',
-    finance: 'fortune', recovery: 'vitality', recreation: 'vitality'
+    finance: 'fortune', recovery: 'vitality', recreation: 'vitality',
+    habit: 'resolve'
   };
 
   // Returns { ok, errors: {field: message}, value } — the UI renders the
@@ -309,6 +320,7 @@
 
   function eligible(q, ctx) {
     if (!q.active) return false;
+    if (AUTO_CATEGORIES.indexOf(q.category) === -1) return false;
     if (q.minimumLevel > ctx.level) return false;
     if (q.weekendOnly && !ctx.weekend) return false;
     if (q.weekdayOnly && ctx.weekend) return false;
@@ -345,8 +357,6 @@
 
     var weights = candidates.map(function (q) {
       var w = (q.weight || 1) * (ctx.neglect[q.category] || 1);
-      // Nudge toward the active chapter's subject matter.
-      if (ctx.chapterTags && q.tags.some(function (t) { return ctx.chapterTags.indexOf(t) !== -1; })) w *= 2.2;
       return w;
     });
     var total = weights.reduce(function (a, b) { return a + b; }, 0);
@@ -376,9 +386,6 @@
     var t = GS.totals();
     var idx = usageIndex(s);
     var lib = library();
-    var mission = window.CareerData.currentMission(s);
-    var deadlines = window.CareerData.upcomingDeadlines(s, DEADLINE_WINDOW);
-    var urgent = deadlines[0] || null;
 
     var ctx = {
       date: dateKey,
@@ -387,53 +394,47 @@
       idx: idx,
       taken: {}, takenSub: {},
       remaining: (MODES[mode] || MODES.normal).minutes,
-      neglect: neglectWeights(s, dateKey, idx),
-      chapterTags: (urgent ? urgent.chapter.questTags : (mission.chapter ? mission.chapter.questTags : []))
+      neglect: neglectWeights(s, dateKey, idx)
     };
     var rng = mulberry32(hashStr(dateKey + '|' + salt() + '|' + (rerollSeed || 0)));
     var out = [];
 
-    // --- Slot 1: Main Story. A live deadline outranks the normal pick.
-    var storyTags = ctx.chapterTags || [];
-    var storyPool = lib.filter(function (q) {
-      return q.category === 'career' &&
-             q.tags.some(function (tag) { return storyTags.indexOf(tag) !== -1; }) &&
-             eligible(q, ctx);
-    });
-    // If the chapter's own quests are all on cooldown, relax to any career quest.
-    if (!storyPool.length) {
-      storyPool = lib.filter(function (q) { return q.category === 'career' && eligible(q, ctx); });
+    // Career and academic work is deliberately NOT drawn here. Those are
+    // yours to write — in My Quests for a one-off, or as a custom
+    // template in the Quest Editor. The automated board exists to carry
+    // the small, repeatable things so the career page can hold the real
+    // work without competing with it.
+    function poolOf(cats) {
+      return lib.filter(function (q) {
+        return cats.indexOf(q.category) !== -1 && eligible(q, ctx);
+      });
     }
-    var main = pick(storyPool, ctx, rng);
-    out.push(take(ctx, main, 'main', {
-      pinned: !!urgent,
-      chapterId: (urgent ? urgent.chapter.id : (mission.chapter ? mission.chapter.id : '')),
-      reason: urgent
-        ? (urgent.overdue ? 'Overdue: ' + urgent.chapter.name : 'Deadline in ' + urgent.days + 'd: ' + urgent.chapter.name)
-        : 'Main Story · ' + (mission.chapter ? mission.chapter.name : 'Career')
-    }));
 
-    // --- Slot 2: rotating career / skill.
-    var careerPool = lib.filter(function (q) { return q.category === 'career' && eligible(q, ctx); });
-    out.push(take(ctx, pick(careerPool, ctx, rng), 'career', { reason: 'Skill development' }));
+    // --- Slots 1 and 2: trivial daily habits.
+    out.push(take(ctx, pick(poolOf(['habit']), ctx, rng), 'habit', { reason: 'Daily habit' }));
+    out.push(take(ctx, pick(poolOf(['habit']), ctx, rng), 'habit', { reason: 'Daily habit' }));
 
     // --- Slot 3: body — fitness, health or recovery.
-    var bodyPool = lib.filter(function (q) {
-      return (q.category === 'fitness' || q.category === 'recovery') && eligible(q, ctx);
-    });
-    out.push(take(ctx, pick(bodyPool, ctx, rng), 'body', { reason: 'Body & recovery' }));
+    out.push(take(ctx, pick(poolOf(['fitness', 'recovery']), ctx, rng), 'body', { reason: 'Body & recovery' }));
 
     // --- Slot 4: social.
-    var socialPool = lib.filter(function (q) { return q.category === 'social' && eligible(q, ctx); });
-    out.push(take(ctx, pick(socialPool, ctx, rng), 'social', { reason: 'Fellowship' }));
+    out.push(take(ctx, pick(poolOf(['social']), ctx, rng), 'social', { reason: 'Fellowship' }));
 
     // --- Slot 5: flexible — whichever life category is most neglected.
-    var flexCats = ['finance', 'recovery', 'recreation', 'social', 'fitness'];
+    // Habits are excluded here because slots 1 and 2 already cover them;
+    // this slot exists to surface the corners that otherwise never come
+    // up. Ties are broken by a seeded shuffle BEFORE sorting, because
+    // with no completion history every category scores identically and a
+    // plain sort would hand this slot to the same category every day.
+    var flexCats = FLEX_CATEGORIES.slice();
+    for (var fi = flexCats.length - 1; fi > 0; fi--) {
+      var fj = Math.floor(rng() * (fi + 1));
+      var ft = flexCats[fi]; flexCats[fi] = flexCats[fj]; flexCats[fj] = ft;
+    }
     flexCats.sort(function (a, b) { return (ctx.neglect[b] || 1) - (ctx.neglect[a] || 1); });
     var flex = null;
     for (var i = 0; i < flexCats.length && !flex; i++) {
-      var pool = lib.filter(function (q) { return q.category === flexCats[i] && eligible(q, ctx); });
-      flex = pick(pool, ctx, rng);
+      flex = pick(poolOf([flexCats[i]]), ctx, rng);
     }
     out.push(take(ctx, flex, 'flex', { reason: 'Life balance' }));
 
@@ -666,7 +667,17 @@
       return inWeek(GS.dateKey(new Date(Number(h.t) || 0)));
     });
 
-    var questsDone = 0, careerDone = 0, socialDone = 0;
+    // Career milestones ticked on the Career Guild page this week. Career
+    // quests are hand-written now, so counting quest completions would
+    // make this contract impossible rather than merely hard.
+    var careerMilestones = 0;
+    Object.keys(s.ledger).forEach(function (k) {
+      if (k.indexOf('career:') !== 0 || k.indexOf(':complete') !== -1) return;
+      var e = s.ledger[k];
+      if (e && e.at && inWeek(GS.dateKey(new Date(e.at)))) careerMilestones++;
+    });
+
+    var questsDone = 0, socialDone = 0;
     week.forEach(function (d) {
       var day = d === (s.quests && s.quests.date) ? { list: s.quests.list } : s.questHistory[d];
       if (!day || !Array.isArray(day.list)) return;
@@ -674,14 +685,13 @@
         if (!q.done) return;
         questsDone++;
         var cat = q.category || (LIB.byId[q.id] && LIB.byId[q.id].category);
-        if (cat === 'career') careerDone++;
         if (cat === 'social') socialDone++;
       });
     });
 
     var defs = [
       { id: 'w_quests',  lore: 'The Long Watch',   name: 'Complete 20 quests',        have: questsDone, need: 20, xp: 300, disc: 'resolve' },
-      { id: 'w_career',  lore: 'Guild Commission', name: 'Complete 7 career quests',  have: careerDone, need: 7,  xp: 280, disc: 'career' },
+      { id: 'w_career',  lore: 'Guild Commission', name: 'Clear 2 career milestones', have: careerMilestones, need: 2, xp: 280, disc: 'career' },
       { id: 'w_train',   lore: 'Forge Week',       name: 'Train on 4 days',           have: trained,    need: 4,  xp: 220, disc: 'might' },
       { id: 'w_perfect', lore: 'Unbroken',         name: '5 days with every goal kept', have: perfect,  need: 5,  xp: 260, disc: 'resolve' },
       { id: 'w_water',   lore: 'Well of Vigour',   name: 'Hit water target on 5 days', have: hydrated,  need: 5,  xp: 180, disc: 'vitality' },
@@ -716,6 +726,7 @@
 
   window.QuestEngine = {
     MODES: MODES,
+    AUTO_CATEGORIES: AUTO_CATEGORIES,
     contracts: contracts,
     library: library,
     byId: byId,

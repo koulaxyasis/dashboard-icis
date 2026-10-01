@@ -1,12 +1,18 @@
 // =============================================================
-// ICIS — quest library. 100 reusable templates.
+// ICIS — quest library. 118 reusable templates.
 //
-//   40  career & learning        (category: 'career')
+//   18  trivial daily habits     (category: 'habit')
 //   20  social & fellowship      (category: 'social')
 //   15  fitness & health         (category: 'fitness')
-//   10  personal finance & admin (category: 'finance')
 //   10  recovery & household     (category: 'recovery')
+//   10  personal finance & admin (category: 'finance')
 //    5  recreation & exploration (category: 'recreation')
+//   40  career & learning        (category: 'career')
+//
+// The automated daily board draws ONLY from the first six. The career
+// set is kept as a written reference and is never dealt out — career
+// and academic quests are written by hand. See AUTO_CATEGORIES in
+// quest-engine.js, which enforces that.
 //
 // `t()` fills in the defaults so every template carries the full
 // schema even when a definition only states what is unusual about it.
@@ -41,7 +47,8 @@
       active: o.active !== false,
       weight: o.w != null ? o.w : 1,
       discipline: o.disc || ({ career: 'career', social: 'fellowship', fitness: 'might',
-                              finance: 'fortune', recovery: 'vitality', recreation: 'vitality' }[o.c])
+                              finance: 'fortune', recovery: 'vitality', recreation: 'vitality',
+                              habit: 'resolve' }[o.c])
     };
   }
 
@@ -129,6 +136,50 @@
         d:'Pick a likely question and write a structured answer out loud.', diff:'normal', min:25, cd:4, tags:['interview'] }),
     t({ id:'c_portfolio_publish', c:'career', s:'portfolio', p:'Publish or update a portfolio project', l:'Raise the Standard',
         d:'Push a project somewhere a recruiter could actually see it.', diff:'hard', min:60, cd:7, tags:['portfolio'] }),
+
+
+    // ---------------------------------------------------------------
+    // TRIVIAL DAILY HABITS — 18
+    // Small enough to do without negotiating with yourself. These are
+    // the backbone of the automated board; anything that needs real
+    // focus belongs in your own hand-written quests instead.
+    // ---------------------------------------------------------------
+    t({ id:'h_bed', c:'habit', p:'Make your bed', l:'Set the Camp in Order',
+        d:'Two minutes, first thing. The day starts with one thing already done.', diff:'light', min:2, cd:1, mx:7, tags:['home'] }),
+    t({ id:'h_water_wake', c:'habit', p:'Drink a glass of water when you wake up', l:'First Draught',
+        d:'Before coffee, before the phone.', diff:'light', min:1, cd:1, mx:7, tags:['hydration'] }),
+    t({ id:'h_daylight', c:'habit', p:'Get 10 minutes of daylight', l:'Greet the Sun',
+        d:'Outside, early if you can. It sets the rest of the day.', diff:'light', min:10, cd:1, mx:7, tags:['outdoors'] }),
+    t({ id:'h_surface', c:'habit', p:'Clear one surface', l:'Reclaim One Table',
+        d:'Pick a single surface and finish it. Not the whole room.', diff:'light', min:8, cd:1, mx:5, tags:['home'] }),
+    t({ id:'h_dishes_night', c:'habit', p:'Empty the sink before bed', l:'Douse the Hearth',
+        d:'Waking up to a clean kitchen is worth the ten minutes.', diff:'light', min:10, cd:1, mx:5, tags:['home'] }),
+    t({ id:'h_clothes', c:'habit', p:'Set out tomorrow’s clothes', l:'Lay Out the Armour',
+        d:'One fewer decision in the morning.', diff:'light', min:3, cd:1, mx:5, tags:['planning'] }),
+    t({ id:'h_no_phone_am', c:'habit', p:'No phone for the first 30 minutes', l:'Hold the Silence',
+        d:'The feed will still be there. Your attention will not.', diff:'light', min:0, cd:1, mx:5, tags:['focus'] }),
+    t({ id:'h_stairs', c:'habit', p:'Take the stairs today', l:'The Climb',
+        d:'Every time the option comes up.', diff:'light', min:0, cd:2, mx:4, tags:['movement'] }),
+    t({ id:'h_stretch5', c:'habit', p:'Stretch for five minutes', l:'Unknot the Cord',
+        d:'Hips, shoulders, neck. Anywhere that has been in a chair.', diff:'light', min:5, cd:1, mx:5, tags:['mobility'] }),
+    t({ id:'h_walk10', c:'habit', p:'Walk for ten minutes', l:'A Short Patrol',
+        d:'No destination needed.', diff:'light', min:10, cd:1, mx:6, tags:['movement'] }),
+    t({ id:'h_window', c:'habit', p:'Open a window for ten minutes', l:'Air the Keep',
+        d:'Especially if you have been in the same room all day.', diff:'light', min:10, cd:2, mx:4, tags:['home'] }),
+    t({ id:'h_desk_end', c:'habit', p:'Clear your desk at the end of the day', l:'Close the Workbench',
+        d:'So tomorrow starts from zero instead of from yesterday.', diff:'light', min:5, cd:1, mx:5, tags:['home','focus'] }),
+    t({ id:'h_three_back', c:'habit', p:'Put three things back where they belong', l:'The Rule of Three',
+        d:'Three items, then stop. That is the whole quest.', diff:'light', min:4, cd:1, mx:5, tags:['home'] }),
+    t({ id:'h_top_task', c:'habit', p:'Write tomorrow’s first task before bed', l:'Name the Morning',
+        d:'One line. It removes tomorrow’s hardest decision.', diff:'light', min:3, cd:1, mx:6, tags:['planning'] }),
+    t({ id:'h_phone_out', c:'habit', p:'Charge your phone outside the bedroom', l:'Banish the Lantern',
+        d:'The simplest change with the largest effect on sleep.', diff:'light', min:1, cd:1, mx:7, tags:['sleep'] }),
+    t({ id:'h_sit_meal', c:'habit', p:'Eat one meal sitting down, away from a screen', l:'A Proper Table',
+        d:'Not at the desk, not scrolling.', diff:'light', min:20, cd:1, mx:5, tags:['presence'] }),
+    t({ id:'h_outside_noon', c:'habit', p:'Step outside at least once before noon', l:'Cross the Threshold',
+        d:'Even for two minutes.', diff:'light', min:5, cd:1, mx:5, tags:['outdoors'] }),
+    t({ id:'h_close_tabs', c:'habit', p:'Close every tab you are not using', l:'Dismiss the Court',
+        d:'Open tabs are unfinished decisions. Clear them.', diff:'light', min:3, cd:2, mx:4, tags:['focus'] }),
 
     // ---------------------------------------------------------------
     // SOCIAL & FELLOWSHIP — 20
@@ -274,7 +325,7 @@
   // Sanity: the spec fixes the shape of this library, so fail loudly in
   // the console if an edit ever breaks the counts.
   var counts = LIBRARY.reduce(function (a, q) { a[q.category] = (a[q.category] || 0) + 1; return a; }, {});
-  var EXPECTED = { career: 40, social: 20, fitness: 15, finance: 10, recovery: 10, recreation: 5 };
+  var EXPECTED = { career: 40, social: 20, habit: 18, fitness: 15, finance: 10, recovery: 10, recreation: 5 };
   Object.keys(EXPECTED).forEach(function (k) {
     if (counts[k] !== EXPECTED[k]) {
       console.warn('[quest-library] ' + k + ': expected ' + EXPECTED[k] + ', found ' + (counts[k] || 0));
@@ -286,7 +337,7 @@
     counts: counts,
     expected: EXPECTED,
     byId: LIBRARY.reduce(function (a, q) { a[q.id] = q; return a; }, {}),
-    categories: ['career', 'social', 'fitness', 'finance', 'recovery', 'recreation'],
+    categories: ['habit', 'social', 'fitness', 'recovery', 'finance', 'recreation', 'career'],
     difficultyXp: XP_BY_DIFFICULTY,
     make: t
   };
