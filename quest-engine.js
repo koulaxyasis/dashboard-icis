@@ -15,14 +15,16 @@
 // ---- Slots ----------------------------------------------------
 //   1  habit   A trivial daily habit
 //   2  habit   Another trivial daily habit
-//   3  body    Fitness, health or recovery
+//   3  body    Fitness, sport or recovery
 //   4  social  Social / fellowship
-//   5  flex    Whatever life category has been most neglected
+//   5  flex    Whichever of recreation / recovery / fitness / social
+//              has been most neglected
 //
-// CAREER AND ACADEMIC WORK IS NOT DEALT OUT HERE. Those are written by
-// hand — in My Quests for a one-off, or as a custom template in the
-// Quest Editor. The automated board carries the small repeatable things
-// so it never competes with the real work on the career page.
+// CAREER, ACADEMIC AND MONEY WORK IS NOT DEALT OUT HERE. Those are
+// written by hand — in My Quests, as a custom template in the Quest
+// Editor, or in the Planner. The automated board carries only social,
+// sport and the small trivial things, so it never competes with the
+// real work.
 // =============================================================
 (function () {
   'use strict';
@@ -35,14 +37,21 @@
   var HISTORY_LIMIT = 120;      // days of quest history to keep
   var NEGLECT_WINDOW = 14;      // days used to measure category neglect
 
-  // The only categories the generator may draw from. 'career' is absent
-  // on purpose: career and academic quests are written by hand, not
-  // dealt out. eligible() enforces this, so a new slot cannot bypass it.
-  var AUTO_CATEGORIES = ['habit', 'fitness', 'recovery', 'social', 'finance', 'recreation'];
+  // The only categories the generator may draw from: social, sport and
+  // the trivial stuff. 'career' and 'finance' are absent on purpose —
+  // career, academic and money work (budgets, invoices, net worth) is
+  // written by hand or planned in the Planner, not dealt out. eligible()
+  // enforces this, so a new slot cannot bypass it.
+  var AUTO_CATEGORIES = ['habit', 'fitness', 'recovery', 'social', 'recreation'];
+
+  // Academic work can hide inside an otherwise automated category (a study
+  // session is filed under social). Anything tagged with one of these is
+  // never dealt out either, whatever its category.
+  var MANUAL_TAGS = ['study'];
 
   // The flex slot draws from everything except habits, which already have
   // two dedicated slots of their own.
-  var FLEX_CATEGORIES = ['finance', 'recreation', 'recovery', 'fitness', 'social'];
+  var FLEX_CATEGORIES = ['recreation', 'recovery', 'fitness', 'social'];
 
   var MODES = {
     light:     { label: 'Light',     minutes: 60,  note: 'A quieter day. Still counts.' },
@@ -318,9 +327,14 @@
     return dow === 0 || dow === 6;
   }
 
+  function isAutomatable(q) {
+    if (AUTO_CATEGORIES.indexOf(q.category) === -1) return false;
+    return !(q.tags || []).some(function (t) { return MANUAL_TAGS.indexOf(t) !== -1; });
+  }
+
   function eligible(q, ctx) {
     if (!q.active) return false;
-    if (AUTO_CATEGORIES.indexOf(q.category) === -1) return false;
+    if (!isAutomatable(q)) return false;
     if (q.minimumLevel > ctx.level) return false;
     if (q.weekendOnly && !ctx.weekend) return false;
     if (q.weekdayOnly && ctx.weekend) return false;
@@ -455,7 +469,12 @@
     var carried = null;
     if (s.quests && s.quests.date && Array.isArray(s.quests.list) && s.quests.list.length) {
       s.questHistory[s.quests.date] = { list: s.quests.list, mode: s.quests.mode };
-      var undone = s.quests.list.filter(function (q) { return !q.done && q.slot !== 'main'; });
+      // Only carry what the board may still deal, so a quest from a
+      // category that has since gone hand-written cannot ride back in.
+      var undone = s.quests.list.filter(function (q) {
+        var tpl = byId(q.id) || LIB.byId[q.id];
+        return !q.done && q.slot !== 'main' && tpl && isAutomatable(tpl);
+      });
       if (undone.length) carried = undone[0];
     }
 
@@ -727,6 +746,8 @@
   window.QuestEngine = {
     MODES: MODES,
     AUTO_CATEGORIES: AUTO_CATEGORIES,
+    MANUAL_TAGS: MANUAL_TAGS,
+    isAutomatable: isAutomatable,
     contracts: contracts,
     library: library,
     byId: byId,

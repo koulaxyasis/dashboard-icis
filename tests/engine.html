@@ -164,12 +164,39 @@ try {
   chk('180-day soak: no career quest ever auto-selected', careerOnBoard, 0);
   note('180-day category mix: ' + Object.keys(soakCats).sort().map(function(k){
     return k + '=' + soakCats[k]; }).join(' '));
+  // only social, sport and trivial stuff — money and study work is hand-written
+  chk('finance is excluded from auto-selection', QE.AUTO_CATEGORIES.indexOf('finance'), -1);
+  chk('  180-day soak: no finance quest ever auto-selected', soakCats.finance || 0, 0);
+  var studyOnBoard = 0;
+  for (var cd5 = 0; cd5 < 180; cd5++) {
+    QE._generate(GS.shiftKey(soakFrom, cd5), 'normal', 0).forEach(function(q){
+      var tpl = QL.byId[q.id];
+      if (tpl && tpl.tags.indexOf('study') !== -1) studyOnBoard++;
+    });
+  }
+  chk('  180-day soak: no study quest ever auto-selected', studyOnBoard, 0);
+  chk('  the soak drew only social, sport and trivial categories',
+    Object.keys(soakCats).every(function(k){
+      return ['habit','social','fitness','recovery','recreation'].indexOf(k) !== -1; }), 'true');
   chk('  habits dominate the board', soakCats.habit > soakCats.social, 'true');
   chk('  social still appears daily', soakCats.social >= 180, 'true');
+  chk('  fitness reaches the board', soakCats.fitness > 0, 'true');
   // the flex slot must reach the quiet corners, not default to one category
-  chk('  finance reaches the board', soakCats.finance > 0, 'true');
   chk('  recreation reaches the board', soakCats.recreation > 0, 'true');
   chk('  recovery reaches the board', soakCats.recovery > 0, 'true');
+
+  // yesterday's unfinished finance quest must not ride back in as a carry-over
+  var savedQuests = JSON.parse(JSON.stringify(GS.get().quests));
+  var savedHist = JSON.parse(JSON.stringify(GS.get().questHistory));
+  GS.update(function(st){
+    st.quests = { date: GS.shiftKey(GS.todayKey(), -1), mode: 'normal', rerollUsed: false, rerollSeed: 0,
+      list: [{ id:'m_budget', slot:'flex', category:'finance', done:false, xp:60 }] };
+  });
+  var carried = QE.ensureToday();
+  chk('a finance quest is not carried over to the new day',
+    carried.list.some(function(q){ return q.id === 'm_budget'; }), 'false');
+  chk('  and nothing is marked as rolled over', carried.rolledOver, 'null');
+  GS.update(function(st){ st.quests = savedQuests; st.questHistory = savedHist; });
 
   // even explicitly activating every career template changes nothing
   QE.library().filter(function(q){return q.category==='career';})

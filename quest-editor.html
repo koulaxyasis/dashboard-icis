@@ -80,7 +80,7 @@
     <div class="lore">Quest Board · Library</div>
     <h1 class="h1">Quest Editor</h1>
     <div class="sub">Author your own quests, or retune the built-in ones. Changes save straight into your shared state.</div>
-    <div class="sub" style="margin-top:6px">The automated daily board only draws from <strong style="color:var(--text-2)">habit, social, fitness, recovery, finance and recreation</strong>. <strong style="color:var(--gold)">Career quests are never dealt out</strong> — write those yourself, in My Quests or as a custom quest here.</div>
+    <div class="sub" style="margin-top:6px">The automated daily board only draws social, sport and trivial quests: <strong style="color:var(--text-2)">habit, social, fitness, recovery and recreation</strong>. <strong style="color:var(--gold)">Career, finance and study quests are never dealt out</strong> — write those yourself, in My Quests, as a custom quest here, or in the Planner.</div>
   </div>
 
   <div class="bar">
@@ -189,8 +189,6 @@
     'minimumLevel','weekdayOnly','weekendOnly','active'];
 
   var filter = 'all', query = '', editingId = null, creating = false;
-  // Categories the generator may draw from; everything else is hand-written.
-  var AUTO = QE.AUTO_CATEGORIES || [];
 
   /* ---------- form plumbing ---------- */
   function fillSelects() {
@@ -292,7 +290,7 @@
           '<div class="qrow-t">' +
             (q.custom ? '<span class="tagc custom">custom</span>' : '') +
             (patched[q.id] ? '<span class="tagc patched">edited</span>' : '') +
-            (AUTO.indexOf(q.category) === -1 ? '<span class="tagc manual">written only</span>' : '') +
+            (!QE.isAutomatable(q) ? '<span class="tagc manual">written only</span>' : '') +
             UI.esc(q.practicalTitle) + '</div>' +
           '<div class="qrow-s">' + UI.esc(q.id) + ' · ' + UI.esc(q.category) +
             (q.subcategory ? '/' + UI.esc(q.subcategory) : '') + ' · ' + UI.esc(q.difficulty) +

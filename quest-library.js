@@ -9,10 +9,13 @@
 //    5  recreation & exploration (category: 'recreation')
 //   40  career & learning        (category: 'career')
 //
-// The automated daily board draws ONLY from the first six. The career
-// set is kept as a written reference and is never dealt out — career
-// and academic quests are written by hand. See AUTO_CATEGORIES in
-// quest-engine.js, which enforces that.
+// The automated daily board draws ONLY from social, sport and the
+// trivial stuff: habit, social, fitness, recovery and recreation. The
+// finance and career sets are kept as a written reference and are never
+// dealt out — money, career and academic quests are written by hand.
+// Anything tagged 'study' is hand-written too, whatever its category.
+// See AUTO_CATEGORIES and MANUAL_TAGS in quest-engine.js, which enforce
+// that.
 //
 // `t()` fills in the defaults so every template carries the full
 // schema even when a definition only states what is unusual about it.
