@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="game-state.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+[hidden] { display:none !important; }
+.hdr { margin-bottom:16px; }
+input, select, textarea { color-scheme:dark; }
+select option, select optgroup { background:#0F1322; color:var(--text); }
+
+/* ---- Sunday banner ---- */
+.pl-sunday { display:flex; align-items:center; gap:10px; padding:12px 15px; margin-bottom:10px;
+  border-color:rgba(233,190,110,.35); text-decoration:none; color:var(--text-2); font-size:12.5px; }
+.pl-sunday b { color:var(--text); }
+
+/* ---- control strip ---- */
+.pl-ctl { padding:14px; display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; }
+@media (max-width:820px) { .pl-ctl { grid-template-columns:1fr; } }
+.pl-xp { display:flex; gap:20px; }
+.pl-xp-v { font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold); line-height:1.1; }
+.pl-xp-k { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); margin-top:3px; }
+.pl-togs { display:flex; gap:8px; flex-wrap:wrap; }
+.pl-tog { display:flex; align-items:center; gap:10px; flex:1; min-width:160px; padding:9px 12px;
+  border-radius:var(--r); border:1px solid var(--line); background:rgba(0,0,0,.2); color:var(--text-2);
+  font:inherit; text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.pl-tog b { display:block; font-size:12.5px; color:var(--text); font-weight:650; }
+.pl-tog small { display:block; font-size:10.5px; color:var(--text-3); margin-top:1px; }
+.pl-sw { width:30px; height:18px; flex:none; border-radius:999px; background:rgba(255,255,255,.12); position:relative; transition:background .15s; }
+.pl-sw::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
+  background:var(--text-3); transition:transform .15s, background .15s; }
+.pl-tog.on { border-color:rgba(233,190,110,.45); background:rgba(233,190,110,.08); }
+.pl-tog.on .pl-sw { background:rgba(233,190,110,.45); }
+.pl-tog.on .pl-sw::after { transform:translateX(12px); background:var(--gold-hi); }
+.pl-ctl-a { display:flex; gap:7px; flex-wrap:wrap; }
+
+.pl-note { padding:11px 14px; font-size:12px; color:var(--text-3); line-height:1.5; margin-bottom:9px; }
+.pl-note b { color:var(--text-2); }
+.pl-note.exam { border-color:rgba(240,168,104,.4); color:var(--text-2); }
+.pl-note.exam b { color:var(--warn); }
+
+/* ---- task rows ---- */
+.pl-task { display:flex; align-items:flex-start; gap:11px; padding:12px 13px; margin-bottom:7px;
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
+.pl-task.done { border-color:rgba(107,227,164,.28); background:rgba(107,227,164,.05); }
+.pl-box { width:23px; height:23px; flex:none; margin-top:1px; border-radius:7px; cursor:pointer; padding:0;
+  border:1.5px solid var(--line-2); background:transparent; display:grid; place-items:center; color:transparent; }
+.pl-box.on { background:var(--ok); border-color:var(--ok); color:#08130E; }
+.pl-box.sm { width:18px; height:18px; border-radius:5px; margin-top:0; }
+.pl-box[disabled] { opacity:.35; cursor:default; }
+.pl-tb { flex:1; min-width:0; }
+.pl-tl { font-size:9.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--lc, var(--gold)); }
+.pl-tt { font-size:13.5px; font-weight:650; color:var(--text); line-height:1.3; margin-top:2px; overflow-wrap:anywhere; }
+.pl-task.done .pl-tt { color:var(--ok); text-decoration:line-through; }
+.pl-td { font-size:11.5px; color:var(--text-3); margin-top:3px; }
+.pl-tfoot { display:flex; align-items:center; gap:6px 8px; flex-wrap:wrap; margin-top:7px; }
+.pl-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.pl-acts { display:flex; gap:2px; margin-left:auto; }
+.pl-xpv { flex:none; font-family:var(--mono); font-size:12px; font-weight:700; color:var(--gold); margin-top:2px; }
+.pl-ib { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:6px; line-height:0; border-radius:8px; }
+.pl-ib:hover { color:var(--text); background:rgba(255,255,255,.06); }
+.pl-ib.on { color:var(--gold); }
+.pl-ib.del:hover { color:var(--bad); }
+
+.pl-add { display:flex; gap:7px; margin-top:4px; }
+.pl-add select { flex:1; min-width:0; }
+.pl-grp { font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); margin:14px 0 7px; }
+.pl-sug { display:flex; align-items:center; gap:10px; padding:9px 12px; margin-bottom:6px;
+  border:1px dashed var(--line-2); border-radius:var(--r); font-size:12.5px; color:var(--text-2); }
+.pl-sug small { display:block; font-size:10.5px; color:var(--text-3); margin-top:1px; }
+.pl-dot { width:8px; height:8px; flex:none; border-radius:50%; background:var(--lc, var(--gold)); }
+
+/* ---- weekly board ---- */
+.pl-wnav { display:inline-flex; align-items:center; gap:7px; }
+.pl-board { padding:12px; }
+.pl-tabs { display:none; gap:4px; margin-bottom:10px; }
+.pl-tabs button { flex:1; min-width:0; border:1px solid var(--line); background:transparent; color:var(--text-3);
+  border-radius:10px; padding:6px 0 5px; font:inherit; font-size:10px; font-weight:700; letter-spacing:.04em; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:2px; -webkit-tap-highlight-color:transparent; }
+.pl-tabs button .mono { font-size:13px; color:var(--text-2); }
+.pl-tabs button.now .mono { color:var(--gold); }
+.pl-tabs button.sel { border-color:rgba(233,190,110,.5); background:rgba(233,190,110,.1); color:var(--gold); }
+.pl-tabs i { width:4px; height:4px; border-radius:50%; background:var(--gold); }
+.pl-tabs i.off { background:transparent; }
+.pl-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+.pl-col { min-width:0; }
+.pl-dh { display:flex; justify-content:space-between; align-items:baseline; padding:2px 5px 7px;
+  font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3); }
+.pl-col.now .pl-dh { color:var(--gold); }
+.pl-cell { min-height:64px; padding:6px; margin-bottom:6px; border-radius:11px; background:rgba(0,0,0,.22); border:1px solid var(--line); }
+.pl-col.now .pl-cell { border-color:rgba(233,190,110,.2); }
+.pl-cell.peak { box-shadow:inset 0 0 0 1px rgba(233,190,110,.32); }
+.pl-ch { display:flex; justify-content:space-between; gap:4px; font-size:8.5px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--text-3); margin-bottom:5px; }
+.pl-ch .pk { color:var(--gold); }
+.pl-ent { display:flex; align-items:flex-start; gap:6px; padding:5px 6px; margin-bottom:4px; border-radius:8px;
+  background:var(--panel-2); box-shadow:inset 2px 0 0 var(--lc, var(--line-2)); font-size:11px; color:var(--text); line-height:1.3; }
+.pl-et { flex:1; min-width:0; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.pl-ent.done .pl-et { color:var(--ok); text-decoration:line-through; }
+.pl-x { flex:none; border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:1px; line-height:0; }
+.pl-x:hover { color:var(--bad); }
+.pl-cadd { width:100%; border:1px dashed var(--line); background:transparent; color:var(--text-3); border-radius:8px;
+  padding:4px 0; cursor:pointer; line-height:0; }
+.pl-cadd:hover { color:var(--gold); border-color:rgba(233,190,110,.4); }
+.pl-foot { font-size:11px; color:var(--text-3); margin-top:8px; }
+@media (max-width:860px) {
+  .pl-tabs { display:flex; }
+  .pl-grid { grid-template-columns:1fr; }
+  .pl-col { display:none; }
+  .pl-col.sel { display:block; }
+  .pl-dh { display:none; }
+  .pl-cell { min-height:0; padding:10px; }
+  .pl-ch { font-size:9.5px; margin-bottom:7px; }
+  .pl-ent { font-size:13px; padding:8px 9px; gap:9px; margin-bottom:6px; }
+  .pl-box.sm { width:21px; height:21px; border-radius:6px; }
+  .pl-cadd { padding:7px 0; }
+}
+
+/* ---- time split ---- */
+.pl-split-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.pl-split-top .fl { margin:0; }
+.pl-split-top input { width:90px; flex:none; text-align:right; }
+.pl-split-row { padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.pl-split-row:last-child { border-bottom:0; padding-bottom:2px; }
+.pl-sh { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.pl-sn { font-size:13px; font-weight:650; color:var(--text); min-width:0; }
+.pl-sp { font-family:var(--mono); font-size:13px; font-weight:700; color:var(--lc); flex:none; }
+input[type=range].pl-range { -webkit-appearance:none; appearance:none; width:100%; height:24px; padding:0; margin:4px 0 2px;
+  border:0; border-radius:0; background:transparent; }
+.pl-range:focus { outline:none; }
+.pl-range::-webkit-slider-runnable-track { height:6px; border-radius:4px;
+  background:linear-gradient(90deg, var(--lc) var(--p, 0%), rgba(255,255,255,.1) var(--p, 0%)); }
+.pl-range::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; margin-top:-7px; border-radius:50%;
+  background:var(--text); border:3px solid var(--lc); box-shadow:0 2px 8px rgba(0,0,0,.4); }
+.pl-range::-moz-range-track { height:6px; border-radius:4px; background:rgba(255,255,255,.1); }
+.pl-range::-moz-range-progress { height:6px; border-radius:4px; background:var(--lc); }
+.pl-range::-moz-range-thumb { width:15px; height:15px; border-radius:50%; background:var(--text); border:3px solid var(--lc); }
+.pl-range[disabled] { opacity:.5; }
+.pl-pva { display:grid; grid-template-columns:56px 1fr 46px; gap:5px 9px; align-items:center; font-size:10.5px; color:var(--text-3); margin-top:5px; }
+.pl-pva .mono { text-align:right; color:var(--text-2); font-size:11px; }
+
+/* ---- quest lines ---- */
+.pl-lines { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(330px,100%),1fr)); gap:10px; align-items:start; }
+.pl-line { padding:15px; }
+.pl-lh { display:flex; align-items:flex-start; gap:10px; }
+.pl-lk { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--lc); }
+.pl-ln { font-size:15.5px; font-weight:700; color:var(--text); letter-spacing:-.01em; margin-top:2px; overflow-wrap:anywhere; }
+.pl-lpct { font-family:var(--mono); font-size:13px; font-weight:700; color:var(--text); flex:none; }
+.pl-lsub { font-size:11px; color:var(--text-3); margin-top:7px; font-family:var(--mono); }
+.pl-line .pl-task { background:rgba(0,0,0,.18); }
+.pl-line .pl-task.done { background:rgba(107,227,164,.05); }
+.pl-lact { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+.pl-log { margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+.pl-logf { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px,1fr)); gap:7px; }
+.pl-logf label { display:block; min-width:0; }
+.pl-logf label span { display:block; font-size:10px; color:var(--text-3); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pl-logf input { padding:8px 10px; font-size:13.5px; }
+.pl-logsum { font-size:11.5px; color:var(--text-3); margin-top:10px; line-height:1.65; }
+.pl-logsum b { color:var(--text); font-family:var(--mono); font-weight:700; }
+.pl-logrs { margin-top:6px; }
+.pl-logr { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-3); }
+.pl-logr .mono { flex:none; }
+
+/* ---- roadmap ---- */
+.pl-rm-row { display:grid; grid-template-columns:118px repeat(var(--n), minmax(0,1fr)); gap:10px; padding:11px 13px;
+  border-bottom:1px solid rgba(255,255,255,.05); align-items:start; }
+.pl-rm-row:last-child { border-bottom:0; }
+.pl-rm-row.now { background:rgba(233,190,110,.05); }
+.pl-rm-head { padding-top:12px; padding-bottom:9px; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+.pl-rw { font-size:12.5px; font-weight:700; color:var(--text); display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; }
+.pl-rw small { display:block; width:100%; font-family:var(--mono); font-size:10.5px; color:var(--text-3); font-weight:400; }
+.pl-rc { min-width:0; }
+.pl-rcl { display:none; font-size:9.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--lc); margin-bottom:3px; }
+.pl-rci { display:flex; gap:7px; align-items:flex-start; }
+.pl-rci .pl-box { margin-top:5px; }
+.pl-rin { padding:4px 7px; font-size:12.5px; line-height:1.4; background:transparent; border-color:transparent; resize:none; min-height:0; }
+.pl-rin:hover { border-color:var(--line); }
+.pl-rin:focus { background:rgba(0,0,0,.3); }
+.pl-rc.done .pl-rin { color:var(--text-3); text-decoration:line-through; }
+@media (max-width:720px) {
+  .pl-rm-head { display:none; }
+  .pl-rm-row { grid-template-columns:1fr; gap:12px; }
+  .pl-rcl { display:block; }
+}
+
+/* ---- review ---- */
+.pl-rv-closed { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.pl-rv-h { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.pl-rv-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0 6px; }
+.pl-st { padding:12px 8px; text-align:center; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:var(--r); }
+.pl-st-v { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--text); }
+.pl-st-k { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); margin-top:4px; }
+.pl-rv-line { padding:10px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.pl-rv-line .mono { font-size:11.5px; color:var(--text-2); flex:none; }
+.pl-rv-sums { font-size:11.5px; color:var(--text-3); margin-top:4px; line-height:1.6; }
+.pl-rv-sums b { color:var(--text); font-family:var(--mono); }
+.pl-rv-q { margin-top:14px; }
+.pl-rv-q textarea { min-height:64px; resize:vertical; line-height:1.45; }
+.pl-save { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pl-save-line { font-size:12.5px; color:var(--text-2); margin:12px 0 8px; line-height:1.5; }
+.pl-save-line b { color:var(--text); font-family:var(--mono); }
+.pl-save-line b.ok { color:var(--ok); }
+.pl-tgt { position:relative; }
+.pl-tgt-m { position:absolute; top:-4px; bottom:-4px; width:2px; margin-left:-1px; border-radius:1px; background:var(--gold-hi); }
+.pl-rv-act { display:flex; gap:8px; margin-top:16px; }
+.pl-rv-act .btn.gold { flex:1; }
+
+.pl-hist { margin-bottom:8px; }
+.pl-hist summary { list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pl-hist summary::-webkit-details-marker { display:none; }
+.pl-hw { font-size:13px; font-weight:700; color:var(--text); }
+.pl-hq { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+.pl-hist-b { padding:2px 14px 14px; font-size:12.5px; color:var(--text-2); line-height:1.5; border-top:1px solid var(--line); }
+.pl-hist-b .fl { margin:12px 0 3px; }
+.pl-hist-b p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+/* ---- modal ---- */
+.modal-bg { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center;
+  padding:18px; background:rgba(0,0,0,.65); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); overscroll-behavior:contain; }
+.modal-bg.show { display:flex; }
+.modal { width:100%; max-width:460px; max-height:88vh; overflow-y:auto; overscroll-behavior:contain;
+  background:#0F1322; border:1px solid var(--line-2); border-radius:var(--r-lg); padding:20px; }
+@media (max-width:480px) {
+  .modal-bg { padding:0; align-items:stretch; }
+  .modal { max-width:100%; max-height:100%; height:100%; border-radius:0;
+    padding-top:max(20px, env(safe-area-inset-top)); padding-bottom:max(28px, env(safe-area-inset-bottom)); }
+}
+body.pl-lock { overflow:hidden; }
+.modal-h { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+.modal-t { font-size:16px; font-weight:700; color:var(--text); }
+.modal-x { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:4px; line-height:0; }
+.field { margin-bottom:13px; }
+.f2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.seg { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.seg button { flex:1; min-width:0; border:0; background:transparent; color:var(--text-3); font:inherit; font-size:12px; font-weight:600; padding:9px 4px; cursor:pointer; }
+.seg button + button { border-left:1px solid var(--line); }
+.seg button.on { background:rgba(233,190,110,.16); color:var(--gold); }
+.m-err { font-size:11px; color:var(--bad); min-height:14px; margin:-8px 0 6px; }
+.m-act { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+.m-act .btn.gold { flex:1; }
+.m-hint { font-size:12px; color:var(--text-3); line-height:1.5; min-height:18px; }
+.m-hint .btn { margin-top:6px; }
+.pl-check { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-2); cursor:pointer; }
+.pl-check input { width:18px; height:18px; flex:none; accent-color:var(--ok); }
+.swatches { display:flex; gap:9px; flex-wrap:wrap; }
+.swatches button { width:30px; height:30px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0;
+  box-shadow:inset 0 0 0 2px #0F1322; }
+.swatches button.on { border-color:var(--text); }
+.pl-swap { display:flex; align-items:center; gap:10px; width:100%; padding:11px 12px; margin-bottom:7px; text-align:left;
+  border:1px solid var(--line); border-radius:var(--r); background:var(--panel); color:var(--text-2); font:inherit; cursor:pointer; }
+.pl-swap:hover { border-color:rgba(242,119,122,.45); }
+.pl-swap-t { display:block; font-size:13px; font-weight:600; color:var(--text); margin-top:2px; }
+
+/* Phones zoom into any field under 16px when it takes focus. */
+@media (max-width:600px) {
+  .wrap input, .wrap select, .wrap textarea, .modal input, .modal select, .modal textarea { font-size:16px; }
+  .pl-rv-stats { gap:6px; }
+  .pl-st-v { font-size:15px; }
+}
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="lore">War Room</div>
+    <h1 class="h1">Planner</h1>
+    <div class="sub">Three quest lines, planned a week at a time. Finishing earns XP, and nothing here takes it back.</div>
+  </div>
+
+  <a class="card pl-sunday" href="#blkReview" id="sundayBanner" data-act="rv-open" hidden></a>
+
+  <!-- XP, toggles, settings -->
+  <section class="card pl-ctl">
+    <div class="pl-xp">
+      <div><div class="pl-xp-v" id="xpWeek">0</div><div class="pl-xp-k">XP this week</div></div>
+      <div><div class="pl-xp-v" id="xpAll" style="color:var(--text)">0</div><div class="pl-xp-k">Planner XP</div></div>
+    </div>
+    <div class="pl-togs">
+      <button class="pl-tog" id="togExam" data-act="exam" aria-pressed="false">
+        <span class="pl-sw"></span><span><b>Exam Week</b><small>1 clip a day + one study block</small></span>
+      </button>
+      <button class="pl-tog" id="togLow" data-act="low" aria-pressed="false">
+        <span class="pl-sw"></span><span><b>Low-energy day</b><small>light tasks only · resets tomorrow</small></span>
+      </button>
+    </div>
+    <div class="pl-ctl-a" id="ctlActions"></div>
+  </section>
+
+  <!-- 1 — today's must-dos -->
+  <div class="sec"><span class="sec-t">Today's Quests</span><span class="sec-m" id="todayMeta"></span></div>
+  <div id="today"></div>
+
+  <!-- 2 — weekly board -->
+  <div class="sec">
+    <span class="sec-t">Weekly Board</span>
+    <span class="pl-wnav">
+      <button class="btn sm" data-act="week-prev" aria-label="Previous week">‹</button>
+      <span class="sec-m" id="weekLabel"></span>
+      <button class="btn sm" data-act="week-next" aria-label="Next week">›</button>
+    </span>
+  </div>
+  <section class="card pl-board" id="board"></section>
+
+  <div id="blkSplit">
+    <div class="sec"><span class="sec-t">Time Split</span><span class="sec-m" id="splitMeta"></span></div>
+    <section class="card pad" id="split"></section>
+  </div>
+
+  <!-- 3 — quest lines -->
+  <div id="blkLines">
+    <div class="sec"><span class="sec-t">Quest Lines</span><span id="lineNew"></span></div>
+    <div class="pl-lines" id="lines"></div>
+  </div>
+
+  <!-- 4 — roadmap -->
+  <div id="blkRoadmap">
+    <div class="sec">
+      <span class="sec-t">4-Week Roadmap</span>
+      <span class="pl-wnav"><span class="sec-m" id="rmMeta"></span><button class="btn sm" data-act="rm-restart">Restart from this week</button></span>
+    </div>
+    <section class="card" id="roadmap"></section>
+  </div>
+
+  <!-- 5 — Sunday review + history -->
+  <div id="blkReview">
+    <div class="sec"><span class="sec-t">Sunday Review</span><span class="sec-m" id="rvMeta"></span></div>
+    <section class="card ornate pad" id="review"></section>
+    <div class="sec"><span class="sec-t">Past Reviews</span><span class="sec-m" id="histMeta"></span></div>
+    <div id="history"></div>
+  </div>
+
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+
+<script>
+(function () {
+  'use strict';
+  var GS = window.GameState, UI = window.UI, esc = UI.esc;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------------------------------------------------------------
+  // Storage. One key, mirrored by its own cloud-sync row ('planner').
+  // It must NOT share the 'icis' row: every other page pushes that row
+  // with only the game-state key in it, and sync deletes local keys that
+  // are missing from the row it receives — the planner would be wiped.
+  //
+  // Loading is a pure read. A first visit renders the starter quest
+  // lines from memory; nothing is written until you change something.
+  // ---------------------------------------------------------------
+  var KEY = 'planner:v1';
+  var XP_FOR = { deep: 30, medium: 15, light: 5 };
+  var ENERGY = ['deep', 'medium', 'light'];
+  var REPEATS = ['none', 'daily', 'weekly'];
+  var REPEAT_LABEL = { none: 'One-off', daily: 'Daily', weekly: 'Weekly' };
+  var BLOCKS = [
+    { id: 'morning', label: 'Morning' },
+    { id: 'afternoon', label: 'Afternoon' },
+    { id: 'evening', label: 'Evening' }
+  ];
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var KINDS = ['Guild Contract', 'Main Story', 'Side Quest'];
+  var COLORS = ['#34D399', '#A78BFA', '#E9BE6E', '#60A5FA', '#F472B6', '#F0A868'];
+  var TODAY_CAP = 5;
+  var SAVE_TARGET = 70;
+
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function today() { return GS.todayKey(); }
+
+  // ---------------------------------------------------------------
+  // Starter world
+  // ---------------------------------------------------------------
+  function fld(k, label, money) { return { k: k, label: label, money: !!money }; }
+  function tk(id, line, title, energy, minutes, repeat) {
+    return { id: id, line: line, title: title, energy: energy, minutes: minutes, repeat: repeat, due: '' };
+  }
+  var ROADMAP_SEED = {
+    clip: ['Post 2 clips a day; find 2 campaigns that pay',
+           'Ramp to 3 a day; first payout submitted',
+           '4 a day; cut every campaign that does not pay',
+           '4–5 a day on the hooks that proved themselves'],
+    design: ['Figma fundamentals; Contra + LinkedIn profiles live',
+             'Case study 1: landing page',
+             'Case study 2: social media kit; 5 pitches out',
+             'Case study 3: finance report / pitch deck; 5 pitches out'],
+    finance: ['INCO 2-page summary drafted',
+              'INCO model cleaned; LinkedIn breakdown #1',
+              'FP&A case: budget vs actual + variance analysis',
+              'Rolling forecast dashboard; breakdown #2; applications out']
+  };
+
+  function seed() {
+    var cells = {};
+    Object.keys(ROADMAP_SEED).forEach(function (l) {
+      ROADMAP_SEED[l].forEach(function (t, i) { cells[i + '|' + l] = { t: t, done: false }; });
+    });
+    return {
+      v: 1,
+      lines: [
+        { id: 'clip', kind: 'Guild Contract', name: 'Whop Clipping', note: 'fastest cash', color: '#34D399', disc: 'fortune',
+          fields: [fld('clips', 'Clips posted'), fld('views', 'Views'), fld('earned', 'Approved earnings', true)] },
+        { id: 'design', kind: 'Guild Contract', name: 'Freelance Design', note: 'medium-term', color: '#A78BFA', disc: 'arcana',
+          fields: [fld('pieces', 'Portfolio pieces done'), fld('pitches', 'Pitches sent'), fld('replies', 'Replies'), fld('gigs', 'Paid gigs')] },
+        { id: 'finance', kind: 'Main Story', name: 'Finance Portfolio (FMVA / FP&A)', note: 'long-term career', color: '#E9BE6E', disc: 'career',
+          fields: [fld('published', 'Pieces published'), fld('applications', 'Applications sent')] }
+      ],
+      tasks: [
+        tk('clip_post', 'clip', 'Edit + post 2 clips to TikTok / Reels / Shorts (ramp to 4–5)', 'medium', 60, 'daily'),
+        tk('clip_nofyp', 'clip', 'Opened TikTok only to post / check analytics — no FYP scrolling', 'light', 5, 'daily'),
+        tk('clip_hooks', 'clip', 'Review top hooks and formats', 'medium', 30, 'weekly'),
+        tk('clip_drop', 'clip', 'Drop campaigns that don’t pay', 'light', 15, 'weekly'),
+        tk('clip_payout', 'clip', 'Submit views for payout', 'light', 10, 'weekly'),
+        tk('des_learn', 'design', 'Learning session: Figma fundamentals → Framer (1 lesson)', 'deep', 45, 'daily'),
+        tk('des_case_landing', 'design', 'Case study 1: landing page', 'deep', 240, 'none'),
+        tk('des_case_social', 'design', 'Case study 2: social media kit', 'deep', 240, 'none'),
+        tk('des_case_report', 'design', 'Case study 3: finance report / pitch deck design', 'deep', 240, 'none'),
+        tk('des_profiles', 'design', 'Set up Contra + LinkedIn profiles', 'medium', 60, 'none'),
+        tk('des_pitches', 'design', 'Send 5 tailored pitches', 'medium', 90, 'weekly'),
+        tk('fin_inco_summary', 'finance', 'INCO equity research (Vetra Stock Competition 2026) → 2-page summary', 'deep', 180, 'none'),
+        tk('fin_inco_model', 'finance', 'INCO: clean, presentable model', 'deep', 150, 'none'),
+        tk('fin_fpa_bva', 'finance', 'FP&A case: budget vs actual + variance analysis', 'deep', 240, 'none'),
+        tk('fin_fpa_forecast', 'finance', 'FP&A case: rolling forecast dashboard', 'deep', 180, 'none'),
+        tk('fin_linkedin', 'finance', 'Add FMVA + FP&A certificates and both portfolio pieces to LinkedIn', 'light', 30, 'none'),
+        tk('fin_breakdown', 'finance', 'Post a LinkedIn breakdown (every 2 weeks)', 'medium', 60, 'weekly'),
+        tk('fin_apply', 'finance', 'Apply to finance roles / internships', 'medium', 45, 'weekly')
+      ],
+      // taskId -> period -> { at, date, min, line, xp, disc, text }
+      done: {},
+      today: { date: '', ids: [] },
+      board: [],          // { id, date, block, task }
+      logs: [],           // { id, date, line, v: { fieldKey: n } }
+      roadmap: { start: GS.weekStart(today()), cells: cells },
+      split: { clip: 40, design: 35, finance: 25 },
+      settings: { weekHours: 20, peakFrom: '', peakTo: '', exam: false, lowDate: '' },
+      drafts: {},         // weekStart -> review answers in progress
+      reviews: []
+    };
+  }
+
+  function load() {
+    var s = GS.readJSON(KEY, null);
+    var base = seed();
+    if (!s || typeof s !== 'object' || !Array.isArray(s.lines) || !Array.isArray(s.tasks)) return base;
+    Object.keys(base).forEach(function (k) {
+      if (s[k] == null || typeof s[k] !== typeof base[k]) s[k] = base[k];
+    });
+    ['board', 'logs', 'reviews'].forEach(function (k) { if (!Array.isArray(s[k])) s[k] = []; });
+    Object.keys(base.settings).forEach(function (k) { if (!(k in s.settings)) s.settings[k] = base.settings[k]; });
+    if (!s.roadmap.cells || typeof s.roadmap.cells !== 'object') s.roadmap.cells = {};
+    if (!s.roadmap.start) s.roadmap.start = base.roadmap.start;
+    if (!s.today || !Array.isArray(s.today.ids)) s.today = { date: '', ids: [] };
+    s.lines.forEach(function (l) { if (!Array.isArray(l.fields)) l.fields = []; });
+    return s;
+  }
+
+  var state = load();
+  function persist() { GS.writeJSON(KEY, state); }
+  // `xp` re-derives the shared ledger, which is what moves the Hub's bar.
+  function commit(xp) { persist(); if (xp) GS.reconcile(); render(); }
+
+  // ---------------------------------------------------------------
+  // Lookups, dates, formatting
+  // ---------------------------------------------------------------
+  function lineOf(id) {
+    for (var i = 0; i < state.lines.length; i++) if (state.lines[i].id === id) return state.lines[i];
+    return null;
+  }
+  function color(ln) { return ln ? esc(ln.color) : 'var(--text-3)'; }
+
+  // Exam Week replaces the plan with exactly two daily items. They are
+  // fixed, not stored as tasks, but complete and earn XP like any other.
+  function examTasks() {
+    var clip = lineOf('clip') || state.lines.filter(function (l) { return l.kind === 'Guild Contract'; })[0] || null;
+    var pk = peak();
+    return [
+      { id: 'exam_study', title: 'Study block', energy: 'deep', minutes: 120, repeat: 'daily', line: '', disc: 'career',
+        exam: true, block: pk ? pk.block : 'morning', note: 'The one deep block that matters this week.' },
+      { id: 'exam_clip', title: 'Post 1 clip', energy: 'medium', minutes: 30, repeat: 'daily',
+        line: clip ? clip.id : '', disc: clip ? clip.disc : 'fortune',
+        exam: true, block: 'evening', note: 'Keeps the contract warm. Nothing more.' }
+    ];
+  }
+  function taskOf(id) {
+    for (var i = 0; i < state.tasks.length; i++) if (state.tasks[i].id === id) return state.tasks[i];
+    return examTasks().filter(function (x) { return x.id === id; })[0] || null;
+  }
+
+  function parts(k) { return String(k).split('-').map(Number); }
+  function fmtDay(k) { var p = parts(k); return p[2] + ' ' + MON[p[1] - 1]; }
+  function fmtRange(wk) {
+    var end = GS.shiftKey(wk, 6), a = parts(wk), b = parts(end);
+    return a[1] === b[1] ? a[2] + '–' + b[2] + ' ' + MON[b[1] - 1] : fmtDay(wk) + ' – ' + fmtDay(end);
+  }
+  function dowIndex(k) { return GS.daysBetween(GS.weekStart(k), k); }
+  function isSunday() { return new Date().getDay() === 0; }
+  function fmtMin(m) {
+    m = Math.round(num(m));
+    if (m < 60) return m + 'm';
+    var h = Math.floor(m / 60), r = m % 60;
+    return h + 'h' + (r ? ' ' + r + 'm' : '');
+  }
+  function fmtH(min) { return (num(min) / 60).toFixed(1) + 'h'; }
+  function fmtVal(v, money) {
+    var n = (Math.round(num(v) * 100) / 100).toLocaleString();
+    return money ? '$' + n : n;
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  var LOCAL_ICONS = { edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>' };
+  function ic(name, size) {
+    if (!LOCAL_ICONS[name]) return UI.icon(name, size);
+    var s = size || 16;
+    return '<svg class="ic" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + LOCAL_ICONS[name] + '</svg>';
+  }
+
+  // ---------------------------------------------------------------
+  // Completion. A repeating task is done per day or per week; a one-off
+  // is done once. Each completion carries its own minutes, track and XP
+  // so the weekly totals and the ledger survive the task being deleted.
+  // ---------------------------------------------------------------
+  function periodOf(t, date) {
+    if (t.repeat === 'daily') return date;
+    if (t.repeat === 'weekly') return 'w' + GS.weekStart(date);
+    return 'once';
+  }
+  function doneOf(t, date) {
+    var m = state.done[t.id];
+    return m ? m[periodOf(t, date)] || null : null;
+  }
+  function setDone(t, date, on) {
+    var per = periodOf(t, date), m = state.done[t.id];
+    if (!on) {
+      if (m && m[per]) { delete m[per]; if (!Object.keys(m).length) delete state.done[t.id]; }
+      return;
+    }
+    if (!m) m = state.done[t.id] = {};
+    if (m[per]) return;
+    var ln = lineOf(t.line);
+    m[per] = {
+      at: Date.now(), date: date, min: Math.max(0, num(t.minutes)), line: t.line || '',
+      xp: XP_FOR[t.energy] || 0, disc: (ln && ln.disc) || t.disc || 'arcana',
+      text: String(t.title).slice(0, 120)
+    };
+  }
+  function toggle(id, date) {
+    var t = taskOf(id);
+    if (!t) return;
+    var was = !!doneOf(t, date);
+    setDone(t, date, !was);
+    commit(true);
+    if (!was) {
+      var ln = lineOf(t.line);
+      UI.toast('check', 'Quest complete', t.title, '+' + (XP_FOR[t.energy] || 0) + ' XP' + (ln ? ' · ' + ln.name : ''));
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Modes and peak focus
+  // ---------------------------------------------------------------
+  function examOn() { return !!state.settings.exam; }
+  function lowOn() { return state.settings.lowDate === today(); }
+  function visible(t) { return examOn() || !lowOn() || t.energy === 'light'; }
+
+  function blockForTime(v) {
+    var h = parseInt(String(v || '').split(':')[0], 10);
+    if (!isFinite(h)) return null;
+    return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  }
+  function peak() {
+    var b = blockForTime(state.settings.peakFrom);
+    if (!b) return null;
+    return { block: b, label: state.settings.peakFrom + (state.settings.peakTo ? '–' + state.settings.peakTo : '') };
+  }
+
+  // ---------------------------------------------------------------
+  // Weekly sums — hours per track, planner XP, log totals, money in.
+  // ---------------------------------------------------------------
+  function weekStats(wk) {
+    var days = GS.weekKeys(wk), mins = {}, total = 0, xp = 0, sums = {}, earned = 0;
+    function inWk(d) { return days.indexOf(d) !== -1; }
+    Object.keys(state.done).forEach(function (tid) {
+      var m = state.done[tid] || {};
+      Object.keys(m).forEach(function (p) {
+        var c = m[p];
+        if (!c || !inWk(c.date)) return;
+        var l = c.line || '';
+        mins[l] = (mins[l] || 0) + num(c.min);
+        total += num(c.min);
+        xp += num(c.xp);
+      });
+    });
+    state.logs.forEach(function (e) {
+      if (!inWk(e.date)) return;
+      var o = sums[e.line] || (sums[e.line] = {});
+      Object.keys(e.v || {}).forEach(function (k) { o[k] = (o[k] || 0) + num(e.v[k]); });
+    });
+    state.lines.forEach(function (l) {
+      l.fields.forEach(function (f) { if (f.money) earned += (sums[l.id] || {})[f.k] || 0; });
+    });
+    return { mins: mins, total: total, xp: xp, sums: sums, earned: earned };
+  }
+  function allTimeXp() {
+    var t = 0;
+    Object.keys(state.done).forEach(function (tid) {
+      var m = state.done[tid] || {};
+      Object.keys(m).forEach(function (p) { if (m[p]) t += num(m[p].xp); });
+    });
+    return t;
+  }
+
+  // ---------------------------------------------------------------
+  // Time split. Always sums to 100 across the current quest lines.
+  // ---------------------------------------------------------------
+  function shares(raw, total) {
+    var sum = raw.reduce(function (a, b) { return a + b; }, 0);
+    if (sum <= 0) { raw = raw.map(function () { return 1; }); sum = raw.length; }
+    var exact = raw.map(function (v) { return v * total / sum; });
+    var out = exact.map(Math.floor);
+    var rem = total - out.reduce(function (a, b) { return a + b; }, 0);
+    exact.map(function (v, i) { return { i: i, f: v - out[i] }; })
+      .sort(function (a, b) { return b.f - a.f; })
+      .slice(0, rem).forEach(function (x) { out[x.i]++; });
+    return out;
+  }
+  function splitNow() {
+    var ids = state.lines.map(function (l) { return l.id; });
+    if (!ids.length) return {};
+    var vals = shares(ids.map(function (id) { return Math.max(0, num(state.split[id])); }), 100);
+    var out = {};
+    ids.forEach(function (id, i) { out[id] = vals[i]; });
+    return out;
+  }
+  // Move one slider; the others give or take in proportion to their size.
+  function rebalance(cur, id, v) {
+    var ids = state.lines.map(function (l) { return l.id; });
+    var others = ids.filter(function (x) { return x !== id; });
+    v = others.length ? Math.max(0, Math.min(100, Math.round(v))) : 100;
+    var out = {};
+    out[id] = v;
+    if (!others.length) return out;
+    var vals = shares(others.map(function (x) { return Math.max(0, num(cur[x])); }), 100 - v);
+    others.forEach(function (x, i) { out[x] = vals[i]; });
+    return out;
+  }
+
+  // ---------------------------------------------------------------
+  // Shared row renderers
+  // ---------------------------------------------------------------
+  function energyChip(e) {
+    return '<span class="chip' + (e === 'deep' ? ' on' : e === 'light' ? ' ok' : '') + '">' + esc(e) + '</span>';
+  }
+  function dueChip(t, done) {
+    if (!t.due) return '';
+    var d = GS.daysBetween(today(), t.due);
+    if (done || t.repeat !== 'none') return '<span class="chip">due ' + fmtDay(t.due) + '</span>';
+    return '<span class="chip' + (d < 0 ? ' bad' : d <= 1 ? ' on' : '') + '">' +
+      (d < 0 ? 'overdue ' + (-d) + 'd' : d === 0 ? 'due today' : d === 1 ? 'due tomorrow' : 'due ' + fmtDay(t.due)) + '</span>';
+  }
+  function iconBtn(act, id, icon, label, cls) {
+    return '<button class="pl-ib' + (cls ? ' ' + cls : '') + '" data-act="' + act + '" data-id="' + esc(id) + '" ' +
+      'aria-label="' + esc(label) + '" title="' + esc(label) + '">' + ic(icon, 15) + '</button>';
+  }
+  function note(html, cls) { return '<div class="card pl-note' + (cls ? ' ' + cls : '') + '">' + html + '</div>'; }
+
+  function taskRow(t, date, ctx) {
+    var ln = lineOf(t.line), done = !!doneOf(t, date), pk = peak();
+    var onToday = todayIds().indexOf(t.id) !== -1;
+    var acts = '';
+    if (ctx === 'today') acts = iconBtn('today-remove', t.id, 'close', 'Remove from today', 'del');
+    if (ctx === 'line') {
+      acts = iconBtn('today-add', t.id, 'star', onToday ? 'On today’s quests' : 'Add to today', onToday ? 'on' : '') +
+        iconBtn('schedule', t.id, 'planner', 'Put on the weekly board') +
+        iconBtn('task-edit', t.id, 'edit', 'Edit task');
+    }
+    var tags = energyChip(t.energy) +
+      (t.minutes ? '<span class="chip">' + fmtMin(t.minutes) + '</span>' : '') +
+      (t.repeat !== 'none' ? '<span class="chip">' + REPEAT_LABEL[t.repeat] + '</span>' : '') +
+      dueChip(t, done) +
+      (t.energy === 'deep' && pk && !done ? '<span class="chip on">peak ' + esc(pk.label) + '</span>' : '');
+    return '<div class="pl-task' + (done ? ' done' : '') + '" style="--lc:' + color(ln) + '">' +
+      '<button class="pl-box' + (done ? ' on' : '') + '" data-act="toggle" data-id="' + esc(t.id) + '" data-date="' + date + '" ' +
+        'aria-label="' + (done ? 'Mark not done' : 'Mark done') + '">' + ic('check', 14) + '</button>' +
+      '<div class="pl-tb">' +
+        (ctx !== 'line' ? '<div class="pl-tl">' + esc(ln ? ln.name : (t.exam ? 'Exam Week' : 'No quest line')) + '</div>' : '') +
+        '<div class="pl-tt">' + esc(t.title) + '</div>' +
+        (t.note ? '<div class="pl-td">' + esc(t.note) + '</div>' : '') +
+        '<div class="pl-tfoot"><div class="pl-tags">' + tags + '</div>' +
+          (acts ? '<div class="pl-acts">' + acts + '</div>' : '') + '</div>' +
+      '</div>' +
+      '<span class="pl-xpv">+' + (XP_FOR[t.energy] || 0) + '</span>' +
+    '</div>';
+  }
+
+  function taskOptions(pool, selected) {
+    var groups = state.lines.map(function (l) {
+      return { label: l.name, items: pool.filter(function (t) { return t.line === l.id; }) };
+    });
+    groups.push({ label: 'No quest line', items: pool.filter(function (t) { return !lineOf(t.line); }) });
+    return groups.filter(function (g) { return g.items.length; }).map(function (g) {
+      return '<optgroup label="' + esc(g.label) + '">' + g.items.map(function (t) {
+        return '<option value="' + esc(t.id) + '"' + (t.id === selected ? ' selected' : '') + '>' +
+          esc(t.title) + ' · ' + t.energy + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+  }
+
+  // ---------------------------------------------------------------
+  // 1 — Today's Quests (cap 5)
+  // ---------------------------------------------------------------
+  function todayIds() {
+    if (state.today.date !== today()) return [];
+    return state.today.ids.filter(function (id) { return !!taskOf(id); });
+  }
+  // Nudges, not orders: on today's board, overdue, due soon, daily.
+  function suggestions(pool, d) {
+    var onBoard = {};
+    state.board.forEach(function (e) { if (e.date === d) onBoard[e.task] = true; });
+    function rank(t) {
+      if (onBoard[t.id]) return 0;
+      if (t.due && t.repeat === 'none') {
+        var n = GS.daysBetween(d, t.due);
+        if (n <= 0) return 1;
+        if (n <= 2) return 2;
+      }
+      if (t.repeat === 'daily') return 3;
+      return 9;
+    }
+    function why(t) {
+      if (onBoard[t.id]) return 'on today’s board';
+      if (t.due && t.repeat === 'none') {
+        var n = GS.daysBetween(d, t.due);
+        if (n < 0) return 'overdue';
+        if (n === 0) return 'due today';
+        return 'due in ' + n + 'd';
+      }
+      return 'daily';
+    }
+    return pool.filter(function (t) { return rank(t) < 9; })
+      .sort(function (a, b) { return rank(a) - rank(b); })
+      .map(function (t) { return { t: t, why: why(t) }; });
+  }
+
+  function renderToday() {
+    var d = today(), el = $('today');
+    if (examOn()) {
+      var ex = examTasks();
+      $('todayMeta').textContent = ex.filter(function (t) { return doneOf(t, d); }).length + ' / ' + ex.length + ' · Exam Week';
+      el.innerHTML = note(ic('book', 14) + ' <b>Exam Week.</b> The plan is hidden until you switch this off. ' +
+        'One clip a day keeps the contract warm, and one study block does the real work.', 'exam') +
+        ex.map(function (t) { return taskRow(t, d, 'exam'); }).join('');
+      return;
+    }
+    var ids = todayIds(), list = ids.map(taskOf), vis = list.filter(visible);
+    var dn = list.filter(function (t) { return doneOf(t, d); }).length;
+    $('todayMeta').textContent = dn + ' / ' + list.length + ' done · ' + list.length + ' of ' + TODAY_CAP + ' slots';
+
+    var html = '';
+    if (lowOn()) {
+      var hid = list.length - vis.length;
+      html += note('<b>Low-energy day.</b> Only light tasks are showing.' + (hid ? ' ' + hid + ' heavier one' + (hid === 1 ? ' is' : 's are') + ' hidden here, not dropped.' : ''));
+    }
+    html += vis.length ? vis.map(function (t) { return taskRow(t, d, 'today'); }).join('')
+      : '<div class="card empty">' + (list.length
+          ? 'Nothing light on today’s list. Pick a light task below, or rest. Rest still counts.'
+          : 'No must-dos yet. Pick up to five, the few that make today a win.') + '</div>';
+
+    // Yesterday's list does not silently roll over; offer it instead.
+    var stale = state.today.date && state.today.date !== d ? state.today.ids.filter(function (id) {
+      var t = taskOf(id); return t && !doneOf(t, d) && visible(t);
+    }) : [];
+    if (!ids.length && stale.length) {
+      html += '<div class="pl-sug"><span class="grow">' + stale.length + ' unfinished from ' + fmtDay(state.today.date) +
+        '<small>Carry them over, or start fresh.</small></span>' +
+        '<button class="btn sm" data-act="today-carry">' + ic('arrow', 13) + ' Carry over</button></div>';
+    }
+
+    var pool = state.tasks.filter(function (t) { return ids.indexOf(t.id) === -1 && !doneOf(t, d) && visible(t); });
+    if (pool.length) {
+      html += '<div class="pl-add"><select id="todayPick" aria-label="Pick a task for today">' +
+        '<option value="">Add a task to today…</option>' + taskOptions(pool, '') + '</select>' +
+        '<button class="btn gold" data-act="today-pick">Add</button></div>';
+    }
+    var sug = suggestions(pool, d).slice(0, 3);
+    if (sug.length && ids.length < TODAY_CAP) {
+      html += '<div class="pl-grp">Suggested</div>' + sug.map(function (s) {
+        return '<div class="pl-sug" style="--lc:' + color(lineOf(s.t.line)) + '"><span class="pl-dot"></span>' +
+          '<span class="grow">' + esc(s.t.title) + '<small>' + esc(s.why) + ' · ' + s.t.energy + '</small></span>' +
+          '<button class="btn sm" data-act="today-add" data-id="' + esc(s.t.id) + '">' + ic('plus', 13) + ' Today</button></div>';
+      }).join('');
+    }
+    el.innerHTML = html;
+  }
+
+  function addToday(id) {
+    var d = today(), t = taskOf(id);
+    if (!t) return;
+    if (state.today.date !== d) state.today = { date: d, ids: [] };
+    state.today.ids = state.today.ids.filter(function (x) { return !!taskOf(x); });
+    if (state.today.ids.indexOf(id) !== -1) { UI.toast('star', 'Today’s Quests', 'Already on today’s list', t.title); return; }
+    if (state.today.ids.length >= TODAY_CAP) { openSwap(id); return; }
+    state.today.ids.push(id);
+    commit();
+  }
+
+  function openSwap(newId) {
+    var t = taskOf(newId), d = today();
+    openModal(head('Today is full') +
+      '<div class="sub" style="margin-bottom:12px;line-height:1.5">Five is the cap, so something has to make room for ' +
+        '<b style="color:var(--text)">' + esc(t.title) + '</b>. Which one swaps out?</div>' +
+      state.today.ids.map(function (id) {
+        var x = taskOf(id), ln = lineOf(x.line);
+        return '<button class="pl-swap" data-act="m-swap" data-id="' + esc(id) + '" style="--lc:' + color(ln) + '">' +
+          '<span class="pl-dot"></span><span class="grow"><span class="pl-tl">' + esc(ln ? ln.name : 'No quest line') + '</span>' +
+          '<span class="pl-swap-t">' + esc(x.title) + '</span></span>' +
+          (doneOf(x, d) ? '<span class="chip ok">done</span>' : '') + '<span class="chip">swap out</span></button>';
+      }).join('') +
+      '<div class="m-act"><button class="btn" data-act="m-close" style="flex:1">Keep today as it is</button></div>',
+    {
+      swap: function (oldId) {
+        var i = state.today.ids.indexOf(oldId);
+        if (i !== -1) state.today.ids[i] = newId;
+        closeModal();
+        commit();
+        UI.toast('star', 'Today’s Quests', 'Swapped in', t.title);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // 2 — Weekly Board
+  // ---------------------------------------------------------------
+  var viewWeek = 0;                    // 0 = this week
+  var selDay = dowIndex(today());      // the day shown on a phone
+
+  function viewWk() { return GS.weekStart(GS.shiftKey(today(), viewWeek * 7)); }
+
+  function renderBoard() {
+    var wk = viewWk(), days = GS.weekKeys(wk), d0 = today(), pk = peak(), exam = examOn(), hidden = 0;
+    $('weekLabel').textContent = (viewWeek === 0 ? 'This week · ' : viewWeek === 1 ? 'Next week · ' : viewWeek === -1 ? 'Last week · ' : '') + fmtRange(wk);
+
+    function entriesFor(date, block) {
+      if (exam) {
+        return examTasks().filter(function (t) { return t.block === block; })
+          .map(function (t) { return { id: '', task: t }; });
+      }
+      return state.board.filter(function (e) { return e.date === date && e.block === block; })
+        .map(function (e) { return { id: e.id, task: taskOf(e.task) }; })
+        .filter(function (e) {
+          if (!e.task) return false;
+          if (!visible(e.task)) { hidden++; return false; }
+          return true;
+        });
+    }
+
+    var tabs = '', cols = '';
+    days.forEach(function (date, i) {
+      var now = date === d0, sel = i === selDay, count = 0, cells = '';
+      BLOCKS.forEach(function (b) {
+        var ents = entriesFor(date, b.id), isPeak = pk && pk.block === b.id;
+        count += ents.length;
+        cells += '<div class="pl-cell' + (isPeak ? ' peak' : '') + '">' +
+          '<div class="pl-ch"><span>' + b.label + '</span>' + (isPeak ? '<span class="pk">★ peak</span>' : '') + '</div>' +
+          ents.map(function (e) {
+            var done = !!doneOf(e.task, date);
+            return '<div class="pl-ent' + (done ? ' done' : '') + '" style="--lc:' + color(lineOf(e.task.line)) + '">' +
+              '<button class="pl-box sm' + (done ? ' on' : '') + '" data-act="toggle" data-id="' + esc(e.task.id) + '" data-date="' + date + '" ' +
+                'aria-label="' + (done ? 'Mark not done' : 'Mark done') + '">' + ic('check', 11) + '</button>' +
+              '<span class="pl-et">' + esc(e.task.title) + '</span>' +
+              (e.id ? '<button class="pl-x" data-act="ent-del" data-id="' + esc(e.id) + '" aria-label="Take off the board">' + ic('close', 12) + '</button>' : '') +
+            '</div>';
+          }).join('') +
+          (exam ? '' : '<button class="pl-cadd" data-act="slot-add" data-date="' + date + '" data-block="' + b.id + '" ' +
+            'aria-label="Add to ' + DAYS[i] + ' ' + b.label.toLowerCase() + '">' + ic('plus', 13) + '</button>') +
+        '</div>';
+      });
+      var day = parts(date)[2];
+      tabs += '<button class="' + (sel ? 'sel' : '') + (now ? ' now' : '') + '" data-act="day" data-i="' + i + '">' +
+        '<span>' + DAYS[i] + '</span><span class="mono">' + day + '</span><i class="' + (count ? '' : 'off') + '"></i></button>';
+      cols += '<div class="pl-col' + (sel ? ' sel' : '') + (now ? ' now' : '') + '">' +
+        '<div class="pl-dh"><span>' + DAYS[i] + '</span><span class="mono">' + day + '</span></div>' + cells + '</div>';
+    });
+
+    var foot = exam ? 'Exam Week: a study block in your ' + (pk ? 'peak' : 'morning') + ' slot and one clip in the evening, every day.'
+      : pk ? '★ Peak focus ' + esc(pk.label) + '. Deep tasks are suggested into the ' + pk.block + ' slot.'
+      : 'Set your peak-focus hours in Settings and deep tasks will be suggested into that slot.';
+    $('board').innerHTML =
+      (lowOn() && !exam && hidden ? note('<b>Low-energy day.</b> ' + hidden + ' heavier block' + (hidden === 1 ? '' : 's') + ' hidden this week.') : '') +
+      '<div class="pl-tabs">' + tabs + '</div><div class="pl-grid">' + cols + '</div>' +
+      '<div class="pl-foot">' + foot + '</div>';
+  }
+
+  function openSchedule(o) {
+    var wk = viewWk(), days = GS.weekKeys(wk), pk = peak();
+    var pool = state.tasks.filter(visible);
+    if (!pool.length) { UI.toast('planner', 'Weekly Board', 'No tasks to schedule', 'Add a task to a quest line first.'); return; }
+    var t = o.taskId ? taskOf(o.taskId) : null;
+    var date = o.date || (days.indexOf(today()) !== -1 ? today() : days[0]);
+    var block = o.block || (t && t.energy === 'deep' && pk ? pk.block : 'morning');
+
+    openModal(head('Schedule a quest') +
+      field('Task', '<select id="mTask">' + (t ? '' : '<option value="">Choose a task…</option>') + taskOptions(pool, t ? t.id : '') + '</select>', 'mTask') +
+      '<div class="m-err" id="mErr"></div>' +
+      '<div class="f2">' +
+        field('Day', '<select id="mDay">' + days.map(function (k, i) {
+          return '<option value="' + k + '"' + (k === date ? ' selected' : '') + '>' + DAYS[i] + ' ' + fmtDay(k) + '</option>';
+        }).join('') + '</select>', 'mDay') +
+        field('Time block', '<select id="mBlock">' + BLOCKS.map(function (b) {
+          return '<option value="' + b.id + '"' + (b.id === block ? ' selected' : '') + '>' + b.label + (pk && pk.block === b.id ? ' ★' : '') + '</option>';
+        }).join('') + '</select>', 'mBlock') +
+      '</div>' +
+      '<div class="m-hint" id="mHint"></div>' +
+      '<div class="m-act"><button class="btn" data-act="m-close">Cancel</button>' +
+        '<button class="btn gold" data-act="m-save">Put on the board</button></div>',
+    {
+      save: function () {
+        var tid = $('mTask').value, day = $('mDay').value, blk = $('mBlock').value;
+        if (!tid) { $('mErr').textContent = 'Choose a task.'; return; }
+        var dupe = state.board.some(function (e) { return e.task === tid && e.date === day && e.block === blk; });
+        closeModal();
+        if (dupe) { UI.toast('planner', 'Weekly Board', 'Already in that slot', ''); return; }
+        state.board.push({ id: uid('e'), date: day, block: blk, task: tid });
+        commit();
+      },
+      peak: function () { $('mBlock').value = pk.block; hint(); }
+    }, function () {
+      $('mTask').addEventListener('change', hint);
+      $('mBlock').addEventListener('change', hint);
+      hint();
+    });
+
+    function hint() {
+      var x = taskOf($('mTask').value), h = $('mHint');
+      if (!x || x.energy !== 'deep') { h.innerHTML = ''; return; }
+      if (!pk) { h.innerHTML = 'Deep task. Set your peak-focus hours in Settings to get a slot suggested.'; return; }
+      h.innerHTML = $('mBlock').value === pk.block
+        ? '★ Deep task in your peak-focus slot (' + esc(pk.label) + ').'
+        : '★ Deep task. Your peak focus is ' + esc(pk.label) + ', in the ' + pk.block + '.<br>' +
+          '<button class="btn sm" data-act="m-peak">Use the ' + pk.block + ' slot</button>';
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Time split — planned vs actual hours per track
+  // ---------------------------------------------------------------
+  function renderSplit() {
+    var sp = splitNow(), st = weekStats(GS.weekStart(today())), hrs = num(state.settings.weekHours);
+    var rows = state.lines.map(function (l) {
+      return { l: l, pct: sp[l.id], planned: hrs * sp[l.id] / 100, actual: (st.mins[l.id] || 0) / 60 };
+    });
+    var max = Math.max.apply(null, [1].concat(rows.map(function (r) { return Math.max(r.planned, r.actual); })));
+    var tp = 0, ta = 0;
+    rows.forEach(function (r) { tp += r.planned; ta += r.actual; });
+    $('splitMeta').textContent = ta.toFixed(1) + 'h done of ' + tp.toFixed(1) + 'h planned';
+
+    $('split').innerHTML =
+      '<div class="pl-split-top"><label class="fl" for="weekHours">Hours to plan this week</label>' +
+        '<input id="weekHours" type="number" min="0" max="120" step="1" inputmode="numeric" value="' + hrs + '"></div>' +
+      (rows.length ? rows.map(function (r) {
+        var c = esc(r.l.color);
+        return '<div class="pl-split-row" style="--lc:' + c + '">' +
+          '<div class="pl-sh"><span class="pl-sn trunc">' + esc(r.l.name) + '</span><span class="pl-sp" data-sp="' + r.l.id + '">' + r.pct + '%</span></div>' +
+          '<input type="range" class="pl-range" min="0" max="100" step="1" value="' + r.pct + '" data-split="' + r.l.id + '" ' +
+            'style="--p:' + r.pct + '%" aria-label="Share of the week for ' + esc(r.l.name) + '"' + (rows.length < 2 ? ' disabled' : '') + '>' +
+          '<div class="pl-pva">' +
+            '<span>Planned</span><div class="track sm"><div class="fill plain" style="width:' + (r.planned / max * 100).toFixed(1) + '%;color:' + c + ';opacity:.4"></div></div>' +
+            '<span class="mono" data-plh="' + r.l.id + '">' + r.planned.toFixed(1) + 'h</span>' +
+            '<span>Actual</span><div class="track sm"><div class="fill plain" style="width:' + (r.actual / max * 100).toFixed(1) + '%;color:' + c + '"></div></div>' +
+            '<span class="mono">' + r.actual.toFixed(1) + 'h</span>' +
+          '</div></div>';
+      }).join('') : '<div class="empty">Add a quest line to split the week.</div>') +
+      '<div class="pl-foot">Actual hours come from the estimated minutes of everything you tick off this week.</div>';
+  }
+
+  function liveSplit(input) {
+    var nv = rebalance(splitNow(), input.getAttribute('data-split'), num(input.value));
+    var hrs = num(state.settings.weekHours);
+    Object.keys(nv).forEach(function (k) {
+      var r = document.querySelector('[data-split="' + k + '"]');
+      if (r) { if (r !== input) r.value = nv[k]; r.style.setProperty('--p', nv[k] + '%'); }
+      var p = document.querySelector('[data-sp="' + k + '"]');
+      if (p) p.textContent = nv[k] + '%';
+      var ph = document.querySelector('[data-plh="' + k + '"]');
+      if (ph) ph.textContent = (hrs * nv[k] / 100).toFixed(1) + 'h';
+    });
+    return nv;
+  }
+
+  // ---------------------------------------------------------------
+  // 3 — Quest Lines
+  // ---------------------------------------------------------------
+  function logLine(l, sums) {
+    return l.fields.map(function (f) {
+      return '<b>' + fmtVal(sums[f.k] || 0, f.money) + '</b> ' + esc(f.label.toLowerCase());
+    }).join(' · ');
+  }
+
+  function logBlock(l, st) {
+    if (!l.fields.length) return '';
+    var all = {};
+    state.logs.forEach(function (e) {
+      if (e.line !== l.id) return;
+      Object.keys(e.v || {}).forEach(function (k) { all[k] = (all[k] || 0) + num(e.v[k]); });
+    });
+    var recent = state.logs.filter(function (e) { return e.line === l.id; }).slice(-3).reverse();
+    return '<div class="pl-log"><div class="pl-grp" style="margin-top:0">Log</div>' +
+      '<div class="pl-logf">' + l.fields.map(function (f) {
+        return '<label><span>' + esc(f.label) + (f.money ? ' ($)' : '') + '</span>' +
+          '<input type="number" min="0" step="any" inputmode="decimal" placeholder="0" ' +
+          'data-keep="log|' + l.id + '|' + f.k + '" data-log="' + l.id + '" data-k="' + f.k + '"></label>';
+      }).join('') + '</div>' +
+      '<button class="btn sm gold" data-act="log-add" data-id="' + l.id + '" style="margin-top:8px">' + ic('plus', 13) + ' Log for today</button>' +
+      '<div class="pl-logsum">This week: ' + logLine(l, st.sums[l.id] || {}) + '<br>All time: ' + logLine(l, all) + '</div>' +
+      (recent.length ? '<div class="pl-logrs">' + recent.map(function (e) {
+        var bits = l.fields.filter(function (f) { return e.v && e.v[f.k] != null; })
+          .map(function (f) { return fmtVal(e.v[f.k], f.money) + ' ' + f.label.toLowerCase(); });
+        return '<div class="pl-logr"><span class="mono">' + fmtDay(e.date) + '</span>' +
+          '<span class="grow trunc">' + esc(bits.join(' · ')) + '</span>' +
+          iconBtn('log-del', e.id, 'close', 'Delete this log entry', 'del') + '</div>';
+      }).join('') + '</div>' : '') +
+    '</div>';
+  }
+
+  function renderLines() {
+    var d = today(), st = weekStats(GS.weekStart(d));
+    $('lineNew').innerHTML = '<button class="btn sm" data-act="line-new">' + ic('plus', 13) + ' Quest line</button>';
+    if (!state.lines.length) {
+      $('lines').innerHTML = '<div class="card empty">No quest lines. Add one to start planning.</div>';
+      return;
+    }
+    $('lines').innerHTML = state.lines.map(function (l) {
+      var all = state.tasks.filter(function (t) { return t.line === l.id; });
+      var vis = all.filter(visible);
+      var dn = all.filter(function (t) { return doneOf(t, d); }).length;
+      var pct = all.length ? dn / all.length : 0;
+      var body = ['daily', 'weekly', 'none'].map(function (r) {
+        var g = vis.filter(function (t) { return t.repeat === r; });
+        if (r === 'none') {
+          // Open one-offs first, soonest due first; finished ones sink.
+          g = g.map(function (t, i) { return { t: t, i: i, done: !!doneOf(t, d) }; }).sort(function (a, b) {
+            if (a.done !== b.done) return a.done ? 1 : -1;
+            var ad = a.t.due || '9999', bd = b.t.due || '9999';
+            return ad !== bd ? (ad < bd ? -1 : 1) : a.i - b.i;
+          }).map(function (x) { return x.t; });
+        }
+        if (!g.length) return '';
+        return '<div class="pl-grp">' + REPEAT_LABEL[r] + '</div>' + g.map(function (t) { return taskRow(t, d, 'line'); }).join('');
+      }).join('');
+      var hid = all.length - vis.length;
+      return '<section class="card pl-line" style="--lc:' + esc(l.color) + '">' +
+        '<div class="pl-lh"><div class="grow">' +
+          '<div class="pl-lk">' + esc(l.kind) + (l.note ? ' · ' + esc(l.note) : '') + '</div>' +
+          '<div class="pl-ln">' + esc(l.name) + '</div></div>' +
+          '<span class="pl-lpct">' + Math.round(pct * 100) + '%</span></div>' +
+        '<div style="margin-top:10px">' + UI.bar(pct, l.color) + '</div>' +
+        '<div class="pl-lsub">' + dn + '/' + all.length + ' cleared · ' + fmtH(st.mins[l.id] || 0) + ' this week</div>' +
+        (body || '<div class="empty" style="padding:16px 0 6px">' + (all.length ? 'Nothing light here today.' : 'No tasks yet.') + '</div>') +
+        (lowOn() && hid ? '<div class="pl-foot">' + hid + ' heavier task' + (hid === 1 ? '' : 's') + ' hidden for the low-energy day.</div>' : '') +
+        '<div class="pl-lact">' +
+          '<button class="btn sm" data-act="task-new" data-id="' + l.id + '">' + ic('plus', 13) + ' Task</button>' +
+          '<button class="btn sm" data-act="line-edit" data-id="' + l.id + '">' + ic('edit', 13) + ' Edit line</button>' +
+        '</div>' +
+        logBlock(l, st) +
+      '</section>';
+    }).join('');
+  }
+
+  function addLog(lineId) {
+    var l = lineOf(lineId);
+    if (!l) return;
+    var inputs = document.querySelectorAll('[data-log="' + lineId + '"]'), v = {}, any = false;
+    Array.prototype.forEach.call(inputs, function (el) {
+      if (el.value === '') return;
+      var n = Number(el.value);
+      if (!isFinite(n) || n < 0) return;
+      v[el.getAttribute('data-k')] = n;
+      any = true;
+    });
+    if (!any) { UI.toast('scroll', l.name, 'Nothing to log', 'Enter at least one number first.'); return; }
+    state.logs.push({ id: uid('g'), date: today(), line: lineId, v: v });
+    Array.prototype.forEach.call(inputs, function (el) { el.value = ''; });
+    commit();
+    UI.toast('scroll', l.name, 'Logged for today', l.fields.filter(function (f) { return v[f.k] != null; })
+      .map(function (f) { return fmtVal(v[f.k], f.money) + ' ' + f.label.toLowerCase(); }).join(' · '));
+  }
+
+  // ---------------------------------------------------------------
+  // Task + quest-line editors
+  // ---------------------------------------------------------------
+  function removeTask(id) {
+    state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+    state.board = state.board.filter(function (e) { return e.task !== id; });
+    state.today.ids = state.today.ids.filter(function (x) { return x !== id; });
+    // Completions stay in `done`: XP already earned is never taken back.
+  }
+
+  function segVal(id, attr, fallback) {
+    var on = $(id).querySelector('button.on');
+    return on ? on.getAttribute('data-' + attr) : fallback;
+  }
+
+  function openTask(id, lineId) {
+    var t = id ? taskOf(id) : null;
+    if (id && !t) return;
+    var cur = t || { title: '', line: lineId || (state.lines[0] ? state.lines[0].id : ''), energy: 'medium', minutes: 30, due: '', repeat: 'none' };
+    var d = today(), done = t ? !!doneOf(t, d) : false;
+    openModal(head(t ? 'Edit task' : 'New task') +
+      field('Title', '<input id="mTitle" maxlength="140" autocomplete="off" value="' + esc(cur.title) + '" placeholder="What gets done?">', 'mTitle') +
+      '<div class="m-err" id="mErr"></div>' +
+      field('Quest line', '<select id="mLine">' + state.lines.map(function (l) {
+        return '<option value="' + l.id + '"' + (l.id === cur.line ? ' selected' : '') + '>' + esc(l.name) + '</option>';
+      }).join('') + '<option value=""' + (lineOf(cur.line) ? '' : ' selected') + '>No quest line</option></select>', 'mLine') +
+      field('Energy', '<div class="seg" id="mEnergy">' + ENERGY.map(function (e) {
+        return '<button type="button" data-en="' + e + '" class="' + (e === cur.energy ? 'on' : '') + '">' + cap(e) + ' · ' + XP_FOR[e] + ' XP</button>';
+      }).join('') + '</div>') +
+      '<div class="f2">' +
+        field('Estimated minutes', '<input id="mMin" type="number" min="0" max="600" step="5" inputmode="numeric" value="' + num(cur.minutes) + '">', 'mMin') +
+        field('Due date', '<input id="mDue" type="date" value="' + esc(cur.due || '') + '">', 'mDue') +
+      '</div>' +
+      field('Repeat', '<div class="seg" id="mRepeat">' + REPEATS.map(function (r) {
+        return '<button type="button" data-rp="' + r + '" class="' + (r === cur.repeat ? 'on' : '') + '">' + (r === 'none' ? 'None' : cap(r)) + '</button>';
+      }).join('') + '</div>') +
+      '<label class="pl-check"><input type="checkbox" id="mDone"' + (done ? ' checked' : '') + '>' +
+        '<span>Done <span class="sub">— for today or this week if it repeats</span></span></label>' +
+      '<div class="m-act">' +
+        (t ? '<button class="btn" data-act="m-del" style="color:var(--bad)">Delete</button>' : '') +
+        '<button class="btn" data-act="m-close">Cancel</button>' +
+        '<button class="btn gold" data-act="m-save">Save</button></div>',
+    {
+      save: function () {
+        var title = $('mTitle').value.trim();
+        if (!title) { $('mErr').textContent = 'Give it a title.'; $('mTitle').focus(); return; }
+        var mins = Math.round(Number($('mMin').value));
+        if (!isFinite(mins) || mins < 0 || mins > 600) { $('mErr').textContent = 'Minutes must be between 0 and 600.'; return; }
+        var rec = t || { id: uid('t') };
+        rec.title = title.slice(0, 140);
+        rec.line = $('mLine').value;
+        rec.energy = segVal('mEnergy', 'en', 'medium');
+        rec.minutes = mins;
+        rec.due = $('mDue').value || '';
+        rec.repeat = segVal('mRepeat', 'rp', 'none');
+        if (!t) state.tasks.push(rec);
+        var want = $('mDone').checked, had = !!doneOf(rec, d);
+        if (want !== had) setDone(rec, d, want);
+        closeModal();
+        commit(true);
+        if (want && !had) UI.toast('check', 'Quest complete', rec.title, '+' + XP_FOR[rec.energy] + ' XP');
+      },
+      del: function () {
+        if (!confirm('Delete “' + t.title + '”? XP it already earned is kept.')) return;
+        removeTask(t.id);
+        closeModal();
+        commit(true);
+      }
+    });
+  }
+
+  function fieldsText(fields) {
+    return fields.map(function (f) { return (f.money ? '$ ' : '') + f.label; }).join('\n');
+  }
+  // One label per line; a leading $ marks money. A label that is kept
+  // keeps its key, so renaming other fields never orphans logged numbers.
+  function parseFields(text, old) {
+    var used = {}, out = [];
+    String(text || '').split('\n').forEach(function (raw) {
+      var s = raw.trim();
+      if (!s || out.length >= 6) return;
+      var money = s.charAt(0) === '$';
+      var label = s.replace(/^\$\s*/, '').replace(/\(\$\)\s*$/, '').trim().slice(0, 32);
+      if (!label) return;
+      var prev = old.filter(function (f) { return f.label.toLowerCase() === label.toLowerCase(); })[0];
+      var k = prev ? prev.k : (label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'field');
+      var base = k, n = 2;
+      while (used[k]) k = base + '_' + n++;
+      used[k] = true;
+      out.push({ k: k, label: label, money: money });
+    });
+    return out;
+  }
+
+  function openLine(id) {
+    var l = id ? lineOf(id) : null;
+    if (id && !l) return;
+    var cur = l || { name: '', kind: 'Guild Contract', note: '', color: COLORS[state.lines.length % COLORS.length], disc: 'arcana',
+                     fields: [fld('sessions', 'Sessions')] };
+    var discs = GS.DISCIPLINES;
+    openModal(head(l ? 'Edit quest line' : 'New quest line') +
+      field('Name', '<input id="mName" maxlength="60" autocomplete="off" value="' + esc(cur.name) + '" placeholder="e.g. Guild Contract: Translation">', 'mName') +
+      '<div class="m-err" id="mErr"></div>' +
+      '<div class="f2">' +
+        field('Type', '<select id="mKind">' + KINDS.map(function (k) {
+          return '<option' + (k === cur.kind ? ' selected' : '') + '>' + k + '</option>';
+        }).join('') + '</select>', 'mKind') +
+        field('Tagline', '<input id="mNote" maxlength="40" value="' + esc(cur.note || '') + '" placeholder="fastest cash">', 'mNote') +
+      '</div>' +
+      field('Colour', '<div class="swatches" id="mColor">' + COLORS.map(function (c) {
+        return '<button type="button" data-sw="' + c + '" class="' + (c === cur.color ? 'on' : '') + '" style="background:' + c + '" aria-label="Colour ' + c + '"></button>';
+      }).join('') + '</div>') +
+      field('XP goes to', '<select id="mDisc">' + discs.map(function (x) {
+        return '<option value="' + x.id + '"' + (x.id === cur.disc ? ' selected' : '') + '>' + esc(x.name + ' · ' + x.practical) + '</option>';
+      }).join('') + '</select>', 'mDisc') +
+      field('Log fields', '<textarea id="mFields" rows="4" placeholder="Clips posted&#10;Views&#10;$ Approved earnings">' + esc(fieldsText(cur.fields)) + '</textarea>' +
+        '<div class="sub" style="margin-top:6px;line-height:1.5">One per line, up to six. Start a line with $ for money. Money fields add up to “earned” in the Sunday Review.</div>', 'mFields') +
+      '<div class="m-act">' +
+        (l ? '<button class="btn" data-act="m-del" style="color:var(--bad)">Delete</button>' : '') +
+        '<button class="btn" data-act="m-close">Cancel</button>' +
+        '<button class="btn gold" data-act="m-save">Save</button></div>',
+    {
+      save: function () {
+        var name = $('mName').value.trim();
+        if (!name) { $('mErr').textContent = 'Give the quest line a name.'; $('mName').focus(); return; }
+        var sw = $('mColor').querySelector('button.on');
+        var col = sw ? sw.getAttribute('data-sw') : COLORS[0];
+        var disc = $('mDisc').value;
+        var rec = l || { id: uid('l') };
+        rec.name = name.slice(0, 60);
+        rec.kind = KINDS.indexOf($('mKind').value) !== -1 ? $('mKind').value : KINDS[0];
+        rec.note = $('mNote').value.trim().slice(0, 40);
+        rec.color = COLORS.indexOf(col) !== -1 ? col : COLORS[0];
+        rec.disc = discs.some(function (x) { return x.id === disc; }) ? disc : 'arcana';
+        rec.fields = parseFields($('mFields').value, cur.fields || []);
+        if (!l) {
+          var before = splitNow();
+          state.lines.push(rec);
+          before[rec.id] = 0;
+          state.split = rebalance(before, rec.id, Math.round(100 / state.lines.length));
+        }
+        closeModal();
+        commit();
+      },
+      del: function () {
+        var n = state.tasks.filter(function (t) { return t.line === l.id; }).length;
+        if (!confirm('Delete the “' + l.name + '” quest line, its ' + n + ' task' + (n === 1 ? '' : 's') +
+                     ' and its log? XP already earned is kept.')) return;
+        state.tasks.filter(function (t) { return t.line === l.id; }).forEach(function (t) { removeTask(t.id); });
+        state.lines = state.lines.filter(function (x) { return x.id !== l.id; });
+        state.logs = state.logs.filter(function (e) { return e.line !== l.id; });
+        Object.keys(state.roadmap.cells).forEach(function (k) { if (k.split('|')[1] === l.id) delete state.roadmap.cells[k]; });
+        delete state.split[l.id];
+        closeModal();
+        commit(true);
+      }
+    });
+  }
+
+  function openSettings() {
+    var s = state.settings;
+    openModal(head('Planner settings') +
+      '<div class="sub" style="margin-bottom:14px;line-height:1.5">Optional. With peak-focus hours set, deep tasks are suggested into the time block they fall in, and the board marks it ★.</div>' +
+      '<div class="f2">' +
+        field('Peak focus from', '<input id="mPf" type="time" value="' + esc(s.peakFrom) + '">', 'mPf') +
+        field('until', '<input id="mPt" type="time" value="' + esc(s.peakTo) + '">', 'mPt') +
+      '</div>' +
+      field('Hours to plan each week', '<input id="mWh" type="number" min="0" max="120" step="1" inputmode="numeric" value="' + num(s.weekHours) + '">', 'mWh') +
+      '<div class="m-act">' +
+        (s.peakFrom ? '<button class="btn" data-act="m-clear">Clear peak hours</button>' : '') +
+        '<button class="btn" data-act="m-close">Cancel</button>' +
+        '<button class="btn gold" data-act="m-save">Save</button></div>',
+    {
+      save: function () {
+        state.settings.peakFrom = $('mPf').value || '';
+        state.settings.peakTo = state.settings.peakFrom ? ($('mPt').value || '') : '';
+        state.settings.weekHours = Math.max(0, Math.min(120, Math.round(num($('mWh').value))));
+        closeModal();
+        commit();
+      },
+      clear: function () {
+        state.settings.peakFrom = '';
+        state.settings.peakTo = '';
+        closeModal();
+        commit();
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // 4 — 4-Week Roadmap
+  // ---------------------------------------------------------------
+  function renderRoadmap() {
+    var start = state.roadmap.start, cur = GS.weekStart(today()), n = state.lines.length;
+    var into = GS.daysBetween(start, cur);
+    $('rmMeta').textContent = into >= 28 ? 'finished ' + fmtDay(GS.shiftKey(start, 27)) : 'from ' + fmtDay(start);
+    if (!n) { $('roadmap').innerHTML = '<div class="empty">Add a quest line to plan its milestones.</div>'; return; }
+    var headRow = '<div class="pl-rm-row pl-rm-head" style="--n:' + n + '"><span></span>' + state.lines.map(function (l) {
+      return '<span class="trunc" style="color:' + esc(l.color) + '">' + esc(l.name) + '</span>';
+    }).join('') + '</div>';
+    var rows = [0, 1, 2, 3].map(function (w) {
+      var wk = GS.shiftKey(start, w * 7), now = wk === cur;
+      return '<div class="pl-rm-row' + (now ? ' now' : '') + '" style="--n:' + n + '">' +
+        '<div class="pl-rw">Week ' + (w + 1) + (now ? '<span class="chip on">now</span>' : '') + '<small>' + fmtRange(wk) + '</small></div>' +
+        state.lines.map(function (l) {
+          var k = w + '|' + l.id, c = state.roadmap.cells[k] || { t: '', done: false };
+          return '<div class="pl-rc' + (c.done ? ' done' : '') + '" style="--lc:' + esc(l.color) + '">' +
+            '<span class="pl-rcl">' + esc(l.name) + '</span><div class="pl-rci">' +
+            '<button class="pl-box sm' + (c.done ? ' on' : '') + '" data-act="rm-toggle" data-id="' + k + '" ' +
+              'aria-label="Milestone reached"' + (c.t ? '' : ' disabled') + '>' + ic('check', 11) + '</button>' +
+            '<textarea class="pl-rin" rows="2" maxlength="140" data-rm="' + k + '" aria-label="' + esc(l.name) + ', week ' + (w + 1) + '" ' +
+              'placeholder="Milestone for this week…">' + esc(c.t) + '</textarea></div></div>';
+        }).join('') + '</div>';
+    }).join('');
+    $('roadmap').innerHTML = headRow + rows;
+  }
+
+  // ---------------------------------------------------------------
+  // 5 — Sunday Review
+  // ---------------------------------------------------------------
+  var reviewOpen = false;
+  var openHist = {};
+
+  function draft(wk) {
+    if (state.drafts[wk]) return state.drafts[wk];
+    var saved = state.reviews.filter(function (r) { return r.week === wk; })[0];
+    return saved ? { paid: saved.paid, cut: saved.cut, next: saved.next, income: String(saved.income), saved: String(saved.saved) } : {};
+  }
+  function incomeOf(dr, st) { return dr.income != null && dr.income !== '' ? num(dr.income) : st.earned; }
+
+  function savingsLine(income, saved) {
+    var pct = income > 0 ? Math.round(saved / income * 100) : 0, hit = income > 0 && pct >= SAVE_TARGET;
+    var gap = Math.max(0, income * SAVE_TARGET / 100 - saved);
+    return '<div class="pl-save-line">Income this week <b>' + fmtVal(income, true) + '</b> / saved <b>' + fmtVal(saved, true) + '</b>' +
+        ' — <b class="' + (hit ? 'ok' : '') + '">' + pct + '%</b> <span class="sub">(target ' + SAVE_TARGET + '%)</span></div>' +
+      '<div class="pl-tgt"><div class="track sm"><div class="fill plain" style="width:' + Math.min(100, pct) + '%;color:' +
+        (hit ? 'var(--ok)' : 'var(--gold)') + '"></div></div><span class="pl-tgt-m" style="left:' + SAVE_TARGET + '%"></span></div>' +
+      (income > 0 ? '<div class="pl-foot">' + (hit ? 'Target met.' : fmtVal(gap, true) + ' more saved reaches ' + SAVE_TARGET + '%.') + '</div>' : '');
+  }
+
+  function stat(v, k) { return '<div class="pl-st"><div class="pl-st-v">' + v + '</div><div class="pl-st-k">' + k + '</div></div>'; }
+  function question(key, label, ph, long, dr) {
+    var v = esc(dr[key] || '');
+    return '<div class="pl-rv-q"><label class="fl" for="rv_' + key + '">' + label + '</label>' +
+      (long ? '<textarea id="rv_' + key + '" data-draft="' + key + '" maxlength="600" placeholder="' + esc(ph) + '">' + v + '</textarea>'
+            : '<input id="rv_' + key + '" data-draft="' + key + '" maxlength="160" placeholder="' + esc(ph) + '" value="' + v + '">') +
+      '</div>';
+  }
+
+  function renderReview() {
+    var wk = GS.weekStart(today()), sun = isSunday();
+    $('rvMeta').textContent = 'week of ' + fmtRange(wk);
+    if (!(reviewOpen || sun)) {
+      $('review').innerHTML = '<div class="pl-rv-closed"><div>' +
+        '<div class="pl-ln" style="font-size:14px">Opens on Sunday</div>' +
+        '<div class="sub" style="margin-top:3px">It totals the week for you. You answer three questions.</div></div>' +
+        '<button class="btn" data-act="rv-open">Open now</button></div>';
+      return;
+    }
+    var st = weekStats(wk), sp = splitNow(), hrs = num(state.settings.weekHours), dr = draft(wk);
+    $('review').innerHTML =
+      '<div class="pl-rv-h"><div><span class="lore">' + (sun ? 'Sunday · ' : '') + 'Weekly review</span>' +
+        '<div class="pl-ln">' + fmtRange(wk) + '</div></div>' +
+        (sun ? '' : '<button class="pl-ib" data-act="rv-close" aria-label="Close review">' + ic('close', 16) + '</button>') + '</div>' +
+      '<div class="pl-rv-stats">' + stat(fmtH(st.total), 'Hours') + stat(fmtVal(st.earned, true), 'Earned') + stat(UI.fmt(st.xp), 'Planner XP') + '</div>' +
+      state.lines.map(function (l) {
+        return '<div class="pl-rv-line" style="--lc:' + esc(l.color) + '">' +
+          '<div class="pl-sh"><span class="pl-sn"><span class="pl-dot" style="display:inline-block;margin-right:7px"></span>' + esc(l.name) + '</span>' +
+            '<span class="mono">' + fmtH(st.mins[l.id] || 0) + ' of ' + (hrs * (sp[l.id] || 0) / 100).toFixed(1) + 'h</span></div>' +
+          (l.fields.length ? '<div class="pl-rv-sums">' + logLine(l, st.sums[l.id] || {}) + '</div>' : '') +
+        '</div>';
+      }).join('') +
+      question('paid', 'What paid off?', 'The hook, the pitch, the hour that actually moved something…', true, dr) +
+      question('cut', 'What should I cut?', 'The campaign that does not pay, the task you keep moving…', true, dr) +
+      question('next', 'Next week’s one big quest?', 'One sentence. The thing that makes next week a win.', false, dr) +
+      '<div class="pl-grp" style="margin-top:18px">Savings</div>' +
+      '<div class="pl-save">' +
+        '<div><label class="fl" for="rv_income">Income this week ($)</label><input id="rv_income" type="number" min="0" step="any" inputmode="decimal" ' +
+          'data-draft="income" value="' + esc(dr.income || '') + '" placeholder="' + fmtVal(st.earned) + '"></div>' +
+        '<div><label class="fl" for="rv_saved">Saved ($)</label><input id="rv_saved" type="number" min="0" step="any" inputmode="decimal" ' +
+          'data-draft="saved" value="' + esc(dr.saved || '') + '" placeholder="0"></div>' +
+      '</div>' +
+      '<div id="saveLine">' + savingsLine(incomeOf(dr, st), num(dr.saved)) + '</div>' +
+      '<div class="pl-rv-act"><button class="btn gold" data-act="rv-save">' + ic('check', 14) + ' Save review</button></div>';
+  }
+
+  function saveReview() {
+    var wk = GS.weekStart(today()), st = weekStats(wk), sp = splitNow(), hrs = num(state.settings.weekHours), dr = draft(wk);
+    var rec = {
+      week: wk, at: Date.now(),
+      paid: String(dr.paid || '').trim(), cut: String(dr.cut || '').trim(), next: String(dr.next || '').trim(),
+      income: incomeOf(dr, st), saved: num(dr.saved), earned: st.earned, xp: st.xp, mins: st.total,
+      lines: state.lines.map(function (l) {
+        return {
+          name: l.name, color: l.color, min: st.mins[l.id] || 0, planned: hrs * (sp[l.id] || 0) / 100,
+          sums: l.fields.map(function (f) { return { label: f.label, money: f.money, v: (st.sums[l.id] || {})[f.k] || 0 }; })
+        };
+      })
+    };
+    state.reviews = state.reviews.filter(function (r) { return r.week !== wk; }).concat([rec]);
+    delete state.drafts[wk];
+    Object.keys(state.drafts).forEach(function (k) { if (GS.daysBetween(k, wk) > 56) delete state.drafts[k]; });
+    commit();
+    UI.toast('scroll', 'Sunday Review', 'Review saved', rec.next ? 'Next: ' + rec.next : fmtRange(wk));
+  }
+
+  function renderHistory() {
+    var list = state.reviews.slice().sort(function (a, b) { return a.week < b.week ? 1 : -1; });
+    $('histMeta').textContent = list.length + ' saved';
+    $('history').innerHTML = list.length ? list.map(function (r) {
+      var pct = r.income > 0 ? Math.round(r.saved / r.income * 100) : 0;
+      function para(label, v) { return v ? '<div class="fl">' + label + '</div><p>' + esc(v) + '</p>' : ''; }
+      return '<details class="card pl-hist" data-week="' + r.week + '"' + (openHist[r.week] ? ' open' : '') + '>' +
+        '<summary><div class="grow"><div class="pl-hw">' + fmtRange(r.week) + '</div>' +
+          '<div class="pl-hq trunc">' + esc(r.next || 'No big quest named') + '</div></div>' +
+          '<span class="chip">' + fmtH(r.mins) + '</span>' +
+          '<span class="chip' + (r.income > 0 && pct >= SAVE_TARGET ? ' ok' : '') + '">' + fmtVal(r.income, true) + ' · ' + pct + '% saved</span>' +
+        '</summary>' +
+        '<div class="pl-hist-b">' +
+          para('What paid off', r.paid) + para('What to cut', r.cut) + para('Next week’s big quest', r.next) +
+          '<div class="fl">The week</div>' +
+          (r.lines || []).map(function (l) {
+            return '<p><span style="color:' + esc(l.color) + '">' + esc(l.name) + '</span> · ' + fmtH(l.min) + ' of ' + num(l.planned).toFixed(1) + 'h' +
+              ((l.sums || []).length ? ' · ' + l.sums.map(function (s) { return fmtVal(s.v, s.money) + ' ' + esc(s.label.toLowerCase()); }).join(' · ') : '') + '</p>';
+          }).join('') +
+          '<p>' + fmtVal(r.earned, true) + ' earned · ' + fmtVal(r.saved, true) + ' saved of ' + fmtVal(r.income, true) + ' · ' + UI.fmt(r.xp) + ' planner XP</p>' +
+          '<div class="m-act"><button class="btn sm" data-act="rv-del" data-id="' + r.week + '" style="color:var(--bad)">Delete review</button></div>' +
+        '</div></details>';
+    }).join('') : '<div class="card empty">Saved reviews collect here, newest first.</div>';
+  }
+
+  // ---------------------------------------------------------------
+  // Top strip + whole-page render
+  // ---------------------------------------------------------------
+  function renderTop() {
+    var st = weekStats(GS.weekStart(today()));
+    $('xpWeek').textContent = UI.fmt(st.xp);
+    $('xpAll').textContent = UI.fmt(allTimeXp());
+    [['togExam', examOn()], ['togLow', lowOn()]].forEach(function (p) {
+      $(p[0]).classList.toggle('on', p[1]);
+      $(p[0]).setAttribute('aria-pressed', p[1] ? 'true' : 'false');
+    });
+    $('ctlActions').innerHTML =
+      '<button class="btn sm" data-act="settings">' + ic('gear', 14) + ' Settings</button>' +
+      '<button class="btn sm" data-act="rv-open">' + ic('scroll', 14) + ' Sunday Review</button>';
+    var b = $('sundayBanner');
+    b.hidden = !isSunday();
+    b.innerHTML = '<span style="color:var(--gold)">' + ic('scroll', 18) + '</span>' +
+      '<span class="grow"><b>It’s Sunday.</b> Your week is totalled and the review is waiting below.</span>' + ic('chevron', 15);
+  }
+
+  // Re-rendering replaces the log inputs; carry anything half-typed
+  // (and the focus) across so a tick elsewhere never eats it.
+  function keepInputs(fn) {
+    var vals = {}, a = document.activeElement;
+    var focus = a && a.getAttribute ? a.getAttribute('data-keep') : null;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-keep]'), function (el) {
+      if (el.value !== '') vals[el.getAttribute('data-keep')] = el.value;
+    });
+    fn();
+    Object.keys(vals).forEach(function (k) {
+      var el = document.querySelector('[data-keep="' + k + '"]');
+      if (el) el.value = vals[k];
+    });
+    if (focus) { var f = document.querySelector('[data-keep="' + focus + '"]'); if (f) f.focus(); }
+  }
+
+  function render() {
+    keepInputs(function () {
+      var exam = examOn();
+      $('blkSplit').hidden = exam;
+      $('blkLines').hidden = exam;
+      $('blkRoadmap').hidden = exam;
+      $('blkReview').hidden = exam && !reviewOpen;
+      renderTop();
+      renderToday();
+      renderBoard();
+      if (!exam) { renderSplit(); renderLines(); renderRoadmap(); }
+      renderReview();
+      renderHistory();
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Modal
+  // ---------------------------------------------------------------
+  var modalCtx = null;
+  function head(title) {
+    return '<div class="modal-h"><span class="modal-t">' + esc(title) + '</span>' +
+      '<button class="modal-x" data-act="m-close" aria-label="Close">' + ic('close', 18) + '</button></div>';
+  }
+  function field(label, inner, forId) {
+    return '<div class="field"><label class="fl"' + (forId ? ' for="' + forId + '"' : '') + '>' + label + '</label>' + inner + '</div>';
+  }
+  function openModal(html, ctx, onMount) {
+    modalCtx = ctx || {};
+    $('modal').innerHTML = html;
+    $('modalBg').classList.add('show');
+    document.body.classList.add('pl-lock');
+    if (onMount) onMount();
+    // Desktop only: focusing on a phone throws the keyboard up uninvited.
+    if (window.matchMedia && window.matchMedia('(min-width: 700px)').matches) {
+      var f = $('modal').querySelector('input:not([type=checkbox]), select, textarea');
+      if (f) f.focus();
+    }
+  }
+  function closeModal() {
+    modalCtx = null;
+    $('modalBg').classList.remove('show');
+    $('modal').innerHTML = '';
+    document.body.classList.remove('pl-lock');
+  }
+
+  // ---------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------
+  document.addEventListener('click', function (e) {
+    if (e.target === $('modalBg')) { closeModal(); return; }
+    var pick = e.target.closest('.seg button, .swatches button');
+    if (pick) {
+      Array.prototype.forEach.call(pick.parentNode.children, function (b) { b.classList.toggle('on', b === pick); });
+      return;
+    }
+    var el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
+
+    if (act.indexOf('m-') === 0) {
+      var name = act.slice(2);
+      if (name === 'close') closeModal();
+      else if (modalCtx && modalCtx[name]) modalCtx[name](id, el);
+      return;
+    }
+    switch (act) {
+      case 'toggle': toggle(id, el.getAttribute('data-date')); break;
+      case 'today-add': addToday(id); break;
+      case 'today-pick':
+        var v = $('todayPick') && $('todayPick').value;
+        if (v) addToday(v);
+        else UI.toast('star', 'Today’s Quests', 'Pick a task first', '');
+        break;
+      case 'today-remove':
+        state.today.ids = state.today.ids.filter(function (x) { return x !== id; });
+        commit();
+        break;
+      case 'today-carry':
+        var keep = state.today.ids.filter(function (x) { var t = taskOf(x); return t && !doneOf(t, today()); });
+        state.today = { date: today(), ids: keep.slice(0, TODAY_CAP) };
+        commit();
+        break;
+      case 'schedule': openSchedule({ taskId: id }); break;
+      case 'slot-add': openSchedule({ date: el.getAttribute('data-date'), block: el.getAttribute('data-block') }); break;
+      case 'ent-del':
+        state.board = state.board.filter(function (x) { return x.id !== id; });
+        commit();
+        break;
+      case 'day': selDay = Number(el.getAttribute('data-i')) || 0; renderBoard(); break;
+      case 'week-prev':
+      case 'week-next':
+        viewWeek += act === 'week-next' ? 1 : -1;
+        selDay = viewWeek === 0 ? dowIndex(today()) : 0;
+        renderBoard();
+        break;
+      case 'task-new': openTask(null, id); break;
+      case 'task-edit': openTask(id); break;
+      case 'line-new': openLine(null); break;
+      case 'line-edit': openLine(id); break;
+      case 'log-add': addLog(id); break;
+      case 'log-del':
+        state.logs = state.logs.filter(function (x) { return x.id !== id; });
+        commit();
+        break;
+      case 'rm-toggle':
+        var c = state.roadmap.cells[id];
+        if (c && c.t) { c.done = !c.done; commit(); }
+        break;
+      case 'rm-restart':
+        if (!confirm('Start the 4-week roadmap from this week? Milestone text is kept; the ticks are cleared.')) return;
+        state.roadmap.start = GS.weekStart(today());
+        Object.keys(state.roadmap.cells).forEach(function (k) { state.roadmap.cells[k].done = false; });
+        commit();
+        break;
+      case 'exam':
+        state.settings.exam = !state.settings.exam;
+        commit();
+        UI.toast('book', 'Exam Week', state.settings.exam ? 'Exam Week is on' : 'Exam Week is off',
+          state.settings.exam ? 'One clip and one study block a day. Nothing else.' : 'The full plan is back.');
+        break;
+      case 'low':
+        state.settings.lowDate = lowOn() ? '' : today();
+        commit();
+        break;
+      case 'settings': openSettings(); break;
+      case 'rv-open':
+        reviewOpen = true;
+        render();
+        $('blkReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      case 'rv-close': reviewOpen = false; render(); break;
+      case 'rv-save': saveReview(); break;
+      case 'rv-del':
+        if (!confirm('Delete the review for the week of ' + fmtRange(id) + '?')) return;
+        state.reviews = state.reviews.filter(function (r) { return r.week !== id; });
+        commit();
+        break;
+    }
+  });
+
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.matches('[data-split]')) { liveSplit(t); return; }
+    if (t.matches('[data-draft]')) {
+      var wk = GS.weekStart(today());
+      var d = state.drafts[wk] || (state.drafts[wk] = Object.assign({}, draft(wk)));
+      var k = t.getAttribute('data-draft');
+      d[k] = String(t.value).slice(0, 600);
+      persist();
+      if (k === 'income' || k === 'saved') $('saveLine').innerHTML = savingsLine(incomeOf(d, weekStats(wk)), num(d.saved));
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.matches('[data-split]')) {
+      state.split = rebalance(splitNow(), t.getAttribute('data-split'), num(t.value));
+      persist();
+      renderSplit();
+      if (reviewOpen || isSunday()) renderReview();
+      return;
+    }
+    if (t.id === 'weekHours') {
+      state.settings.weekHours = Math.max(0, Math.min(120, Math.round(num(t.value))));
+      persist();
+      renderSplit();
+      if (reviewOpen || isSunday()) renderReview();
+      return;
+    }
+    if (t.matches('[data-rm]')) {
+      // Saved in place, not re-rendered, so tabbing to the next milestone keeps focus.
+      var k = t.getAttribute('data-rm');
+      var c = state.roadmap.cells[k] || (state.roadmap.cells[k] = { t: '', done: false });
+      c.t = String(t.value).trim().slice(0, 140);
+      if (!c.t) c.done = false;
+      persist();
+      var box = t.parentNode.querySelector('[data-act="rm-toggle"]');
+      if (box) box.disabled = !c.t;
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modalCtx) { closeModal(); return; }
+    if (e.key !== 'Enter') return;
+    var t = e.target;
+    if (t.matches && t.matches('[data-log]')) { e.preventDefault(); addLog(t.getAttribute('data-log')); return; }
+    if (modalCtx && t.matches && t.matches('.modal input:not([type=checkbox])') && modalCtx.save) { e.preventDefault(); modalCtx.save(); }
+  });
+
+  // Remember which past reviews are expanded across re-renders.
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (d && d.matches && d.matches('details[data-week]')) openHist[d.getAttribute('data-week')] = d.open;
+  }, true);
+
+  // Another tab edited the planner.
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY) return;
+    state = load();
+    if (!UI.isTyping() && !modalCtx) render();
+  });
+
+  render();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'planner',
+      syncedKeys: [KEY],
+      onApplied: function () {
+        state = load();
+        GS.reconcile();
+        if (!UI.isTyping() && !modalCtx) render();
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

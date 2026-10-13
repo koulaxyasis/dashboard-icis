@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+// Safety guard: this harness CLEARS localStorage. Localhost only.
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+  localStorage.clear();
+})();
+</script>
+<title>planner test</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px;top:0}pre{white-space:pre-wrap;padding:10px}</style>
+<script src="../game-state.js"></script>
+</head>
+<body>
+<pre id="out">pending…</pre>
+<script>
+var L = [];
+function chk(label, ok, extra) { L.push((ok ? 'PASS ' : 'FAIL ') + label + (extra ? '  ' + extra : '')); return ok; }
+function eq(label, a, b) { return chk(label + ' = ' + a, String(a) === String(b), String(a) === String(b) ? '' : 'expected ' + b); }
+var GS = window.GameState;
+function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function plan() { return JSON.parse(localStorage.getItem('planner:v1') || 'null'); }
+function ledger() { GS.reload(); return GS.get().ledger; }
+function planXp() {
+  var l = ledger(); return Object.keys(l).filter(function (k) { return k.indexOf('plan:') === 0; })
+    .reduce(function (a, k) { return a + l[k].xp; }, 0);
+}
+
+function open(page, width) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe');
+    f.style.width = (width || 1100) + 'px'; f.style.height = '900px';
+    f.src = page + (page.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
+    f.addEventListener('load', function () { setTimeout(function () { resolve(f); }, 900); });
+    document.body.appendChild(f);
+  });
+}
+
+(async function () {
+  try {
+    // ---- a first visit renders the starter world and writes NOTHING
+    var f = await open('../planner.html');
+    var w = f.contentWindow, d = w.document;
+    function q(sel) { return d.querySelector(sel); }
+    function qa(sel) { return Array.prototype.slice.call(d.querySelectorAll(sel)); }
+    function click(sel) { var el = typeof sel === 'string' ? q(sel) : sel; if (!el) throw new Error('missing ' + sel); el.click(); }
+
+    eq('first visit stores nothing', localStorage.getItem('planner:v1'), 'null');
+    eq('three quest lines seeded', qa('.pl-line').length, 3);
+    eq('eighteen starter tasks', qa('.pl-line .pl-task').length, 18);
+    eq('roadmap: 4 weeks x 3 lines', qa('[data-rm]').length, 12);
+    chk('roadmap seeded with milestones', qa('[data-rm]').every(function (t) { return t.value.length > 5; }));
+    eq('split defaults 40/35/25', qa('[data-split]').map(function (r) { return r.value; }).join('/'), '40/35/25');
+    chk('weekly board has 7 days x 3 blocks', qa('.pl-col').length === 7 && qa('.pl-cell').length === 21);
+    chk('log fields include $ approved earnings', !!q('[data-keep="log|clip|earned"]'));
+
+    // ---- today's cap of five, and the swap question on the sixth
+    var stars = qa('.pl-line [data-act="today-add"]');
+    for (var i = 0; i < 5; i++) click(qa('.pl-line [data-act="today-add"]')[i]);
+    eq('five on today', plan().today.ids.length, 5);
+    eq('today rendered five rows', qa('#today .pl-task').length, 5);
+    click(qa('.pl-line [data-act="today-add"]')[6]);
+    chk('a sixth asks which to swap', q('#modalBg').classList.contains('show') && qa('[data-act="m-swap"]').length === 5);
+    eq('  and has not added it yet', plan().today.ids.length, 5);
+    var sixth = qa('.pl-line .pl-task')[6].querySelector('[data-act="toggle"]').getAttribute('data-id');
+    var out = qa('[data-act="m-swap"]')[0].getAttribute('data-id');
+    click(qa('[data-act="m-swap"]')[0]);
+    eq('swap keeps the cap', plan().today.ids.length, 5);
+    chk('  the chosen one swapped out', plan().today.ids.indexOf(out) === -1 && plan().today.ids.indexOf(sixth) !== -1);
+    chk('  modal closed', !q('#modalBg').classList.contains('show'));
+
+    // ---- XP: deep 30 / medium 15 / light 5, into the SHARED ledger
+    var xp0 = GS.totals().totalXp;
+    var deep = qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('Case study 1') !== -1; })[0];
+    click(deep.querySelector('[data-act="toggle"]'));
+    await wait(50);
+    eq('deep task pays 30 into the shared ledger', GS.reload() && (GS.totals().totalXp - xp0), 30);
+    eq('  under the planner key', planXp(), 30);
+    var med = qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('Edit + post 2 clips') !== -1; })[0];
+    click(med.querySelector('[data-act="toggle"]'));
+    var light = qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('no FYP') !== -1; })[0];
+    click(light.querySelector('[data-act="toggle"]'));
+    eq('medium + light add 15 + 5', planXp(), 50);
+    chk('clipping XP lands in Fortune', ledger()['plan:clip_post:' + GS.todayKey()].disc === 'fortune');
+    chk('design XP lands in Craft', ledger()['plan:des_case_landing:once'].disc === 'arcana');
+    GS.reconcile(); GS.reconcile();
+    eq('reconcile is idempotent', planXp(), 50);
+    // untick revokes, re-tick does not stack
+    click(qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('no FYP') !== -1; })[0].querySelector('[data-act="toggle"]'));
+    eq('unticking revokes', planXp(), 45);
+    click(qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('no FYP') !== -1; })[0].querySelector('[data-act="toggle"]'));
+    eq('re-ticking pays once', planXp(), 50);
+    eq('page XP chip agrees', q('#xpAll').textContent, '50');
+    await wait(50);   // the HUD redraws on the next tick; game-state coalesces notifications
+    eq('HUD shows the shared total', d.getElementById('hudXp').textContent.split('/')[0].trim(),
+       String(GS.totals().into));
+
+    // deleting a done task keeps the XP it earned
+    click(qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('Case study 1') !== -1; })[0].querySelector('[data-act="task-edit"]'));
+    w.confirm = function () { return true; };
+    click('[data-act="m-del"]');
+    chk('task deleted', !plan().tasks.some(function (t) { return t.id === 'des_case_landing'; }));
+    eq('  its XP is kept', planXp(), 50);
+
+    // ---- task editor: create with every field
+    click('[data-act="task-new"][data-id="finance"]');
+    q('#mTitle').value = 'Write variance commentary';
+    click('#mEnergy [data-en="deep"]');
+    q('#mMin').value = '50';
+    q('#mDue').value = GS.shiftKey(GS.todayKey(), 2);
+    click('#mRepeat [data-rp="weekly"]');
+    click('[data-act="m-save"]');
+    var made = plan().tasks.filter(function (t) { return t.title === 'Write variance commentary'; })[0];
+    chk('task created with all fields', !!made && made.line === 'finance' && made.energy === 'deep' &&
+      made.minutes === 50 && made.repeat === 'weekly' && made.due === GS.shiftKey(GS.todayKey(), 2),
+      JSON.stringify(made));
+    click('[data-act="task-new"][data-id="finance"]');
+    click('[data-act="m-save"]');
+    chk('empty title is rejected inline', q('#mErr').textContent.length > 0 && q('#modalBg').classList.contains('show'));
+    click('[data-act="m-close"]');
+
+    // ---- low-energy day shows only light tasks
+    click('#togLow');
+    var shown = qa('.pl-line .pl-task');
+    chk('low-energy: only light tasks', shown.length > 0 && shown.every(function (r) { return r.querySelector('.chip.ok'); }),
+        shown.length + ' shown');
+    chk('  today list filtered too', qa('#today .pl-task').every(function (r) { return r.querySelector('.chip.ok'); }));
+    eq('  stored as today only', plan().settings.lowDate, GS.todayKey());
+    click('#togLow');
+
+    // ---- exam week hides everything but 1 clip + a study block
+    click('#togExam');
+    chk('exam: quest lines hidden', q('#blkLines').hidden && q('#blkRoadmap').hidden && q('#blkSplit').hidden);
+    eq('exam: today is exactly two items', qa('#today .pl-task').length, 2);
+    chk('  a clip and a study block', /Post 1 clip/.test(q('#today').textContent) && /Study block/.test(q('#today').textContent));
+    eq('exam: board shows 2 per day', qa('#board .pl-ent').length, 14);
+    var before = planXp();
+    click(qa('#today [data-act="toggle"]')[0]);
+    eq('  study block pays deep XP', planXp() - before, 30);
+    click('#togExam');
+    chk('exam off restores the plan', !q('#blkLines').hidden && qa('.pl-line').length === 3);
+
+    // ---- peak focus suggests deep work into that block
+    click('[data-act="settings"]');
+    q('#mPf').value = '14:00'; q('#mPt').value = '17:00';
+    click('[data-act="m-save"]');
+    eq('peak stored', plan().settings.peakFrom, '14:00');
+    eq('board marks the afternoon as peak', qa('.pl-cell.peak').length, 7);
+    var deepRow = qa('.pl-line .pl-task').filter(function (r) { return r.textContent.indexOf('INCO: clean') !== -1; })[0];
+    click(deepRow.querySelector('[data-act="schedule"]'));
+    eq('scheduling a deep task defaults to the peak block', q('#mBlock').value, 'afternoon');
+    chk('  and says why', /peak-focus slot/.test(q('#mHint').textContent));
+    click('[data-act="m-save"]');
+    eq('board entry created', plan().board.length, 1);
+    chk('  rendered on the board', /INCO: clean/.test(q('#board').textContent));
+
+    // ---- split sliders always total 100
+    var r0 = q('[data-split="clip"]');
+    r0.value = '60';
+    r0.dispatchEvent(new w.Event('input', { bubbles: true }));
+    r0.dispatchEvent(new w.Event('change', { bubbles: true }));
+    var sp = plan().split;
+    eq('split totals 100 after a move', sp.clip + sp.design + sp.finance, 100);
+    eq('  moved slider kept its value', sp.clip, 60);
+    chk('  others shrank in proportion', sp.design > sp.finance, JSON.stringify(sp));
+    chk('planned vs actual shown per track', qa('.pl-pva').length === 3 && /h done of/.test(q('#splitMeta').textContent));
+
+    // ---- logs feed the weekly totals and the review
+    q('[data-keep="log|clip|clips"]').value = '4';
+    q('[data-keep="log|clip|views"]').value = '12000';
+    q('[data-keep="log|clip|earned"]').value = '35.5';
+    click('[data-act="log-add"][data-id="clip"]');
+    eq('log entry stored', plan().logs.length, 1);
+    chk('  inputs cleared', q('[data-keep="log|clip|clips"]').value === '');
+    chk('  weekly sum shows', /4<\/b> clips posted/.test(q('#lines').innerHTML));
+
+    // a half-typed log number survives a re-render triggered elsewhere
+    q('[data-keep="log|design|pitches"]').value = '3';
+    click(qa('.pl-line .pl-task')[0].querySelector('[data-act="toggle"]'));
+    eq('half-typed log survives a re-render', q('[data-keep="log|design|pitches"]').value, '3');
+
+    // ---- Sunday review: openable any day, totals the week, savings line
+    click('[data-act="rv-open"]');
+    chk('review open', !!q('[data-draft="paid"]'));
+    chk('  earned is summed from money fields', /\$35\.5/.test(q('#review').textContent));
+    var inc = q('[data-draft="income"]'); inc.value = '100'; inc.dispatchEvent(new w.Event('input', { bubbles: true }));
+    var sv = q('[data-draft="saved"]'); sv.value = '75'; sv.dispatchEvent(new w.Event('input', { bubbles: true }));
+    chk('  savings line updates live', /75%/.test(q('#saveLine').textContent) && /target 70%/.test(q('#saveLine').textContent));
+    var nx = q('[data-draft="next"]'); nx.value = 'Ship case study 2'; nx.dispatchEvent(new w.Event('input', { bubbles: true }));
+    click('[data-act="rv-save"]');
+    eq('review saved to history', plan().reviews.length, 1);
+    eq('  with the big quest', plan().reviews[0].next, 'Ship case study 2');
+    eq('  and the savings', plan().reviews[0].income + '/' + plan().reviews[0].saved, '100/75');
+    chk('  history lists it', /Ship case study 2/.test(q('#history').textContent));
+    click('[data-act="rv-save"]');
+    eq('re-saving the same week replaces, not duplicates', plan().reviews.length, 1);
+
+    // ---- quest line editor
+    click('[data-act="line-new"]');
+    q('#mName').value = 'Side Hustle';
+    q('#mFields').value = 'Hours\n$ Income';
+    click('[data-act="m-save"]');
+    eq('new line added', plan().lines.length, 4);
+    var nl = plan().lines[3];
+    chk('  fields parsed with money flag', nl.fields.length === 2 && nl.fields[1].money && !nl.fields[0].money, JSON.stringify(nl.fields));
+    var sp2 = plan().split, tot = Object.keys(sp2).reduce(function (a, k) { return a + sp2[k]; }, 0);
+    eq('  split still totals 100', tot, 100);
+    click('[data-act="line-edit"][data-id="' + nl.id + '"]');
+    click('[data-act="m-del"]');
+    eq('line deleted', plan().lines.length, 3);
+    var keptXp = planXp();
+    chk('XP survives line deletion', keptXp > 0);
+
+    // ---- the narrow layout keeps the page inside the viewport
+    f.style.width = '320px';
+    await wait(100);
+    var sw = Math.max(d.documentElement.scrollWidth, d.body.scrollWidth), vw = d.documentElement.clientWidth;
+    chk('no horizontal overflow at 320px', sw <= vw + 1, 'scrollW=' + sw + ' vw=' + vw);
+    chk('phone board shows day tabs', w.getComputedStyle(q('.pl-tabs')).display === 'flex');
+    eq('  and exactly one day column', qa('.pl-col').filter(function (c) { return w.getComputedStyle(c).display !== 'none'; }).length, 1);
+    f.remove();
+
+    // ---- a reload reads everything back and writes nothing
+    var snap = localStorage.getItem('planner:v1'), gsSnap = localStorage.getItem('icisGameStateV2');
+    var f2 = await open('../planner.html', 390);
+    var d2 = f2.contentWindow.document;
+    eq('reload is inert (planner)', localStorage.getItem('planner:v1') === snap, 'true');
+    eq('reload is inert (game state)', localStorage.getItem('icisGameStateV2') === gsSnap, 'true');
+    eq('reload restores today', d2.querySelectorAll('#today .pl-task').length, 5);
+    f2.remove();
+
+    // ---- the Hub links it and shows today's progress
+    var f3 = await open('../index.html', 390);
+    var tile = f3.contentWindow.document.querySelector('#world a[href="planner.html"]');
+    chk('Hub world map links the Planner', !!tile);
+    chk('  with today’s progress', !!tile && /\d+\/5 today/.test(tile.textContent), tile ? tile.textContent : '');
+    eq('Hub XP bar includes planner XP', GS.reload() && Object.keys(GS.get().ledger).some(function (k) { return k.indexOf('plan:') === 0; }), 'true');
+    f3.remove();
+
+    // ---- a device without planner data must not wipe planner XP
+    var keep = localStorage.getItem('planner:v1');
+    localStorage.removeItem('planner:v1');
+    GS.reload(); GS.reconcile();
+    eq('absent planner data leaves its XP alone', planXp(), keptXp);
+    localStorage.setItem('planner:v1', keep);
+  } catch (e) {
+    L.push('FAIL threw: ' + e.message + '\n' + e.stack);
+  }
+  var fails = L.filter(function (x) { return x.indexOf('FAIL') === 0; }).length;
+  var passes = L.filter(function (x) { return x.indexOf('PASS') === 0; }).length;
+  L.unshift(fails === 0 ? '### PLANNER OK (' + passes + ' checks) ###' : '### ' + fails + ' FAILURES ###');
+  document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>

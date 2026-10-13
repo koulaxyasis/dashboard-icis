@@ -13,6 +13,7 @@
 //     gym:2026-09-20         one entry per training day
 //     task:<proj>:<task>     one entry per project task
 //     quest:2026-09-20:q_17  one entry per quest per day
+//     plan:<task>:<period>   one entry per planner task per period
 //
 // Writing the same key twice overwrites instead of stacking, so:
 //   * opening a page can never change your level,
@@ -22,7 +23,7 @@
 //     the same ledger.
 //
 // `reconcile()` rebuilds the derived entries (goals, gym, water,
-// caffeine, tasks, finance) from the tracker pages' own storage on
+// caffeine, tasks, finance, planner) from the tracker pages' own storage on
 // every load. It is a pure function of that data, so running it a
 // hundred times produces the identical ledger.
 //
@@ -575,6 +576,31 @@
       if (put('nw:moves', acts.length * XP.nwActivity, 'fortune')) changed = true;
     }
 
+    // --- Planner: one entry per task per period it was completed in.
+    // planner.html stores each completion with its own xp and discipline,
+    // so deleting a task later never takes back XP already earned. Keys
+    // are only dropped when the planner's data is present and the
+    // completion is gone from it (i.e. it was unticked) — a device that
+    // has not received the planner's data yet leaves them alone.
+    var plan = readJSON('planner:v1', null);
+    if (plan && plan.done && typeof plan.done === 'object') {
+      var planKeys = {};
+      Object.keys(plan.done).forEach(function (tid) {
+        var per = plan.done[tid];
+        if (!per || typeof per !== 'object') return;
+        Object.keys(per).forEach(function (period) {
+          var c = per[period];
+          if (!c) return;
+          var key = 'plan:' + tid + ':' + period;
+          planKeys[key] = true;
+          if (put(key, num(c.xp), c.disc || 'arcana', { text: c.text })) changed = true;
+        });
+      });
+      Object.keys(s.ledger).forEach(function (k) {
+        if (k.indexOf('plan:') === 0 && !planKeys[k] && drop(k)) changed = true;
+      });
+    }
+
     if (changed) save();
     return changed;
   }
@@ -792,6 +818,7 @@
       case 'career':  return 'Career milestone';
       case 'social':  return 'Fellowship action';
       case 'nw':      return 'Treasury updated';
+      case 'plan':    return 'Planner task done';
       default:        return 'Progress recorded';
     }
   }

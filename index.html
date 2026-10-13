@@ -293,6 +293,20 @@
     var stat = {
       quest: function () { var v = QE.todayView(); return v.done + '/' + v.total + ' quests'; },
       career: function () { return 'LV ' + t.byId.career.level; },
+      // Read-only peek at the Planner's own key: today's must-dos kept.
+      planner: function () {
+        var p = GS.readJSON('planner:v1', null), today = GS.todayKey();
+        if (!p || !p.today || p.today.date !== today || !(p.today.ids || []).length) return 'plan today';
+        var tasks = p.tasks || [], done = p.done || {};
+        var kept = p.today.ids.filter(function (id) {
+          var task = tasks.filter(function (x) { return x.id === id; })[0];
+          if (!task) return false;
+          var per = task.repeat === 'daily' ? today
+                  : task.repeat === 'weekly' ? 'w' + GS.weekStart(today) : 'once';
+          return !!(done[id] && done[id][per]);
+        }).length;
+        return kept + '/' + p.today.ids.length + ' today';
+      },
       guild: function () { return 'LV ' + t.byId.arcana.level; },
       training: function () { return 'LV ' + t.byId.might.level; },
       spring: function () { return 'LV ' + t.byId.vitality.level; },
