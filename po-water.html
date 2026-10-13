@@ -1124,12 +1124,16 @@ html, body {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  // When embedded in health.html, the parent owns sync for the 'health'
-  // row — running our own sync here would race and wipe sibling keys.
+  // When embedded in another page, the parent owns sync — running our own
+  // here would race it.
   try { if (window.self !== window.top) return; } catch (e) { return; }
   if (typeof initCloudSync !== 'function') return;
+  // Its own row. 'health' was shared with the projects page, which synced
+  // a different key into it, so each page's push deleted the other's data.
+  // 'health' is read once as a fallback while 'water' is still empty.
   initCloudSync({
-    appKey: 'health',
+    appKey: 'water',
+    legacyAppKey: 'health',
     syncedKeys: ['po_water_v1'],
     onApplied: function () {
       window.dispatchEvent(new Event('storage'));

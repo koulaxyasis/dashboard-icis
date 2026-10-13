@@ -1137,8 +1137,12 @@ main {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof initCloudSync !== 'function') return;
+  // Its own row. 'health' was shared with the water page, which synced a
+  // different key into it, so each page's push deleted the other's data.
+  // 'health' is read once as a fallback while 'projects' is still empty.
   initCloudSync({
-    appKey: 'health',
+    appKey: 'projects',
+    legacyAppKey: 'health',
     syncedKeys: ['pm:projects'],
     syncedPrefixes: [],
     onApplied: function () {

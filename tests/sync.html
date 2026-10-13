@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script>
+// Safety guard: this harness CLEARS localStorage. Localhost only.
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') {
+    document.documentElement.innerHTML = '<body>Blocked: localhost only.</body>';
+    throw new Error('blocked');
+  }
+})();
+</script>
+<title>sync test</title>
+<style>body{margin:0;background:#111;color:#eee;font:12px monospace}
+iframe{border:0;position:absolute;left:-9999px;width:10px;height:10px}pre{white-space:pre-wrap;padding:10px}</style>
+</head>
+<body>
+<pre id="out">pending…</pre>
+<script>
+// Cloud-sync row isolation. Each iframe is one page running the real
+// sync.js against an in-memory app_state table (see sync-page.html).
+var L = [];
+function chk(label, ok, extra) { L.push((ok ? 'PASS ' : 'FAIL ') + label + (extra ? '  ' + extra : '')); return ok; }
+function eq(label, a, b) { return chk(label + ' = ' + a, String(a) === String(b), String(a) === String(b) ? '' : 'expected ' + b); }
+function get(k) { return localStorage.getItem(k); }
+function set(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+function row(k) { return JSON.stringify(window.__db.rows[k]); }
+
+function reset(rows, fail) {
+  localStorage.clear();
+  window.__db = { rows: rows || {}, fail: fail || {}, reads: [], pushes: [] };
+}
+function page(app, keys, legacy) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe');
+    f.src = 'sync-page.html?app=' + app + '&keys=' + keys + (legacy ? '&legacy=' + legacy : '') + '&t=' + Math.random();
+    f.addEventListener('load', function () { setTimeout(function () { resolve(f); }, 900); });
+    document.body.appendChild(f);
+  });
+}
+
+var PROJECTS = [{ id: 'p1', name: 'BBS budget model', tasks: [] }];
+var WATER = { unit: 'bottle', logs: { '2026-10-12': 4 } };
+var WATER_NEWER = { unit: 'bottle', logs: { '2026-10-12': 4, '2026-10-13': 2 } };
+
+(async function () {
+  try {
+    // ---- the bug, reproduced on the OLD setup: both pages on 'health'
+    reset({ health: { po_water_v1: WATER } });       // the water page pushed last
+    set('pm:projects', PROJECTS);
+    var f = await page('health', 'pm:projects');
+    eq('OLD setup: opening Projects deletes your projects (bug reproduced)', get('pm:projects'), 'null');
+    f.remove();
+
+    // ---- the fix: projects on its own row, health read as a fallback
+    reset({ health: { po_water_v1: WATER } });
+    set('pm:projects', PROJECTS);
+    f = await page('projects', 'pm:projects', 'health');
+    eq('NEW: local projects survive', get('pm:projects'), JSON.stringify(PROJECTS));
+    eq('  and seed the new projects row', row('projects'), JSON.stringify({ 'pm:projects': PROJECTS }));
+    eq('  the legacy health row is never written', row('health'), JSON.stringify({ po_water_v1: WATER }));
+    chk('  water is not pulled into the projects page', get('po_water_v1') === null);
+    f.remove();
+
+    // ---- a device that lost its data recovers it from the legacy row
+    reset({ health: { po_water_v1: WATER } });
+    f = await page('water', 'po_water_v1', 'health');
+    eq('empty device adopts water from the legacy row', get('po_water_v1'), JSON.stringify(WATER));
+    eq('  and seeds the new water row', row('water'), JSON.stringify({ po_water_v1: WATER }));
+    f.remove();
+
+    // ---- what this device already has wins over the legacy copy
+    reset({ health: { po_water_v1: WATER } });
+    set('po_water_v1', WATER_NEWER);
+    f = await page('water', 'po_water_v1', 'health');
+    eq('local data is never overwritten by the legacy row', get('po_water_v1'), JSON.stringify(WATER_NEWER));
+    eq('  the new row gets the local copy', row('water'), JSON.stringify({ po_water_v1: WATER_NEWER }));
+    f.remove();
+
+    // ---- once the new row exists, the legacy row is ignored
+    reset({ water: { po_water_v1: WATER_NEWER }, health: { po_water_v1: WATER } });
+    f = await page('water', 'po_water_v1', 'health');
+    eq('a populated new row is used as normal', get('po_water_v1'), JSON.stringify(WATER_NEWER));
+    chk('  the legacy row is not even read', window.__db.reads.indexOf('health') === -1, window.__db.reads.join(','));
+    f.remove();
+
+    // ---- a failed read of the new row must not trigger the migration
+    reset({ health: { po_water_v1: WATER } }, { water: true });
+    f = await page('water', 'po_water_v1', 'health');
+    chk('failed read: legacy is not consulted', window.__db.reads.indexOf('health') === -1);
+    eq('  and nothing is adopted', get('po_water_v1'), 'null');
+    f.remove();
+
+    // ---- an unreachable legacy row is harmless
+    reset({}, { health: true });
+    set('pm:projects', PROJECTS);
+    f = await page('projects', 'pm:projects', 'health');
+    eq('legacy read failing leaves local data alone', get('pm:projects'), JSON.stringify(PROJECTS));
+    eq('  and still seeds the new row', row('projects'), JSON.stringify({ 'pm:projects': PROJECTS }));
+    f.remove();
+
+    // ---- both pages open together never touch each other's data again
+    reset({ health: { po_water_v1: WATER } });
+    set('pm:projects', PROJECTS);
+    set('po_water_v1', WATER_NEWER);
+    var a = await page('projects', 'pm:projects', 'health');
+    var b = await page('water', 'po_water_v1', 'health');
+    a.contentWindow.localStorage.setItem('pm:projects', JSON.stringify(PROJECTS.concat([{ id: 'p2', name: 'Case study', tasks: [] }])));
+    b.contentWindow.localStorage.setItem('po_water_v1', JSON.stringify(WATER));
+    await new Promise(function (r) { setTimeout(r, 700); });
+    // re-open each page: the old bug fired exactly here, on load
+    a.remove(); b.remove();
+    a = await page('projects', 'pm:projects', 'health');
+    b = await page('water', 'po_water_v1', 'health');
+    chk('both pages open: projects kept', /Case study/.test(get('pm:projects') || ''), get('pm:projects'));
+    eq('both pages open: water kept', get('po_water_v1'), JSON.stringify(WATER));
+    chk('  rows hold only their own key',
+      Object.keys(window.__db.rows.projects).join() === 'pm:projects' &&
+      Object.keys(window.__db.rows.water).join() === 'po_water_v1');
+    a.remove(); b.remove();
+  } catch (e) {
+    L.push('FAIL threw: ' + e.message + '\n' + e.stack);
+  }
+  localStorage.clear();
+  var fails = L.filter(function (x) { return x.indexOf('FAIL') === 0; }).length;
+  var passes = L.filter(function (x) { return x.indexOf('PASS') === 0; }).length;
+  L.unshift(fails === 0 ? '### SYNC OK (' + passes + ' checks) ###' : '### ' + fails + ' FAILURES ###');
+  document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>

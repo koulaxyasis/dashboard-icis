@@ -5,6 +5,15 @@
 //   syncedKeys     — exact localStorage keys to mirror
 //   syncedPrefixes — localStorage key prefixes to mirror (e.g. 'goals:')
 //   onApplied      — optional callback after remote state has been applied
+//   legacyAppKey   — optional row this page used to sync under. Read once,
+//                    only while the page's own row is still empty, to
+//                    fill in keys this device is missing. Never written,
+//                    and never used to delete anything.
+//
+// Every page that shares an appKey MUST sync the same keys. A push writes
+// the whole row with only this page's keys, and an apply deletes local
+// matching keys that are missing from the row — so two pages sharing a
+// row with different keys delete each other's data.
 //
 // Requires:
 //   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -23,6 +32,7 @@
     const syncedKeys = (config && config.syncedKeys) || [];
     const syncedPrefixes = (config && config.syncedPrefixes) || [];
     const onApplied = config && config.onApplied;
+    const legacyAppKey = config && config.legacyAppKey;
     if (!appKey) return;
     if (!window.supabase) return;
     if (!SUPABASE_URL || !SUPABASE_KEY) return;
@@ -132,6 +142,29 @@
       } catch (e) {}
     }
 
+    // One-time migration off a shared row. Fills in only the keys this
+    // page owns that are missing locally; whatever this device already
+    // has wins, and nothing is removed. The legacy row is left untouched,
+    // so it stays available as a fallback copy.
+    async function adoptLegacy() {
+      try {
+        const { data, error } = await supa
+          .from('app_state').select('data').eq('key', legacyAppKey).maybeSingle();
+        if (error || !data || !data.data || typeof data.data !== 'object') return;
+        let changed = false;
+        suppressSync = true;
+        try {
+          for (const k of Object.keys(data.data)) {
+            if (!matches(k) || localStorage.getItem(k) != null) continue;
+            try { origSet(k, JSON.stringify(data.data[k])); changed = true; } catch (e) {}
+          }
+        } finally { suppressSync = false; }
+        if (changed && typeof onApplied === 'function') {
+          try { onApplied(); } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
     (async function init() {
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       // Snapshot local state before the network round-trip. If the user
@@ -149,8 +182,11 @@
         } else if (!error && data && data.data && Object.keys(data.data).length > 0) {
           lastSyncedJson = JSON.stringify(data.data);
           applyRemote(data.data);
-        } else if (Object.keys(collect()).length > 0) {
-          schedulePush();
+        } else {
+          // Our own row is empty. Only treat it as empty when the read
+          // actually succeeded — a failed read must not seed anything.
+          if (!error && legacyAppKey) await adoptLegacy();
+          if (Object.keys(collect()).length > 0) schedulePush();
         }
       } catch (e) {}
       supa.channel('app_state_' + appKey)

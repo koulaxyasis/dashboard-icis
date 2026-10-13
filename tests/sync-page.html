@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>sync page</title>
+<script>
+// One "page" for tests/sync.html: the real sync.js, wired to an in-memory
+// Supabase double that lives on the parent window, so several iframes
+// behave like several pages sharing one cloud table.
+(function () {
+  var h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1' && h !== '::1') throw new Error('test harness: localhost only');
+  // Point any stray network call (the unload flush) at nothing.
+  window.DASH_SUPABASE_URL = 'http://127.0.0.1:9';
+  window.DASH_SUPABASE_KEY = 'test-key';
+  var db = window.parent.__db;
+  function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+  window.supabase = {
+    createClient: function () {
+      return {
+        from: function () {
+          return {
+            select: function () {
+              return { eq: function (col, key) {
+                return { maybeSingle: function () {
+                  db.reads.push(key);
+                  if (db.fail[key]) return Promise.resolve({ data: null, error: { message: 'offline' } });
+                  return Promise.resolve({ data: key in db.rows ? { data: clone(db.rows[key]) } : null, error: null });
+                } };
+              } };
+            },
+            upsert: function (row) {
+              db.rows[row.key] = clone(row.data);
+              db.pushes.push(row.key);
+              return Promise.resolve({ error: null });
+            }
+          };
+        },
+        channel: function () { var c = { on: function () { return c; }, subscribe: function () { return c; } }; return c; }
+      };
+    }
+  };
+})();
+</script>
+<script src="../sync.js"></script>
+</head><body>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var p = new URLSearchParams(location.search);
+  var cfg = { appKey: p.get('app'), syncedKeys: p.get('keys').split(',') };
+  if (p.get('legacy')) cfg.legacyAppKey = p.get('legacy');
+  window.initCloudSync(cfg);
+});
+</script>
+</body></html>
