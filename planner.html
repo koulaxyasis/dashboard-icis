@@ -100,12 +100,16 @@ select option, select optgroup { background:#0F1322; color:var(--text); }
 .pl-ch { display:flex; justify-content:space-between; gap:4px; font-size:8.5px; font-weight:700; letter-spacing:.1em;
   text-transform:uppercase; color:var(--text-3); margin-bottom:5px; }
 .pl-ch .pk { color:var(--gold); }
-.pl-ent { display:flex; align-items:flex-start; gap:6px; padding:5px 6px; margin-bottom:4px; border-radius:8px;
-  background:var(--panel-2); box-shadow:inset 2px 0 0 var(--lc, var(--line-2)); font-size:11px; color:var(--text); line-height:1.3; }
+.pl-ent { position:relative; display:flex; align-items:center; gap:6px; padding:5px 4px 5px 8px; margin-bottom:4px; border-radius:8px;
+  background:var(--panel-2); font-size:11px; color:var(--text); line-height:1.3; }
+/* Quest-line colour as a straight bar inside the card; lineless quests have none. */
+.pl-ent[style]::before { content:''; position:absolute; left:3px; top:6px; bottom:6px; width:2px; border-radius:2px; background:var(--lc); }
 .pl-et { flex:1; min-width:0; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .pl-ent.done .pl-et { color:var(--ok); text-decoration:line-through; }
-.pl-x { flex:none; border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:1px; line-height:0; }
-.pl-x:hover { color:var(--bad); }
+.pl-x { flex:none; border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:3px; line-height:0; border-radius:6px; opacity:.55; }
+.pl-ent:hover .pl-x, .pl-x:focus-visible { opacity:1; }
+.pl-x:hover { color:var(--bad); background:rgba(255,255,255,.06); }
+@media (hover:none) { .pl-x { opacity:1; } }
 .pl-cadd { width:100%; border:1px dashed var(--line); background:transparent; color:var(--text-3); border-radius:8px;
   padding:4px 0; cursor:pointer; line-height:0; }
 .pl-cadd:hover { color:var(--gold); border-color:rgba(233,190,110,.4); }
@@ -118,7 +122,8 @@ select option, select optgroup { background:#0F1322; color:var(--text); }
   .pl-dh { display:none; }
   .pl-cell { min-height:0; padding:10px; }
   .pl-ch { font-size:9.5px; margin-bottom:7px; }
-  .pl-ent { font-size:13px; padding:8px 9px; gap:9px; margin-bottom:6px; }
+  .pl-ent { font-size:13px; padding:8px 6px 8px 12px; gap:9px; margin-bottom:6px; }
+  .pl-ent[style]::before { left:4px; top:8px; bottom:8px; width:3px; }
   .pl-box.sm { width:21px; height:21px; border-radius:6px; }
   .pl-cadd { padding:7px 0; }
 }
@@ -722,6 +727,29 @@ body.pl-lock { overflow:hidden; }
     if (state.today.date !== today()) return [];
     return state.today.ids.filter(function (id) { return !!taskOf(id); });
   }
+  // A new day starts an empty list. `prev` keeps the old one so the
+  // carry-over offer survives the board filling today in first.
+  function startToday(keepPrev) {
+    var d = today(), old = state.today;
+    if (old.date === d) return;
+    state.today = { date: d, ids: [], pulled: [],
+                    prev: keepPrev && old.date && old.ids.length ? { date: old.date, ids: old.ids.slice() } : null };
+  }
+  // What the board holds for today lands on today's list, up to the cap.
+  // Each entry is pulled once, so removing it from today sticks.
+  function pullBoard() {
+    var d = today(), pulled = state.today.date === d ? state.today.pulled || [] : [];
+    var fresh = state.board.filter(function (e) { return e.date === d && pulled.indexOf(e.id) === -1; });
+    if (!fresh.length) return false;
+    startToday(true);
+    if (!state.today.pulled) state.today.pulled = [];
+    fresh.forEach(function (e) {
+      state.today.pulled.push(e.id);
+      if (!taskOf(e.task) || state.today.ids.indexOf(e.task) !== -1 || todayIds().length >= TODAY_CAP) return;
+      state.today.ids.push(e.task);
+    });
+    return true;
+  }
   // Nudges, not orders: on today's board, overdue, due soon, daily.
   function suggestions(pool, d) {
     var onBoard = {};
@@ -776,11 +804,12 @@ body.pl-lock { overflow:hidden; }
           : 'No must-dos yet. Pick up to five, the few that make today a win.') + '</div>';
 
     // Yesterday's list does not silently roll over; offer it instead.
-    var stale = state.today.date && state.today.date !== d ? state.today.ids.filter(function (id) {
-      var t = taskOf(id); return t && !doneOf(t, d) && visible(t);
+    var src = staleList();
+    var stale = src ? src.ids.filter(function (id) {
+      var t = taskOf(id); return t && !doneOf(t, d) && visible(t) && ids.indexOf(id) === -1;
     }) : [];
-    if (!ids.length && stale.length) {
-      html += '<div class="pl-sug"><span class="grow">' + stale.length + ' unfinished from ' + fmtDay(state.today.date) +
+    if (ids.length < TODAY_CAP && stale.length) {
+      html += '<div class="pl-sug"><span class="grow">' + stale.length + ' unfinished from ' + fmtDay(src.date) +
         '<small>Carry them over, or start fresh.</small></span>' +
         '<button class="btn sm" data-act="today-carry">' + ic('arrow', 13) + ' Carry over</button></div>';
     }
@@ -802,10 +831,17 @@ body.pl-lock { overflow:hidden; }
     el.innerHTML = html;
   }
 
+  function staleList() {
+    if (state.today.date && state.today.date !== today()) return state.today;
+    return state.today.prev || null;
+  }
+
   function addToday(id) {
     var d = today(), t = taskOf(id);
     if (!t) return;
-    if (state.today.date !== d) state.today = { date: d, ids: [] };
+    startToday(false);
+    // Picking by hand means today is being planned fresh.
+    state.today.prev = null;
     state.today.ids = state.today.ids.filter(function (x) { return !!taskOf(x); });
     if (state.today.ids.indexOf(id) !== -1) { UI.toast('star', 'Today’s Quests', 'Already on today’s list', t.title); return; }
     if (state.today.ids.length >= TODAY_CAP) { openSwap(id); return; }
@@ -873,7 +909,8 @@ body.pl-lock { overflow:hidden; }
           '<div class="pl-ch"><span>' + b.label + '</span>' + (isPeak ? '<span class="pk">★ peak</span>' : '') + '</div>' +
           ents.map(function (e) {
             var done = !!doneOf(e.task, date);
-            return '<div class="pl-ent' + (done ? ' done' : '') + '" style="--lc:' + color(lineOf(e.task.line)) + '">' +
+            var eln = lineOf(e.task.line);
+            return '<div class="pl-ent' + (done ? ' done' : '') + '"' + (eln ? ' style="--lc:' + esc(eln.color) + '"' : '') + '>' +
               '<button class="pl-box sm' + (done ? ' on' : '') + '" data-act="toggle" data-id="' + esc(e.task.id) + '" data-date="' + date + '" ' +
                 'aria-label="' + (done ? 'Mark not done' : 'Mark done') + '">' + ic('check', 11) + '</button>' +
               '<span class="pl-et">' + esc(e.task.title) + '</span>' +
@@ -1506,6 +1543,7 @@ body.pl-lock { overflow:hidden; }
   }
 
   function render() {
+    if (!examOn() && pullBoard()) persist();
     keepInputs(function () {
       var exam = examOn();
       $('blkSplit').hidden = exam;
@@ -1584,8 +1622,13 @@ body.pl-lock { overflow:hidden; }
         commit();
         break;
       case 'today-carry':
-        var keep = state.today.ids.filter(function (x) { var t = taskOf(x); return t && !doneOf(t, today()); });
-        state.today = { date: today(), ids: keep.slice(0, TODAY_CAP) };
+        var src = staleList();
+        startToday(false);
+        var keep = (src ? src.ids : []).filter(function (x) {
+          var t = taskOf(x); return t && !doneOf(t, today()) && state.today.ids.indexOf(x) === -1;
+        });
+        state.today.ids = state.today.ids.concat(keep).slice(0, TODAY_CAP);
+        state.today.prev = null;
         commit();
         break;
       case 'schedule': openSchedule({ taskId: id }); break;
@@ -1593,6 +1636,10 @@ body.pl-lock { overflow:hidden; }
       case 'ent-del':
         var ent = state.board.filter(function (x) { return x.id === id; })[0];
         state.board = state.board.filter(function (x) { return x.id !== id; });
+        if (ent && ent.date === today() && state.today.date === ent.date && (state.today.pulled || []).indexOf(ent.id) !== -1 &&
+            !state.board.some(function (x) { return x.task === ent.task && x.date === ent.date; })) {
+          state.today.ids = state.today.ids.filter(function (x) { return x !== ent.task; });
+        }
         // A quest with no line lives only on the board; nothing else shows it.
         var lt = ent && taskOf(ent.task);
         if (lt && !lineOf(lt.line) && !state.board.some(function (x) { return x.task === lt.id; }) &&

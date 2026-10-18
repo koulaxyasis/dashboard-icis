@@ -182,6 +182,32 @@ function open(page, width) {
     chk('  taking a lineless quest off the board deletes it',
         !plan().tasks.some(function (t) { return t.title === 'Gym: upper body'; }) && plan().board.length === 1);
 
+    // ---- a quest on today's board lands on today's list too
+    click(q('#today [data-act="today-remove"]'));
+    var nToday = plan().today.ids.length;
+    var pickT = plan().tasks.filter(function (t) {
+      return t.line && t.repeat === 'none' && plan().today.ids.indexOf(t.id) === -1 && !plan().done[t.id] &&
+        !plan().board.some(function (e) { return e.task === t.id; });
+    })[0];
+    click(q('[data-act="slot-add"][data-date="' + GS.todayKey() + '"][data-block="morning"]'));
+    q('#mTask').value = pickT.id;
+    click('[data-act="m-save"]');
+    chk('board quest for today joins today’s list', plan().today.ids.indexOf(pickT.id) !== -1 &&
+        plan().today.ids.length === nToday + 1);
+    click(q('#today [data-act="today-remove"][data-id="' + pickT.id + '"]'));
+    click(qa('.pl-line [data-act="toggle"]')[0]); click(qa('.pl-line [data-act="toggle"]')[0]);
+    chk('  removed from today, it is not pulled back', plan().today.ids.indexOf(pickT.id) === -1);
+    q('#todayPick').value = pickT.id;
+    click('[data-act="today-pick"]');
+    eq('  added back by hand', plan().today.ids.indexOf(pickT.id) !== -1, true);
+    var pEnt = plan().board.filter(function (e) { return e.task === pickT.id; })[0];
+    click(q('#board [data-act="ent-del"][data-id="' + pEnt.id + '"]'));
+    chk('  off today’s board, it leaves today’s list', plan().today.ids.indexOf(pickT.id) === -1);
+    chk('  but a task with a quest line is kept', plan().tasks.some(function (t) { return t.id === pickT.id; }));
+    q('#todayPick').value = pickT.id;
+    click('[data-act="today-pick"]');
+    eq('today is back to five', plan().today.ids.length, 5);
+
     // ---- split sliders always total 100
     var r0 = q('[data-split="clip"]');
     r0.value = '60';
