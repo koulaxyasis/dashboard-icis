@@ -900,16 +900,35 @@ body.pl-lock { overflow:hidden; }
       '<div class="pl-foot">' + foot + '</div>';
   }
 
+  // The board takes an existing task, or a quest written on the spot.
+  // A written one is a one-off due that day; with no quest line it lives
+  // only on the board, so taking it off the board deletes it.
   function openSchedule(o) {
     var wk = viewWk(), days = GS.weekKeys(wk), pk = peak();
     var pool = state.tasks.filter(visible);
-    if (!pool.length) { UI.toast('planner', 'Weekly Board', 'No tasks to schedule', 'Add a task to a quest line first.'); return; }
     var t = o.taskId ? taskOf(o.taskId) : null;
     var date = o.date || (days.indexOf(today()) !== -1 ? today() : days[0]);
     var block = o.block || (t && t.energy === 'deep' && pk ? pk.block : 'morning');
+    var mode = t || pool.length ? 'pick' : 'new';
 
     openModal(head('Schedule a quest') +
-      field('Task', '<select id="mTask">' + (t ? '' : '<option value="">Choose a task…</option>') + taskOptions(pool, t ? t.id : '') + '</select>', 'mTask') +
+      (t ? '' : '<div class="field"><div class="seg" id="mMode">' +
+        '<button type="button" data-mode="pick" class="' + (mode === 'pick' ? 'on' : '') + '"' + (pool.length ? '' : ' disabled') + '>Pick a task</button>' +
+        '<button type="button" data-mode="new" class="' + (mode === 'new' ? 'on' : '') + '">Write a new quest</button>' +
+      '</div></div>') +
+      '<div id="mPick"' + (mode === 'pick' ? '' : ' hidden') + '>' +
+        field('Task', '<select id="mTask">' + (t ? '' : '<option value="">Choose a task…</option>') + taskOptions(pool, t ? t.id : '') + '</select>', 'mTask') +
+      '</div>' +
+      '<div id="mNew"' + (mode === 'new' ? '' : ' hidden') + '>' +
+        field('Quest', '<input id="mTitle" maxlength="140" autocomplete="off" placeholder="e.g. Gym: upper body">', 'mTitle') +
+        field('Quest line', '<select id="mLine">' + state.lines.map(function (l) {
+          return '<option value="' + l.id + '">' + esc(l.name) + '</option>';
+        }).join('') + '<option value="" selected>No quest line</option></select>', 'mLine') +
+        field('Energy', '<div class="seg" id="mEnergy">' + ENERGY.map(function (e) {
+          return '<button type="button" data-en="' + e + '" class="' + (e === 'medium' ? 'on' : '') + '">' + cap(e) + ' · ' + XP_FOR[e] + ' XP</button>';
+        }).join('') + '</div>') +
+        field('Estimated minutes', '<input id="mMin" type="number" min="0" max="600" step="5" inputmode="numeric" value="30">', 'mMin') +
+      '</div>' +
       '<div class="m-err" id="mErr"></div>' +
       '<div class="f2">' +
         field('Day', '<select id="mDay">' + days.map(function (k, i) {
@@ -924,8 +943,20 @@ body.pl-lock { overflow:hidden; }
         '<button class="btn gold" data-act="m-save">Put on the board</button></div>',
     {
       save: function () {
-        var tid = $('mTask').value, day = $('mDay').value, blk = $('mBlock').value;
-        if (!tid) { $('mErr').textContent = 'Choose a task.'; return; }
+        var day = $('mDay').value, blk = $('mBlock').value, tid;
+        if (mode === 'new') {
+          var title = $('mTitle').value.trim();
+          if (!title) { $('mErr').textContent = 'Write the quest first.'; $('mTitle').focus(); return; }
+          var mins = Math.round(Number($('mMin').value));
+          if (!isFinite(mins) || mins < 0 || mins > 600) { $('mErr').textContent = 'Minutes must be between 0 and 600.'; return; }
+          var rec = { id: uid('t'), line: $('mLine').value, title: title.slice(0, 140),
+                      energy: segVal('mEnergy', 'en', 'medium'), minutes: mins, repeat: 'none', due: day };
+          state.tasks.push(rec);
+          tid = rec.id;
+        } else {
+          tid = $('mTask').value;
+          if (!tid) { $('mErr').textContent = 'Choose a task, or write a new quest.'; return; }
+        }
         var dupe = state.board.some(function (e) { return e.task === tid && e.date === day && e.block === blk; });
         closeModal();
         if (dupe) { UI.toast('planner', 'Weekly Board', 'Already in that slot', ''); return; }
@@ -934,13 +965,26 @@ body.pl-lock { overflow:hidden; }
       },
       peak: function () { $('mBlock').value = pk.block; hint(); }
     }, function () {
+      if ($('mMode')) $('mMode').addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (!b || b.disabled) return;
+        mode = b.getAttribute('data-mode');
+        $('mPick').hidden = mode !== 'pick';
+        $('mNew').hidden = mode !== 'new';
+        $('mErr').textContent = '';
+        hint();
+      });
+      // The page-level handler marks the energy button after this runs.
+      $('mEnergy').addEventListener('click', function () { setTimeout(hint, 0); });
       $('mTask').addEventListener('change', hint);
       $('mBlock').addEventListener('change', hint);
       hint();
     });
 
     function hint() {
-      var x = taskOf($('mTask').value), h = $('mHint');
+      var h = $('mHint');
+      if (!h) return;
+      var x = mode === 'new' ? { energy: segVal('mEnergy', 'en', 'medium') } : taskOf($('mTask').value);
       if (!x || x.energy !== 'deep') { h.innerHTML = ''; return; }
       if (!pk) { h.innerHTML = 'Deep task. Set your peak-focus hours in Settings to get a slot suggested.'; return; }
       h.innerHTML = $('mBlock').value === pk.block
@@ -1547,7 +1591,12 @@ body.pl-lock { overflow:hidden; }
       case 'schedule': openSchedule({ taskId: id }); break;
       case 'slot-add': openSchedule({ date: el.getAttribute('data-date'), block: el.getAttribute('data-block') }); break;
       case 'ent-del':
+        var ent = state.board.filter(function (x) { return x.id === id; })[0];
         state.board = state.board.filter(function (x) { return x.id !== id; });
+        // A quest with no line lives only on the board; nothing else shows it.
+        var lt = ent && taskOf(ent.task);
+        if (lt && !lineOf(lt.line) && !state.board.some(function (x) { return x.task === lt.id; }) &&
+            state.today.ids.indexOf(lt.id) === -1) removeTask(lt.id);
         commit();
         break;
       case 'day': selDay = Number(el.getAttribute('data-i')) || 0; renderBoard(); break;

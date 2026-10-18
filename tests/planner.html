@@ -159,6 +159,29 @@ function open(page, width) {
     eq('board entry created', plan().board.length, 1);
     chk('  rendered on the board', /INCO: clean/.test(q('#board').textContent));
 
+    // ---- a quest written straight into a board slot
+    var nTasks = plan().tasks.length;
+    click(qa('[data-act="slot-add"]')[2]);
+    chk('slot + offers pick or write', !!q('#mMode') && !q('#mPick').hidden && q('#mNew').hidden);
+    click('#mMode [data-mode="new"]');
+    chk('  write mode shows the quest form', q('#mPick').hidden && !q('#mNew').hidden);
+    click('[data-act="m-save"]');
+    chk('  an empty quest is refused', /Write the quest/.test(q('#mErr').textContent) && plan().tasks.length === nTasks);
+    q('#mTitle').value = 'Gym: upper body';
+    click('#mEnergy [data-en="deep"]');
+    await wait(10);
+    chk('  deep energy brings the peak hint', /peak focus/i.test(q('#mHint').textContent));
+    click('[data-act="m-save"]');
+    var made2 = plan().tasks.filter(function (t) { return t.title === 'Gym: upper body'; })[0];
+    chk('  the quest is created', !!made2 && made2.energy === 'deep' && made2.repeat === 'none' && made2.line === '');
+    var ent2 = plan().board.filter(function (e) { return made2 && e.task === made2.id; })[0];
+    chk('  and put in that slot', !!ent2 && ent2.block === 'evening' && made2.due === ent2.date);
+    chk('  rendered on the board', /Gym: upper body/.test(q('#board').textContent));
+    var gymEnt = qa('#board .pl-ent').filter(function (r) { return /Gym: upper body/.test(r.textContent); })[0];
+    click(gymEnt.querySelector('[data-act="ent-del"]'));
+    chk('  taking a lineless quest off the board deletes it',
+        !plan().tasks.some(function (t) { return t.title === 'Gym: upper body'; }) && plan().board.length === 1);
+
     // ---- split sliders always total 100
     var r0 = q('[data-split="clip"]');
     r0.value = '60';
