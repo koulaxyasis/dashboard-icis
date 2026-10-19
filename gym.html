@@ -3610,6 +3610,24 @@ img, video, canvas, svg { max-width: 100%; }
   // JSON of the last state we sent or received — used to ignore
   // realtime echoes of our own pushes so we don't infinite-loop.
   let pcLastSyncedJson = null;
+  // True from a local edit until a push of it succeeds; while set, the
+  // cloud copy is older than this device and is never applied here.
+  let pcDirty = false;
+  let pcLastFlushJson = null;
+
+  // Postgres jsonb reorders object keys, so every comparison uses this
+  // key-sorted form — otherwise our own echo looks like a remote change.
+  function pcCanon(v) {
+    if (Array.isArray(v)) return '[' + v.map(pcCanon).join(',') + ']';
+    if (v && typeof v === 'object') {
+      return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + pcCanon(v[k])).join(',') + '}';
+    }
+    return JSON.stringify(v);
+  }
+  function pcSameJson(raw, val) {
+    if (raw == null) return false;
+    try { return pcCanon(JSON.parse(raw)) === pcCanon(val); } catch { return false; }
+  }
 
   const _pcOrigSet = localStorage.setItem.bind(localStorage);
   const _pcOrigRemove = localStorage.removeItem.bind(localStorage);
@@ -3619,13 +3637,13 @@ img, video, canvas, svg { max-width: 100%; }
   localStorage.setItem = function(k, v) {
     _pcOrigSet(k, v);
     try {
-      if (!pcSuppressSync && PC_SYNCED_KEYS.indexOf(k) !== -1) pcSchedulePush();
+      if (!pcSuppressSync && PC_SYNCED_KEYS.indexOf(k) !== -1) { pcDirty = true; pcSchedulePush(); }
     } catch (e) {}
   };
   localStorage.removeItem = function(k) {
     _pcOrigRemove(k);
     try {
-      if (!pcSuppressSync && PC_SYNCED_KEYS.indexOf(k) !== -1) pcSchedulePush();
+      if (!pcSuppressSync && PC_SYNCED_KEYS.indexOf(k) !== -1) { pcDirty = true; pcSchedulePush(); }
     } catch (e) {}
   };
 
@@ -3686,16 +3704,15 @@ img, video, canvas, svg { max-width: 100%; }
           const remoteIds = new Set(remotePhotos.map((p) => p && p.id));
           const localOnly = localPhotos.filter((p) => p && !p.url && !remoteIds.has(p.id));
           const merged = [...remotePhotos, ...localOnly];
-          const incoming = JSON.stringify(merged);
-          if (localStorage.getItem(k) !== incoming) {
-            try { _pcOrigSet(k, incoming); changed = true; } catch {}
+          if (!pcSameJson(localStorage.getItem(k), merged)) {
+            try { _pcOrigSet(k, JSON.stringify(merged)); changed = true; } catch {}
           }
           continue;
         }
         if (k in remote) {
-          const incoming = JSON.stringify(remote[k]);
-          const local = localStorage.getItem(k);
-          if (local !== incoming) { try { _pcOrigSet(k, incoming); changed = true; } catch {} }
+          if (!pcSameJson(localStorage.getItem(k), remote[k])) {
+            try { _pcOrigSet(k, JSON.stringify(remote[k])); changed = true; } catch {}
+          }
         } else if (localStorage.getItem(k) != null) {
           try { _pcOrigRemove(k); changed = true; } catch {}
         }
@@ -3723,8 +3740,8 @@ img, video, canvas, svg { max-width: 100%; }
   async function pcPushNow() {
     if (!pcSupa) return;
     const state = pcCollectState();
-    const json = JSON.stringify(state);
-    if (json === pcLastSyncedJson) return;
+    const json = pcCanon(state);
+    if (json === pcLastSyncedJson) { pcDirty = false; return; }
     try {
       const { error } = await pcSupa
         .from('app_state')
@@ -3732,7 +3749,11 @@ img, video, canvas, svg { max-width: 100%; }
           { key: APP_KEY, data: state, updated_at: new Date().toISOString() },
           { onConflict: 'key' }
         );
-      if (!error) pcLastSyncedJson = json;
+      if (!error) {
+        pcLastSyncedJson = json;
+        if (pcCanon(pcCollectState()) === json) pcDirty = false;
+        else pcSchedulePush();
+      }
     } catch (_) {}
   }
 
@@ -3744,11 +3765,13 @@ img, video, canvas, svg { max-width: 100%; }
 
   // Backup push on unload via fetch keepalive so a fast refresh
   // doesn't lose the latest change before the debounced push fires.
+  // It cannot report back, so pcDirty stays set and the next resume
+  // pushes again.
   function pcFlushPushOnUnload() {
-    if (!pcSupa) return;
+    if (!pcSupa || !pcDirty) return;
     const state = pcCollectState();
-    const json = JSON.stringify(state);
-    if (json === pcLastSyncedJson) return;
+    const json = pcCanon(state);
+    if (json === pcLastSyncedJson || json === pcLastFlushJson) return;
     try {
       fetch(SUPABASE_URL + '/rest/v1/app_state?on_conflict=key', {
         method: 'POST',
@@ -3761,8 +3784,35 @@ img, video, canvas, svg { max-width: 100%; }
         body: JSON.stringify({ key: APP_KEY, data: state, updated_at: new Date().toISOString() }),
         keepalive: true,
       }).catch(() => {});
-      pcLastSyncedJson = json;
+      pcLastFlushJson = json;
     } catch (_) {}
+  }
+
+  // Take a cloud copy that differs from what this device last saw,
+  // unless this device has edits the cloud has not got yet.
+  function pcTakeRemote(remote) {
+    if (!remote || typeof remote !== 'object' || !Object.keys(remote).length) return;
+    const incoming = pcCanon(remote);
+    if (incoming === pcLastSyncedJson || pcDirty) return;
+    pcLastSyncedJson = incoming;
+    pcMaybeApplyRemote(remote);
+  }
+
+  // A phone PWA is resumed far more often than reloaded, and the realtime
+  // socket drops in the background, so re-read the row on every return.
+  let pcRefreshing = false;
+  let pcLastRefresh = 0;
+  async function pcRefresh() {
+    if (!pcSupa || pcRefreshing || document.hidden) return;
+    if (Date.now() - pcLastRefresh < 1500) return;
+    pcLastRefresh = Date.now();
+    pcRefreshing = true;
+    try {
+      if (pcDirty) { await pcPushNow(); return; }
+      const { data, error } = await pcSupa
+        .from('app_state').select('data').eq('key', APP_KEY).maybeSingle();
+      if (!error && data) pcTakeRemote(data.data);
+    } catch (_) {} finally { pcRefreshing = false; }
   }
 
   // Initial sync: connect Supabase, pull current state, subscribe to
@@ -3776,9 +3826,12 @@ img, video, canvas, svg { max-width: 100%; }
       const { data, error } = await pcSupa
         .from('app_state').select('data').eq('key', APP_KEY).maybeSingle();
       if (!error && data && data.data && Object.keys(data.data).length > 0) {
-        pcLastSyncedJson = JSON.stringify(data.data);
+        pcLastSyncedJson = pcCanon(data.data);
         pcMaybeApplyRemote(data.data);
-      } else if (Object.keys(pcCollectState()).length > 0) {
+      } else if (!error && Object.keys(pcCollectState()).length > 0) {
+        // Only an empty row seeds from here — a failed read must not push
+        // this device's possibly stale copy over the cloud.
+        pcDirty = true;
         pcSchedulePush();
       }
     } catch (_) {}
@@ -3789,11 +3842,7 @@ img, video, canvas, svg { max-width: 100%; }
         table: 'app_state',
         filter: 'key=eq.' + APP_KEY,
       }, (payload) => {
-        if (!payload.new || !payload.new.data) return;
-        const incoming = JSON.stringify(payload.new.data);
-        if (incoming === pcLastSyncedJson) return; // echo of our own push
-        pcLastSyncedJson = incoming;
-        pcMaybeApplyRemote(payload.new.data);
+        if (payload.new && payload.new.data) pcTakeRemote(payload.new.data);
       })
       .subscribe();
   })();
@@ -3804,8 +3853,11 @@ img, video, canvas, svg { max-width: 100%; }
   window.addEventListener('pagehide', pcFlushPushOnUnload);
   window.addEventListener('beforeunload', pcFlushPushOnUnload);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) pcFlushPushOnUnload();
+    if (document.hidden) pcFlushPushOnUnload(); else pcRefresh();
   });
+  window.addEventListener('focus', pcRefresh);
+  window.addEventListener('online', pcRefresh);
+  window.addEventListener('pageshow', (e) => { if (e.persisted) pcRefresh(); });
 })();
 </script>
 

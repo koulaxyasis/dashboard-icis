@@ -22,6 +22,7 @@ iframe{border:0;position:absolute;left:-9999px;width:10px;height:10px}pre{white-
 var L = [];
 function chk(label, ok, extra) { L.push((ok ? 'PASS ' : 'FAIL ') + label + (extra ? '  ' + extra : '')); return ok; }
 function eq(label, a, b) { return chk(label + ' = ' + a, String(a) === String(b), String(a) === String(b) ? '' : 'expected ' + b); }
+function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 function get(k) { return localStorage.getItem(k); }
 function set(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 function row(k) { return JSON.stringify(window.__db.rows[k]); }
@@ -118,6 +119,60 @@ var WATER_NEWER = { unit: 'bottle', logs: { '2026-10-12': 4, '2026-10-13': 2 } }
       Object.keys(window.__db.rows.projects).join() === 'pm:projects' &&
       Object.keys(window.__db.rows.water).join() === 'po_water_v1');
     a.remove(); b.remove();
+
+    // ---- the echo of our own push, keys reordered by jsonb, must not
+    //      overwrite an edit made after that push
+    reset({});
+    window.__db.jsonb = true;
+    set('k', { b: 1, a: 1, n: 1 });
+    f = await page('app', 'k');
+    var w = f.contentWindow;
+    chk('jsonb: row seeded', !!window.__db.rows.app);
+    var echo = JSON.parse(JSON.stringify(window.__db.rows.app));
+    w.localStorage.setItem('k', JSON.stringify({ b: 1, a: 1, n: 2 }));
+    w.__rt(echo);
+    eq('a late echo does not undo the newer edit', JSON.parse(get('k')).n, 2);
+    await wait(600);
+    eq('  and the newer edit reaches the cloud', window.__db.rows.app.k.n, 2);
+    var pushes = window.__db.pushes.length;
+    w.__rt(JSON.parse(JSON.stringify(window.__db.rows.app)));
+    await wait(600);
+    eq('  an echo in reordered keys causes no re-push', window.__db.pushes.length, pushes);
+    f.remove();
+
+    // ---- coming back to the page re-reads the row (realtime missed it)
+    reset({ app: { k: { n: 1 } } });
+    f = await page('app', 'k');
+    w = f.contentWindow;
+    eq('resume: starts from the cloud copy', JSON.parse(get('k')).n, 1);
+    window.__db.rows.app = { k: { n: 2 } };     // another device, no realtime event
+    w.dispatchEvent(new w.Event('focus'));
+    await wait(300);
+    eq('  focus picks up the other device’s change', JSON.parse(get('k')).n, 2);
+    f.remove();
+
+    // ---- edits this device has not pushed yet win over the cloud copy
+    reset({ app: { k: { n: 1 } } });
+    f = await page('app', 'k');
+    w = f.contentWindow;
+    window.__db.failPush = true;
+    w.localStorage.setItem('k', JSON.stringify({ n: 5 }));
+    await wait(500);
+    window.__db.rows.app = { k: { n: 9 } };
+    w.__rt({ k: { n: 9 } });
+    eq('offline edit: a remote change does not overwrite it', JSON.parse(get('k')).n, 5);
+    window.__db.failPush = false;
+    w.dispatchEvent(new w.Event('online'));
+    await wait(400);
+    eq('  back online, it is pushed', window.__db.rows.app.k.n, 5);
+    f.remove();
+
+    // ---- a failed read never pushes this device's possibly stale copy
+    reset({ app: { k: { n: 7 } } }, { app: true });
+    set('k', { n: 0 });
+    f = await page('app', 'k');
+    eq('failed read: the cloud row is left alone', window.__db.rows.app.k.n, 7);
+    f.remove();
   } catch (e) {
     L.push('FAIL threw: ' + e.message + '\n' + e.stack);
   }

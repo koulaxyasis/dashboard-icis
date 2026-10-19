@@ -204,8 +204,29 @@ function open(page, width) {
     click(q('#board [data-act="ent-del"][data-id="' + pEnt.id + '"]'));
     chk('  off today’s board, it leaves today’s list', plan().today.ids.indexOf(pickT.id) === -1);
     chk('  but a task with a quest line is kept', plan().tasks.some(function (t) { return t.id === pickT.id; }));
-    q('#todayPick').value = pickT.id;
-    click('[data-act="today-pick"]');
+    // ---- editing a quest from the board: rename, and move it
+    click(q('[data-act="slot-add"][data-date="' + GS.todayKey() + '"][data-block="evening"]'));
+    q('#mTask').value = pickT.id;
+    click('[data-act="m-save"]');
+    var mvEnt = plan().board.filter(function (e) { return e.task === pickT.id; })[0];
+    chk('scheduled for today evening, it is on today’s list', plan().today.ids.indexOf(pickT.id) !== -1);
+    click(q('#board [data-act="ent-edit"][data-id="' + mvEnt.id + '"]'));
+    chk('clicking a board quest opens its editor', q('#mTitle').value === pickT.title && q('#mBlock').value === 'evening' &&
+        q('#mDay').value === GS.todayKey());
+    q('#mTitle').value = 'Renamed from the board';
+    var otherDay = GS.weekKeys(GS.weekStart(GS.todayKey())).filter(function (k) { return k !== GS.todayKey(); })[0];
+    q('#mDay').value = otherDay;
+    q('#mBlock').value = 'morning';
+    click('[data-act="m-save"]');
+    var mv = plan().board.filter(function (e) { return e.id === mvEnt.id; })[0];
+    chk('  the title is saved', plan().tasks.filter(function (t) { return t.id === pickT.id; })[0].title === 'Renamed from the board');
+    chk('  the entry moved', mv.date === otherDay && mv.block === 'morning');
+    chk('  moved off today, it left today’s list', plan().today.ids.indexOf(pickT.id) === -1);
+    chk('  the board shows the new title', /Renamed from the board/.test(q('#board').textContent));
+    click(q('#board [data-act="ent-edit"][data-id="' + mvEnt.id + '"]'));
+    q('#mDay').value = GS.todayKey();
+    click('[data-act="m-save"]');
+    chk('  moved back to today, it rejoins today’s list', plan().today.ids.indexOf(pickT.id) !== -1);
     eq('today is back to five', plan().today.ids.length, 5);
 
     // ---- split sliders always total 100

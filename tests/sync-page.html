@@ -13,6 +13,20 @@
   window.DASH_SUPABASE_KEY = 'test-key';
   var db = window.parent.__db;
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+  // With db.jsonb set, stored rows come back with keys reordered, the way
+  // Postgres jsonb returns them.
+  function store(v) {
+    if (!db.jsonb) return clone(v);
+    return (function srt(x) {
+      if (Array.isArray(x)) return x.map(srt);
+      if (x && typeof x === 'object') {
+        var o = {};
+        Object.keys(x).sort().reverse().forEach(function (k) { o[k] = srt(x[k]); });
+        return o;
+      }
+      return x;
+    })(clone(v));
+  }
   window.supabase = {
     createClient: function () {
       return {
@@ -28,13 +42,21 @@
               } };
             },
             upsert: function (row) {
-              db.rows[row.key] = clone(row.data);
+              if (db.failPush) return Promise.resolve({ error: { message: 'offline' } });
+              db.rows[row.key] = store(row.data);
               db.pushes.push(row.key);
               return Promise.resolve({ error: null });
             }
           };
         },
-        channel: function () { var c = { on: function () { return c; }, subscribe: function () { return c; } }; return c; }
+        // Tests fire realtime events through window.__rt(row).
+        channel: function () {
+          var c = {
+            on: function (ev, filter, cb) { window.__rt = function (data) { cb({ new: { data: clone(data) } }); }; return c; },
+            subscribe: function () { return c; }
+          };
+          return c;
+        }
       };
     }
   };

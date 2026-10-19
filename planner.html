@@ -105,6 +105,8 @@ select option, select optgroup { background:#0F1322; color:var(--text); }
 /* Quest-line colour as a straight bar inside the card; lineless quests have none. */
 .pl-ent[style]::before { content:''; position:absolute; left:3px; top:6px; bottom:6px; width:2px; border-radius:2px; background:var(--lc); }
 .pl-et { flex:1; min-width:0; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+button.pl-et { border:0; background:transparent; padding:0; margin:0; font:inherit; color:inherit; text-align:left; cursor:pointer; }
+button.pl-et:hover { text-decoration:underline; text-decoration-color:var(--text-3); text-underline-offset:2px; }
 .pl-ent.done .pl-et { color:var(--ok); text-decoration:line-through; }
 .pl-x { flex:none; border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:3px; line-height:0; border-radius:6px; opacity:.55; }
 .pl-ent:hover .pl-x, .pl-x:focus-visible { opacity:1; }
@@ -913,7 +915,8 @@ body.pl-lock { overflow:hidden; }
             return '<div class="pl-ent' + (done ? ' done' : '') + '"' + (eln ? ' style="--lc:' + esc(eln.color) + '"' : '') + '>' +
               '<button class="pl-box sm' + (done ? ' on' : '') + '" data-act="toggle" data-id="' + esc(e.task.id) + '" data-date="' + date + '" ' +
                 'aria-label="' + (done ? 'Mark not done' : 'Mark done') + '">' + ic('check', 11) + '</button>' +
-              '<span class="pl-et">' + esc(e.task.title) + '</span>' +
+              (e.id ? '<button class="pl-et" data-act="ent-edit" data-id="' + esc(e.id) + '" title="Edit">' + esc(e.task.title) + '</button>'
+                : '<span class="pl-et">' + esc(e.task.title) + '</span>') +
               (e.id ? '<button class="pl-x" data-act="ent-del" data-id="' + esc(e.id) + '" aria-label="Take off the board">' + ic('close', 12) + '</button>' : '') +
             '</div>';
           }).join('') +
@@ -1178,6 +1181,26 @@ body.pl-lock { overflow:hidden; }
   // ---------------------------------------------------------------
   // Task + quest-line editors
   // ---------------------------------------------------------------
+  // Off today, a pulled entry leaves today's list; onto today, it is
+  // pulled in again on the next render.
+  function moveEntry(ent, date, block) {
+    if (ent.date === date && ent.block === block) return;
+    var d0 = today();
+    var wasPulled = ent.date === d0 && state.today.date === d0 && (state.today.pulled || []).indexOf(ent.id) !== -1;
+    if (state.board.some(function (x) { return x !== ent && x.task === ent.task && x.date === date && x.block === block; })) {
+      state.board = state.board.filter(function (x) { return x !== ent; });
+    } else {
+      ent.date = date;
+      ent.block = block;
+    }
+    if (wasPulled && date !== d0 && !state.board.some(function (x) { return x.task === ent.task && x.date === d0; })) {
+      state.today.ids = state.today.ids.filter(function (x) { return x !== ent.task; });
+    }
+    if (date !== d0 && state.today.pulled) {
+      state.today.pulled = state.today.pulled.filter(function (x) { return x !== ent.id; });
+    }
+  }
+
   function removeTask(id) {
     state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
     state.board = state.board.filter(function (e) { return e.task !== id; });
@@ -1190,12 +1213,15 @@ body.pl-lock { overflow:hidden; }
     return on ? on.getAttribute('data-' + attr) : fallback;
   }
 
-  function openTask(id, lineId) {
+  // Opened from a board entry (`ent`), it also moves that entry and
+  // ticks the task off for the entry's day rather than today.
+  function openTask(id, lineId, ent) {
     var t = id ? taskOf(id) : null;
     if (id && !t) return;
     var cur = t || { title: '', line: lineId || (state.lines[0] ? state.lines[0].id : ''), energy: 'medium', minutes: 30, due: '', repeat: 'none' };
-    var d = today(), done = t ? !!doneOf(t, d) : false;
-    openModal(head(t ? 'Edit task' : 'New task') +
+    var d = ent ? ent.date : today(), done = t ? !!doneOf(t, d) : false;
+    var entDays = ent ? GS.weekKeys(GS.weekStart(ent.date)) : [];
+    openModal(head(ent ? 'Edit quest' : t ? 'Edit task' : 'New task') +
       field('Title', '<input id="mTitle" maxlength="140" autocomplete="off" value="' + esc(cur.title) + '" placeholder="What gets done?">', 'mTitle') +
       '<div class="m-err" id="mErr"></div>' +
       field('Quest line', '<select id="mLine">' + state.lines.map(function (l) {
@@ -1211,8 +1237,16 @@ body.pl-lock { overflow:hidden; }
       field('Repeat', '<div class="seg" id="mRepeat">' + REPEATS.map(function (r) {
         return '<button type="button" data-rp="' + r + '" class="' + (r === cur.repeat ? 'on' : '') + '">' + (r === 'none' ? 'None' : cap(r)) + '</button>';
       }).join('') + '</div>') +
+      (ent ? '<div class="f2">' +
+        field('Day', '<select id="mDay">' + entDays.map(function (k, i) {
+          return '<option value="' + k + '"' + (k === ent.date ? ' selected' : '') + '>' + DAYS[i] + ' ' + fmtDay(k) + '</option>';
+        }).join('') + '</select>', 'mDay') +
+        field('Time block', '<select id="mBlock">' + BLOCKS.map(function (b) {
+          return '<option value="' + b.id + '"' + (b.id === ent.block ? ' selected' : '') + '>' + b.label + '</option>';
+        }).join('') + '</select>', 'mBlock') +
+      '</div>' : '') +
       '<label class="pl-check"><input type="checkbox" id="mDone"' + (done ? ' checked' : '') + '>' +
-        '<span>Done <span class="sub">— for today or this week if it repeats</span></span></label>' +
+        '<span>Done <span class="sub">— ' + (d === today() ? 'for today' : 'for ' + fmtDay(d)) + ' or that week if it repeats</span></span></label>' +
       '<div class="m-act">' +
         (t ? '<button class="btn" data-act="m-del" style="color:var(--bad)">Delete</button>' : '') +
         '<button class="btn" data-act="m-close">Cancel</button>' +
@@ -1231,6 +1265,8 @@ body.pl-lock { overflow:hidden; }
         rec.due = $('mDue').value || '';
         rec.repeat = segVal('mRepeat', 'rp', 'none');
         if (!t) state.tasks.push(rec);
+        var liveEnt = ent && state.board.filter(function (x) { return x.id === ent.id; })[0];
+        if (liveEnt) moveEntry(liveEnt, $('mDay').value, $('mBlock').value);
         var want = $('mDone').checked, had = !!doneOf(rec, d);
         if (want !== had) setDone(rec, d, want);
         closeModal();
@@ -1655,6 +1691,10 @@ body.pl-lock { overflow:hidden; }
         break;
       case 'task-new': openTask(null, id); break;
       case 'task-edit': openTask(id); break;
+      case 'ent-edit':
+        var ee = state.board.filter(function (x) { return x.id === id; })[0];
+        if (ee) openTask(ee.task, null, ee);
+        break;
       case 'line-new': openLine(null); break;
       case 'line-edit': openLine(id); break;
       case 'log-add': addLog(id); break;
