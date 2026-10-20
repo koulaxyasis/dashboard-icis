@@ -457,6 +457,7 @@ body.pl-lock { overflow:hidden; }
       roadmap: { start: GS.weekStart(today()), cells: cells },
       split: { clip: 40, design: 35, finance: 25 },
       settings: { weekHours: 20, peakFrom: '', peakTo: '', exam: false, lowDate: '' },
+      days: {},           // date -> { d, t }: each day's Today's Quests result
       drafts: {},         // weekStart -> review answers in progress
       reviews: []
     };
@@ -479,7 +480,7 @@ body.pl-lock { overflow:hidden; }
   }
 
   var state = load();
-  function persist() { GS.writeJSON(KEY, state); }
+  function persist() { PC.write(state); }
   // `xp` re-derives the shared ledger, which is what moves the Hub's bar.
   function commit(xp) { persist(); if (xp) GS.reconcile(); render(); }
 

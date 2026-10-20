@@ -21,8 +21,8 @@
 //              has been most neglected
 //
 // CAREER, ACADEMIC AND MONEY WORK IS NOT DEALT OUT HERE. Those are
-// written by hand — in My Quests, as a custom template in the Quest
-// Editor, or in the Planner. The automated board carries only social,
+// written by hand — in the Planner (the War Room), or as a custom
+// template in the Quest Editor. The automated board carries only social,
 // sport and the small trivial things, so it never competes with the
 // real work.
 // =============================================================
@@ -414,8 +414,8 @@
     var out = [];
 
     // Career and academic work is deliberately NOT drawn here. Those are
-    // yours to write — in My Quests for a one-off, or as a custom
-    // template in the Quest Editor. The automated board exists to carry
+    // yours to write — in the Planner, or as a custom template in the
+    // Quest Editor. The automated board exists to carry
     // the small, repeatable things so the career page can hold the real
     // work without competing with it.
     function poolOf(cats) {
@@ -665,10 +665,8 @@
     var doneDays = GS.readJSON('po_coach_workout_done', {}) || {};
     var trained = week.filter(function (d) { return doneDays[d]; }).length;
 
-    var perfect = week.filter(function (d) {
-      var a = s.goalArchive[d];
-      return a && a.t > 0 && a.d === a.t;
-    }).length;
+    // Same rule as the streak: every Today's Quest kept that day.
+    var perfect = week.filter(function (d) { return GS.dayStatus(d) === 'perfect'; }).length;
 
     var w = GS.readJSON('po_water_v1', {}) || {};
     var perUnit = w.unit === 'glass' ? (Number(w.glassMl) || 250) : (Number(w.bottleMl) || 500);
@@ -712,7 +710,7 @@
       { id: 'w_quests',  lore: 'The Long Watch',   name: 'Complete 20 quests',        have: questsDone, need: 20, xp: 300, disc: 'resolve' },
       { id: 'w_career',  lore: 'Guild Commission', name: 'Clear 2 career milestones', have: careerMilestones, need: 2, xp: 280, disc: 'career' },
       { id: 'w_train',   lore: 'Forge Week',       name: 'Train on 4 days',           have: trained,    need: 4,  xp: 220, disc: 'might' },
-      { id: 'w_perfect', lore: 'Unbroken',         name: '5 days with every goal kept', have: perfect,  need: 5,  xp: 260, disc: 'resolve' },
+      { id: 'w_perfect', lore: 'Unbroken',         name: '5 days with every quest kept', have: perfect,  need: 5,  xp: 260, disc: 'resolve' },
       { id: 'w_water',   lore: 'Well of Vigour',   name: 'Hit water target on 5 days', have: hydrated,  need: 5,  xp: 180, disc: 'vitality' },
       { id: 'w_social',  lore: 'Hearthlight',      name: 'Complete 2 social quests',  have: socialDone, need: 2,  xp: 160, disc: 'fellowship' },
       { id: 'w_ledger',  lore: 'Count the Hoard',  name: 'Record a net-worth snapshot', have: snapshot ? 1 : 0, need: 1, xp: 120, disc: 'fortune' }

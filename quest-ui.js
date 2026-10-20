@@ -1,75 +1,22 @@
 // =============================================================
 // ICIS — shared quest UI.
 //
-// Three distinct lists, rendered the same way wherever they appear:
+// Two distinct lists, rendered the same way wherever they appear:
 //
 //   DAILY QUESTS   the five the engine picks for you each day.
 //                  Rotating, automated, not editable.
 //
 //   TODAY'S QUESTS up to five you picked in the War Room (planner.html),
-//                  through planner-core.js. Unfinished ones carry over.
-//
-//   MY QUESTS      the ones you write yourself. Backed by the same
-//                  `goals:<date>` keys the Quest Board has always used,
-//                  so the streak, the archive and the goal ticker keep
-//                  working and nothing is migrated.
+//                  through planner-core.js. Unfinished ones carry over,
+//                  and keeping all of them is what moves the streak.
 //
 // The Hub and the Quest Board both mount these, so the two surfaces can
 // never drift apart visually or behaviourally.
-//
-// NOTE ON THE DAY KEY: personal quests use the Quest Board's own 6 AM
-// rollover, not midnight, because they share its storage. The daily
-// quest engine is separate and resets at local midnight by spec.
 // =============================================================
 (function () {
   'use strict';
 
   var GS = window.GameState, QE = window.QuestEngine, UI = window.UI;
-
-  // ---------------------------------------------------------------
-  // Personal quest storage — the Quest Board's 6 AM day boundary.
-  // ---------------------------------------------------------------
-  function personalDateKey() {
-    var now = new Date();
-    var d = new Date(now);
-    if (now.getHours() < 6) d.setDate(d.getDate() - 1);
-    return GS.dateKey(d);
-  }
-  function personalKey() { return 'goals:' + personalDateKey(); }
-
-  function readPersonal() {
-    var list = GS.readJSON(personalKey(), []);
-    return Array.isArray(list) ? list : [];
-  }
-  function writePersonal(list) {
-    GS.writeJSON(personalKey(), list);
-    // The Quest Board listens for this to redraw its ticker, ring and bar.
-    try { window.dispatchEvent(new CustomEvent('goals-changed')); } catch (e) {}
-    GS.reconcile();
-  }
-
-  function addPersonal(text) {
-    var t = String(text || '').trim();
-    if (!t) return false;
-    var list = readPersonal();
-    list.push({ text: t.slice(0, 160), done: false });
-    writePersonal(list);
-    return true;
-  }
-  function togglePersonal(index) {
-    var list = readPersonal();
-    if (!list[index]) return;
-    list[index].done = !list[index].done;
-    if (list[index].done) list[index].doneAt = Date.now();
-    else delete list[index].doneAt;
-    writePersonal(list);
-  }
-  function removePersonal(index) {
-    var list = readPersonal();
-    if (!list[index]) return;
-    list.splice(index, 1);
-    writePersonal(list);
-  }
 
   // ---------------------------------------------------------------
   // CSS — one definition, both surfaces.
@@ -105,11 +52,7 @@
 .q-r { flex:none; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
 .q-xp { font-family:var(--mono); font-size:12px; font-weight:700; color:var(--gold); }
 .q-min { font-size:9.5px; color:var(--text-3); }
-.q-del { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:2px; line-height:0; }
-.q-del:hover { color:var(--bad); }
 
-.q-add { display:flex; gap:7px; margin-top:4px; }
-.q-add input { flex:1; min-width:0; }
 `;
 
   function injectCss() {
@@ -303,87 +246,9 @@
     return { redraw: draw };
   }
 
-  // ---------------------------------------------------------------
-  // MY QUESTS — written by you
-  // ---------------------------------------------------------------
-  function mountPersonal(elOrId, opts) {
-    injectCss();
-    opts = opts || {};
-    var el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
-    if (!el) return;
-
-    // The shell — including the text input — is built ONCE. Redrawing
-    // replaces only the list and the counter, never the input.
-    //
-    // Rebuilding the whole container on every draw meant any re-render
-    // (a cloud-sync apply, another surface editing the same list) tore out
-    // the <input> mid-keystroke: focus lost, half-typed text gone. Whatever
-    // triggers a redraw, what you are typing must survive it.
-    el.innerHTML =
-      '<div class="qsec">' +
-        '<span class="qsec-t">My Quests</span>' +
-        '<span class="qsec-m" data-pqcount></span>' +
-      '</div>' +
-      '<div class="qsec-note" style="margin:-6px 0 10px">Written by you. Every one kept counts toward your streak.</div>' +
-      '<div data-pqlist></div>' +
-      (opts.readOnly ? '' :
-        '<div class="q-add">' +
-          '<input data-pqin placeholder="Add a quest of your own…" maxlength="160" autocomplete="off">' +
-          '<button class="btn gold" data-pqadd>Add</button>' +
-        '</div>');
-
-    var listEl = el.querySelector('[data-pqlist]');
-    var countEl = el.querySelector('[data-pqcount]');
-
-    function draw() {
-      var list = readPersonal();
-      var done = list.filter(function (g) { return g && g.done; }).length;
-      countEl.textContent = done + ' / ' + list.length;
-      listEl.innerHTML = list.length ? list.map(function (g, i) {
-        return '<div class="q' + (g.done ? ' done' : '') + '">' +
-          '<button class="q-box' + (g.done ? ' on' : '') + '" data-pq="' + i + '" ' +
-            'aria-label="Toggle quest">' + UI.icon('check', 14) + '</button>' +
-          '<div class="q-b"><div class="q-t">' + UI.esc(g.text) + '</div></div>' +
-          '<div class="q-r">' +
-            '<span class="q-xp">+' + GS.XP.goal + '</span>' +
-            '<button class="q-del" data-pqdel="' + i + '" aria-label="Remove">' +
-              UI.icon('close', 13) + '</button>' +
-          '</div>' +
-        '</div>';
-      }).join('') : '<div class="empty">Nothing of your own yet. Add the thing you actually need to do today.</div>';
-    }
-
-    el.addEventListener('click', function (e) {
-      var box = e.target.closest('[data-pq]');
-      if (box) { togglePersonal(Number(box.getAttribute('data-pq'))); draw(); if (opts.onChange) opts.onChange(); return; }
-      var del = e.target.closest('[data-pqdel]');
-      if (del) { removePersonal(Number(del.getAttribute('data-pqdel'))); draw(); if (opts.onChange) opts.onChange(); return; }
-      var add = e.target.closest('[data-pqadd]');
-      if (add) {
-        var inp = el.querySelector('[data-pqin]');
-        if (inp && addPersonal(inp.value)) { inp.value = ''; draw(); if (opts.onChange) opts.onChange(); }
-      }
-    });
-    el.addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter') return;
-      var inp = e.target.closest('[data-pqin]');
-      if (inp && addPersonal(inp.value)) { inp.value = ''; draw(); if (opts.onChange) opts.onChange(); }
-    });
-
-    // Redraw when the Quest Board's own UI edits the same list.
-    window.addEventListener('goals-changed', draw);
-
-    draw();
-    return { redraw: draw };
-  }
-
   window.QuestUI = {
     mountDaily: mountDaily,
     mountPlanner: mountPlanner,
-    mountPersonal: mountPersonal,
-    readPersonal: readPersonal,
-    addPersonal: addPersonal,
-    personalDateKey: personalDateKey,
     CSS: CSS
   };
 })();

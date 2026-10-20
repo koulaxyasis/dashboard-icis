@@ -343,9 +343,39 @@ function open(page, width) {
     var f6 = await open('../planner.html');
     eq('  and in the planner', Array.prototype.filter.call(f6.contentWindow.document.querySelectorAll('#today .chip'),
       function (c) { return c.textContent === 'carried over'; }).length, 2);
+
+    // ---- the streak now runs on Today's Quests
+    var w6 = f6.contentWindow;
+    eq('yesterday is banked as 1 of 3', JSON.stringify(plan().days[yday]), JSON.stringify({ d: 1, t: 3 }));
+    GS.reload(); GS.reconcile();
+    eq('  which the streak reads as partial', GS.dayStatus(yday), 'partial');
+    for (var guard = 0; guard < 10 && w6.document.querySelector('#today .pl-box:not(.on)'); guard++) {
+      w6.document.querySelector('#today .pl-box:not(.on)').click();   // each click re-renders
+    }
+    GS.reload();
+    eq('every quest kept: today is perfect', GS.dayStatus(GS.todayKey()), 'perfect');
+    eq('  and pays the perfect-day bonus', (GS.get().ledger['perfect:' + GS.todayKey()] || {}).xp, 40);
+    chk('  the streak counts it', GS.streakInfo({ dryRun: true }).count >= 1);
+    w6.document.querySelector('#today .pl-box.on').click();
+    GS.reload();
+    chk('  unticking one takes the bonus back', !GS.get().ledger['perfect:' + GS.todayKey()] &&
+      GS.dayStatus(GS.todayKey()) === 'partial');
     f6.remove();
 
+    // ---- the Quest Board: no My Quests, Today's Quests and the streak pill instead
+    var f7 = await open('../main.html', 390), d7 = f7.contentWindow.document;
+    chk('Quest Board has no My Quests', !d7.getElementById('goalList') && !/My Quests/.test(d7.body.textContent));
+    eq('  it lists Today’s Quests', d7.querySelectorAll('#plannerQuests .q').length, plan().today.ids.length);
+    chk('  the ticker reads them', /\d+\/\d+/.test(d7.getElementById('goalTickerMeta').textContent) &&
+      d7.getElementById('goalTickerMeta').textContent !== '0/0');
+    chk('  the streak pill is there', !!d7.getElementById('gmStreakNum'));
+    f7.remove();
+    var f8 = await open('../index.html', 390);
+    chk('Hub has no My Quests', !f8.contentWindow.document.getElementById('myQuests'));
+    f8.remove();
+
     // ---- a device without planner data must not wipe planner XP
+    GS.reload(); keptXp = planXp();   // ticks since the line test earned more
     var keep = localStorage.getItem('planner:v1');
     localStorage.removeItem('planner:v1');
     GS.reload(); GS.reconcile();

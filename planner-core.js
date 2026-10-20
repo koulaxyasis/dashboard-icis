@@ -12,6 +12,9 @@
 //
 // A new day carries every unfinished quest from the last list forward
 // (up to the cap), then fills free slots from today's weekly board.
+//
+// Each day's result (done of total) is kept in `days`, so the streak
+// in game-state.js can read a day after its list has rolled on.
 // =============================================================
 (function () {
   'use strict';
@@ -33,7 +36,7 @@
     if (!s.today || !Array.isArray(s.today.ids)) s.today = { date: '', ids: [] };
     return s;
   }
-  function write(s) { GS.writeJSON(KEY, s); }
+  function write(s) { stamp(s); GS.writeJSON(KEY, s); }
 
   function lineOf(s, id) {
     for (var i = 0; i < s.lines.length; i++) if (s.lines[i].id === id) return s.lines[i];
@@ -111,12 +114,25 @@
     return s.today.ids.filter(function (id) { return !!taskOf(s, id); });
   }
 
+  var DAYS_KEPT = 400;
+  function stamp(s) {
+    var date = s.today.date;
+    if (!date) return;
+    var list = examOn(s) ? examTasks(s)
+      : s.today.ids.map(function (id) { return taskOf(s, id); }).filter(Boolean);
+    if (!s.days || typeof s.days !== 'object') s.days = {};
+    s.days[date] = { d: list.filter(function (t) { return doneOf(s, t, date); }).length, t: list.length };
+    var keys = Object.keys(s.days).sort();
+    while (keys.length > DAYS_KEPT) delete s.days[keys.shift()];
+  }
+
   // Bring the list up to today. Returns true when it changed anything,
   // so the caller knows to write. A device with no list yet (first visit)
   // is left alone until there is something to put on it.
   function roll(s) {
     var d = today(), changed = false, old = s.today;
     if (old.date && old.date !== d) {
+      stamp(s);   // bank the finished day before its list moves on
       var carry = old.date < d ? old.ids.filter(function (id) {
         var t = taskOf(s, id);
         return t && !t.exam && !doneOf(s, t, old.date) && !doneOf(s, t, d);
@@ -187,7 +203,7 @@
     lineOf: lineOf, taskOf: taskOf, examTasks: examTasks, peak: peak, blockForTime: blockForTime,
     examOn: examOn, lowOn: lowOn, visible: visible,
     periodOf: periodOf, doneOf: doneOf, setDone: setDone,
-    todayIds: todayIds, roll: roll, ensure: ensure, pullBoard: pullBoard, carried: carried,
+    todayIds: todayIds, roll: roll, ensure: ensure, pullBoard: pullBoard, carried: carried, stamp: stamp,
     view: view, toggle: toggle
   };
 })();

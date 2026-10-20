@@ -14,6 +14,7 @@
 //     task:<proj>:<task>     one entry per project task
 //     quest:2026-09-20:q_17  one entry per quest per day
 //     plan:<task>:<period>   one entry per planner task per period
+//     perfect:2026-10-20     every Today's Quest kept that day
 //
 // Writing the same key twice overwrites instead of stacking, so:
 //   * opening a page can never change your level,
@@ -201,7 +202,8 @@
       rewards: { claimed: [] },
       settings: { reducedMotion: false, novaEnabled: true, showPractical: true },
       ledger: {},                // dedupeKey -> { xp, disc, at }
-      goalArchive: {},           // date -> { d, t }  (survives main.html's sweep)
+      goalArchive: {},           // date -> { d, t }  (the old My Quests; history only)
+      planArchive: {},           // date -> { d, t }  the War Room's Today's Quests
       streakShields: 0
     };
   }
@@ -601,6 +603,26 @@
       });
     }
 
+    // --- Today's Quests: each day's result, banked for the streak.
+    // Days the planner no longer lists stay banked.
+    if (plan && plan.days && typeof plan.days === 'object') {
+      Object.keys(plan.days).forEach(function (d) {
+        var e = plan.days[d];
+        if (!e) return;
+        var v = { d: num(e.d), t: num(e.t) }, cur = s.planArchive[d];
+        if (!cur || cur.d !== v.d || cur.t !== v.t) { s.planArchive[d] = v; changed = true; }
+      });
+    }
+    // A perfect day earns the bonus My Quests used to pay — once, even
+    // on a day that also has a perfect old goal list.
+    Object.keys(s.planArchive).forEach(function (d) {
+      var a = s.planArchive[d], g = s.goalArchive[d];
+      var goalPerfect = g && num(g.t) > 0 && num(g.d) === num(g.t);
+      if (a && num(a.t) > 0 && num(a.d) === num(a.t) && !goalPerfect) {
+        if (put('perfect:' + d, XP.perfectDay, 'resolve')) changed = true;
+      } else if (drop('perfect:' + d)) changed = true;
+    });
+
     if (changed) save();
     return changed;
   }
@@ -612,7 +634,8 @@
   // `goal_streak_v1` is only used once, as a starting baseline.
   //
   // A day counts toward the streak when it is:
-  //   perfect   every goal set that day was completed
+  //   perfect   every one of that day's Today's Quests was completed
+  //             (before the War Room: every My Quests goal)
   //   rest      the user marked it a scheduled rest day (costs nothing)
   //   shielded  a shield was spent to cover it
   //
@@ -628,6 +651,8 @@
 
   function dayStatus(s, date) {
     if (s.streak.restDays[date]) return 'rest';
+    var p = s.planArchive[date];
+    if (p && num(p.t) > 0) return num(p.d) === num(p.t) ? 'perfect' : 'partial';
     var a = s.goalArchive[date];
     if (a && num(a.t) > 0 && num(a.d) === num(a.t)) return 'perfect';
     if (a && num(a.t) > 0) return 'partial';
@@ -668,7 +693,7 @@
     // Stop at the first day you ever tracked. Without this the walk runs
     // back through pre-history, where every day reads as "missed", and
     // burns shields covering days before you started.
-    var tracked = Object.keys(s.goalArchive).concat(Object.keys(s.streak.restDays)).sort();
+    var tracked = Object.keys(s.goalArchive).concat(Object.keys(s.planArchive), Object.keys(s.streak.restDays)).sort();
     var earliest = tracked.length ? tracked[0] : null;
 
     var count = 0, restUsed = 0, shieldsSpent = [];
@@ -809,6 +834,7 @@
     var p = String(key).split(':');
     switch (p[0]) {
       case 'goal':    return 'Daily goals kept';
+      case 'perfect': return 'Perfect day: every quest kept';
       case 'gym':     return 'Training session';
       case 'water':   return 'Hydration logged';
       case 'caf':     return 'Caffeine within limit';

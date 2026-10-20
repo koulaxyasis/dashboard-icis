@@ -36,7 +36,7 @@ var GS = window.GameState, QE = window.QuestEngine, HA = window.HeroArt;
 // Containers that MUST have content. If a page's script throws mid-render
 // these stay empty, which is the signal we key on.
 var PAGES = {
-  '../index.html':        ['bName','story','codexCard','dailyQuests','myQuests','contracts','world','camp','social','reward'],
+  '../index.html':        ['bName','story','codexCard','dailyQuests','plannerQuests','contracts','world','camp','social','reward'],
   '../career.html':       ['mission','chapters','skills'],
   '../planner.html':      ['today','board','split','lines','roadmap','review'],
   '../tavern.html':       ['plans','people','suggestions','memories','stXp'],
@@ -45,7 +45,7 @@ var PAGES = {
   '../guild.html':        ['bosses'],
   '../nova.html':         ['novaMain'],
   '../codex.html':        ['todayCard','filters','list'],
-  '../main.html':         ['goalTickerStage','dailyQuests','gmCardToday'],
+  '../main.html':         ['goalTickerStage','dailyQuests','plannerQuests','gmStreak'],
   '../gym.html':          [],
   '../po-water.html':     [],
   '../caffeine.html':     ['logList'],
@@ -197,46 +197,6 @@ function probe(page, ids) {
   eq('second pass :: total XP still unchanged', after2.xp, baseline.xp);
   eq('second pass :: streak still unchanged', after2.streak, baseline.streak);
   eq('second pass :: board still unchanged', after2.board, baseline.board);
-
-  // ---- typing must survive a re-render --------------------------------
-  // The real failure: you start typing a quest, something triggers a
-  // redraw (a cloud-sync apply, another surface editing the list), the
-  // container's innerHTML is replaced and the input you are in is gone.
-  await (function () {
-    return new Promise(function (resolve) {
-      var f = document.createElement('iframe');
-      f.style.width = '390px'; f.style.height = '760px';
-      f.src = '../index.html?t=' + Date.now();
-      f.addEventListener('load', function () {
-        setTimeout(function () {
-          var d = f.contentWindow.document;
-          var input = d.querySelector('[data-pqin]');
-          chk('add-quest input exists', !!input);
-          if (!input) { f.remove(); return resolve(); }
-
-          input.focus();
-          input.value = 'half-typed quest';
-          var focusedBefore = d.activeElement === input;
-          chk('input can take focus', focusedBefore);
-
-          // Force the redraws a sync apply would cause.
-          f.contentWindow.dispatchEvent(new CustomEvent('goals-changed'));
-          d.dispatchEvent(new CustomEvent('icis:update', { detail: {} }));
-
-          setTimeout(function () {
-            var after = d.querySelector('[data-pqin]');
-            chk('input survived the redraw', !!after && after === input);
-            chk('typed text survived the redraw',
-                !!after && after.value === 'half-typed quest',
-                after ? 'value="' + after.value + '"' : 'gone');
-            chk('focus survived the redraw', d.activeElement === after);
-            f.remove(); resolve();
-          }, 500);
-        }, 1200);
-      });
-      document.body.appendChild(f);
-    });
-  })();
 
   // ---- the Hub and the Quest Board must show the SAME daily quests -----
   var hubDaily = dailySeen['../index.html'];
