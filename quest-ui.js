@@ -1,10 +1,13 @@
 // =============================================================
 // ICIS — shared quest UI.
 //
-// Two distinct lists, rendered the same way wherever they appear:
+// Three distinct lists, rendered the same way wherever they appear:
 //
 //   DAILY QUESTS   the five the engine picks for you each day.
 //                  Rotating, automated, not editable.
+//
+//   TODAY'S QUESTS up to five you picked in the War Room (planner.html),
+//                  through planner-core.js. Unfinished ones carry over.
 //
 //   MY QUESTS      the ones you write yourself. Backed by the same
 //                  `goals:<date>` keys the Quest Board has always used,
@@ -77,6 +80,8 @@
 .qsec-t { font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); }
 .qsec-m { font-size:11px; color:var(--text-3); font-family:var(--mono); }
 .qsec-note { font-size:11px; color:var(--text-3); }
+.qsec-note a, .empty a { color:var(--gold); text-decoration:none; }
+.qsec-note a:hover, .empty a:hover { text-decoration:underline; }
 
 .qmode { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
 .qmode button { border:0; background:transparent; color:var(--text-3); font:inherit;
@@ -214,6 +219,91 @@
   }
 
   // ---------------------------------------------------------------
+  // TODAY'S QUESTS — picked by you in the War Room (planner.html).
+  // Read and ticked through planner-core.js, so this list is the War
+  // Room's list: same items, same carry-over, same XP.
+  // ---------------------------------------------------------------
+  function mountPlanner(elOrId, opts) {
+    injectCss();
+    opts = opts || {};
+    var PC = window.PlannerCore;
+    var el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+    if (!el || !PC) return;
+
+    el.innerHTML =
+      '<div class="qsec">' +
+        '<span class="qsec-t">Today’s Quests</span>' +
+        '<span class="qsec-m" data-plmeta></span>' +
+      '</div>' +
+      '<div class="qsec-note" style="margin:-6px 0 10px">Picked by you in the <a href="planner.html">War Room</a>. ' +
+        'Unfinished ones carry to tomorrow.</div>' +
+      '<div data-pllist></div>';
+
+    var listEl = el.querySelector('[data-pllist]');
+    var metaEl = el.querySelector('[data-plmeta]');
+
+    function row(it) {
+      var t = it.task;
+      var c = it.line ? UI.esc(it.line.color) : 'var(--text-3)';
+      return '<div class="q' + (it.done ? ' done' : '') + (it.carried ? ' pinned' : '') + '">' +
+        '<button class="q-box' + (it.done ? ' on' : '') + '" data-pl="' + UI.esc(t.id) + '" ' +
+          'aria-label="Toggle quest">' + UI.icon('check', 14) + '</button>' +
+        '<div class="q-b">' +
+          '<div class="q-lore" style="color:' + c + '">' +
+            UI.esc(it.line ? it.line.name : t.exam ? 'Exam Week' : 'War Room') + '</div>' +
+          '<div class="q-t">' + UI.esc(t.title) + '</div>' +
+          '<div class="q-tags">' +
+            '<span class="chip">' + UI.esc(t.energy) + '</span>' +
+            (it.carried ? '<span class="chip on">carried over</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="q-r"><div class="q-xp">+' + it.xp + '</div>' +
+          (t.minutes ? '<div class="q-min">' + Math.round(t.minutes) + 'm</div>' : '') + '</div>' +
+      '</div>';
+    }
+
+    function draw() {
+      var s = PC.read();
+      if (!s) {
+        metaEl.textContent = '';
+        listEl.innerHTML = '<div class="empty">Nothing planned yet. <a href="planner.html">Plan today in the War Room</a>.</div>';
+        return;
+      }
+      if (PC.roll(s)) PC.write(s);
+      var v = PC.view(s);
+      metaEl.textContent = v.done + ' / ' + v.total + (v.exam ? ' · Exam Week' : '');
+      var note = v.low && v.hidden
+        ? '<div class="qsec-note" style="margin:0 0 8px">Low-energy day: ' + v.hidden + ' heavier one' +
+          (v.hidden === 1 ? ' is' : 's are') + ' hidden, not dropped.</div>' : '';
+      listEl.innerHTML = note + (v.items.length ? v.items.map(row).join('')
+        : '<div class="empty">' + (v.total ? 'Nothing light on today’s list.'
+          : 'No must-dos picked for today. <a href="planner.html">Pick up to five in the War Room</a>.') + '</div>');
+    }
+
+    el.addEventListener('click', function (e) {
+      var box = e.target.closest('[data-pl]');
+      if (!box) return;
+      var s = PC.read();
+      if (!s) return;
+      PC.roll(s);
+      var t = PC.toggle(s, box.getAttribute('data-pl'));
+      PC.write(s);
+      GS.reconcile();
+      if (t) {
+        var ln = PC.lineOf(s, t.line);
+        UI.toast('check', 'Quest complete', t.title, '+' + (PC.XP_FOR[t.energy] || 0) + ' XP' + (ln ? ' · ' + ln.name : ''));
+      }
+      draw();
+      if (opts.onChange) opts.onChange();
+    });
+    // The War Room in another tab.
+    window.addEventListener('storage', function (e) { if (e.key === PC.KEY) draw(); });
+
+    draw();
+    return { redraw: draw };
+  }
+
+  // ---------------------------------------------------------------
   // MY QUESTS — written by you
   // ---------------------------------------------------------------
   function mountPersonal(elOrId, opts) {
@@ -289,6 +379,7 @@
 
   window.QuestUI = {
     mountDaily: mountDaily,
+    mountPlanner: mountPlanner,
     mountPersonal: mountPersonal,
     readPersonal: readPersonal,
     addPersonal: addPersonal,

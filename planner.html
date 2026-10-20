@@ -10,6 +10,11 @@
 <script src="sync.js" defer></script>
 <script src="game-state.js"></script>
 <script src="ui-kit.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="quest-ui.js"></script>
+<script src="planner-core.js"></script>
 <style>
 [hidden] { display:none !important; }
 .hdr { margin-bottom:16px; }
@@ -305,6 +310,9 @@ body.pl-lock { overflow:hidden; }
   <div class="sec"><span class="sec-t">Today's Quests</span><span class="sec-m" id="todayMeta"></span></div>
   <div id="today"></div>
 
+  <!-- the Hub's automated Daily Quests, the same component -->
+  <div id="plDaily"></div>
+
   <!-- 2 — weekly board -->
   <div class="sec">
     <span class="sec-t">Weekly Board</span>
@@ -351,7 +359,7 @@ body.pl-lock { overflow:hidden; }
 <script>
 (function () {
   'use strict';
-  var GS = window.GameState, UI = window.UI, esc = UI.esc;
+  var GS = window.GameState, UI = window.UI, PC = window.PlannerCore, esc = UI.esc;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------------------------------------------------------------
@@ -364,7 +372,7 @@ body.pl-lock { overflow:hidden; }
   // lines from memory; nothing is written until you change something.
   // ---------------------------------------------------------------
   var KEY = 'planner:v1';
-  var XP_FOR = { deep: 30, medium: 15, light: 5 };
+  var XP_FOR = PC.XP_FOR;
   var ENERGY = ['deep', 'medium', 'light'];
   var REPEATS = ['none', 'daily', 'weekly'];
   var REPEAT_LABEL = { none: 'One-off', daily: 'Daily', weekly: 'Weekly' };
@@ -377,7 +385,7 @@ body.pl-lock { overflow:hidden; }
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var KINDS = ['Guild Contract', 'Main Story', 'Side Quest'];
   var COLORS = ['#34D399', '#A78BFA', '#E9BE6E', '#60A5FA', '#F472B6', '#F0A868'];
-  var TODAY_CAP = 5;
+  var TODAY_CAP = PC.CAP;
   var SAVE_TARGET = 70;
 
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
@@ -478,29 +486,11 @@ body.pl-lock { overflow:hidden; }
   // ---------------------------------------------------------------
   // Lookups, dates, formatting
   // ---------------------------------------------------------------
-  function lineOf(id) {
-    for (var i = 0; i < state.lines.length; i++) if (state.lines[i].id === id) return state.lines[i];
-    return null;
-  }
+  function lineOf(id) { return PC.lineOf(state, id); }
   function color(ln) { return ln ? esc(ln.color) : 'var(--text-3)'; }
 
-  // Exam Week replaces the plan with exactly two daily items. They are
-  // fixed, not stored as tasks, but complete and earn XP like any other.
-  function examTasks() {
-    var clip = lineOf('clip') || state.lines.filter(function (l) { return l.kind === 'Guild Contract'; })[0] || null;
-    var pk = peak();
-    return [
-      { id: 'exam_study', title: 'Study block', energy: 'deep', minutes: 120, repeat: 'daily', line: '', disc: 'career',
-        exam: true, block: pk ? pk.block : 'morning', note: 'The one deep block that matters this week.' },
-      { id: 'exam_clip', title: 'Post 1 clip', energy: 'medium', minutes: 30, repeat: 'daily',
-        line: clip ? clip.id : '', disc: clip ? clip.disc : 'fortune',
-        exam: true, block: 'evening', note: 'Keeps the contract warm. Nothing more.' }
-    ];
-  }
-  function taskOf(id) {
-    for (var i = 0; i < state.tasks.length; i++) if (state.tasks[i].id === id) return state.tasks[i];
-    return examTasks().filter(function (x) { return x.id === id; })[0] || null;
-  }
+  function examTasks() { return PC.examTasks(state); }
+  function taskOf(id) { return PC.taskOf(state, id); }
 
   function parts(k) { return String(k).split('-').map(Number); }
   function fmtDay(k) { var p = parts(k); return p[2] + ' ' + MON[p[1] - 1]; }
@@ -532,34 +522,10 @@ body.pl-lock { overflow:hidden; }
   }
 
   // ---------------------------------------------------------------
-  // Completion. A repeating task is done per day or per week; a one-off
-  // is done once. Each completion carries its own minutes, track and XP
-  // so the weekly totals and the ledger survive the task being deleted.
+  // Completion — rules live in planner-core.js, shared with the Hub.
   // ---------------------------------------------------------------
-  function periodOf(t, date) {
-    if (t.repeat === 'daily') return date;
-    if (t.repeat === 'weekly') return 'w' + GS.weekStart(date);
-    return 'once';
-  }
-  function doneOf(t, date) {
-    var m = state.done[t.id];
-    return m ? m[periodOf(t, date)] || null : null;
-  }
-  function setDone(t, date, on) {
-    var per = periodOf(t, date), m = state.done[t.id];
-    if (!on) {
-      if (m && m[per]) { delete m[per]; if (!Object.keys(m).length) delete state.done[t.id]; }
-      return;
-    }
-    if (!m) m = state.done[t.id] = {};
-    if (m[per]) return;
-    var ln = lineOf(t.line);
-    m[per] = {
-      at: Date.now(), date: date, min: Math.max(0, num(t.minutes)), line: t.line || '',
-      xp: XP_FOR[t.energy] || 0, disc: (ln && ln.disc) || t.disc || 'arcana',
-      text: String(t.title).slice(0, 120)
-    };
-  }
+  function doneOf(t, date) { return PC.doneOf(state, t, date); }
+  function setDone(t, date, on) { PC.setDone(state, t, date, on); }
   function toggle(id, date) {
     var t = taskOf(id);
     if (!t) return;
@@ -575,20 +541,10 @@ body.pl-lock { overflow:hidden; }
   // ---------------------------------------------------------------
   // Modes and peak focus
   // ---------------------------------------------------------------
-  function examOn() { return !!state.settings.exam; }
-  function lowOn() { return state.settings.lowDate === today(); }
-  function visible(t) { return examOn() || !lowOn() || t.energy === 'light'; }
-
-  function blockForTime(v) {
-    var h = parseInt(String(v || '').split(':')[0], 10);
-    if (!isFinite(h)) return null;
-    return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
-  }
-  function peak() {
-    var b = blockForTime(state.settings.peakFrom);
-    if (!b) return null;
-    return { block: b, label: state.settings.peakFrom + (state.settings.peakTo ? '–' + state.settings.peakTo : '') };
-  }
+  function examOn() { return PC.examOn(state); }
+  function lowOn() { return PC.lowOn(state); }
+  function visible(t) { return PC.visible(state, t); }
+  function peak() { return PC.peak(state); }
 
   // ---------------------------------------------------------------
   // Weekly sums — hours per track, planner XP, log totals, money in.
@@ -693,6 +649,7 @@ body.pl-lock { overflow:hidden; }
     var tags = energyChip(t.energy) +
       (t.minutes ? '<span class="chip">' + fmtMin(t.minutes) + '</span>' : '') +
       (t.repeat !== 'none' ? '<span class="chip">' + REPEAT_LABEL[t.repeat] + '</span>' : '') +
+      (ctx === 'today' && PC.carried(state, t.id) ? '<span class="chip on">carried over</span>' : '') +
       dueChip(t, done) +
       (t.energy === 'deep' && pk && !done ? '<span class="chip on">peak ' + esc(pk.label) + '</span>' : '');
     return '<div class="pl-task' + (done ? ' done' : '') + '" style="--lc:' + color(ln) + '">' +
@@ -725,33 +682,7 @@ body.pl-lock { overflow:hidden; }
   // ---------------------------------------------------------------
   // 1 — Today's Quests (cap 5)
   // ---------------------------------------------------------------
-  function todayIds() {
-    if (state.today.date !== today()) return [];
-    return state.today.ids.filter(function (id) { return !!taskOf(id); });
-  }
-  // A new day starts an empty list. `prev` keeps the old one so the
-  // carry-over offer survives the board filling today in first.
-  function startToday(keepPrev) {
-    var d = today(), old = state.today;
-    if (old.date === d) return;
-    state.today = { date: d, ids: [], pulled: [],
-                    prev: keepPrev && old.date && old.ids.length ? { date: old.date, ids: old.ids.slice() } : null };
-  }
-  // What the board holds for today lands on today's list, up to the cap.
-  // Each entry is pulled once, so removing it from today sticks.
-  function pullBoard() {
-    var d = today(), pulled = state.today.date === d ? state.today.pulled || [] : [];
-    var fresh = state.board.filter(function (e) { return e.date === d && pulled.indexOf(e.id) === -1; });
-    if (!fresh.length) return false;
-    startToday(true);
-    if (!state.today.pulled) state.today.pulled = [];
-    fresh.forEach(function (e) {
-      state.today.pulled.push(e.id);
-      if (!taskOf(e.task) || state.today.ids.indexOf(e.task) !== -1 || todayIds().length >= TODAY_CAP) return;
-      state.today.ids.push(e.task);
-    });
-    return true;
-  }
+  function todayIds() { return PC.todayIds(state); }
   // Nudges, not orders: on today's board, overdue, due soon, daily.
   function suggestions(pool, d) {
     var onBoard = {};
@@ -803,18 +734,7 @@ body.pl-lock { overflow:hidden; }
     html += vis.length ? vis.map(function (t) { return taskRow(t, d, 'today'); }).join('')
       : '<div class="card empty">' + (list.length
           ? 'Nothing light on today’s list. Pick a light task below, or rest. Rest still counts.'
-          : 'No must-dos yet. Pick up to five, the few that make today a win.') + '</div>';
-
-    // Yesterday's list does not silently roll over; offer it instead.
-    var src = staleList();
-    var stale = src ? src.ids.filter(function (id) {
-      var t = taskOf(id); return t && !doneOf(t, d) && visible(t) && ids.indexOf(id) === -1;
-    }) : [];
-    if (ids.length < TODAY_CAP && stale.length) {
-      html += '<div class="pl-sug"><span class="grow">' + stale.length + ' unfinished from ' + fmtDay(src.date) +
-        '<small>Carry them over, or start fresh.</small></span>' +
-        '<button class="btn sm" data-act="today-carry">' + ic('arrow', 13) + ' Carry over</button></div>';
-    }
+          : 'No must-dos yet. Pick up to five, the few that make today a win. Unfinished ones carry to tomorrow.') + '</div>';
 
     var pool = state.tasks.filter(function (t) { return ids.indexOf(t.id) === -1 && !doneOf(t, d) && visible(t); });
     if (pool.length) {
@@ -833,17 +753,10 @@ body.pl-lock { overflow:hidden; }
     el.innerHTML = html;
   }
 
-  function staleList() {
-    if (state.today.date && state.today.date !== today()) return state.today;
-    return state.today.prev || null;
-  }
-
   function addToday(id) {
     var d = today(), t = taskOf(id);
     if (!t) return;
-    startToday(false);
-    // Picking by hand means today is being planned fresh.
-    state.today.prev = null;
+    PC.ensure(state);
     state.today.ids = state.today.ids.filter(function (x) { return !!taskOf(x); });
     if (state.today.ids.indexOf(id) !== -1) { UI.toast('star', 'Today’s Quests', 'Already on today’s list', t.title); return; }
     if (state.today.ids.length >= TODAY_CAP) { openSwap(id); return; }
@@ -1579,7 +1492,7 @@ body.pl-lock { overflow:hidden; }
   }
 
   function render() {
-    if (!examOn() && pullBoard()) persist();
+    if (PC.roll(state)) persist();
     keepInputs(function () {
       var exam = examOn();
       $('blkSplit').hidden = exam;
@@ -1655,16 +1568,6 @@ body.pl-lock { overflow:hidden; }
         break;
       case 'today-remove':
         state.today.ids = state.today.ids.filter(function (x) { return x !== id; });
-        commit();
-        break;
-      case 'today-carry':
-        var src = staleList();
-        startToday(false);
-        var keep = (src ? src.ids : []).filter(function (x) {
-          var t = taskOf(x); return t && !doneOf(t, today()) && state.today.ids.indexOf(x) === -1;
-        });
-        state.today.ids = state.today.ids.concat(keep).slice(0, TODAY_CAP);
-        state.today.prev = null;
         commit();
         break;
       case 'schedule': openSchedule({ taskId: id }); break;
@@ -1802,8 +1705,24 @@ body.pl-lock { overflow:hidden; }
 
   render();
 
+  // Ticking a Daily Quest here moves shared XP, same as on the Hub.
+  var dailyQ = window.QuestUI ? window.QuestUI.mountDaily('plDaily', {
+    compact: true,
+    onChange: function () { GS.reconcile(); renderTop(); }
+  }) : null;
+
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'icis',
+      syncedKeys: [GS.KEY],
+      onApplied: function () {
+        if (GS.onRemoteApplied() === 'adopted' && !UI.isTyping() && !modalCtx) {
+          if (dailyQ) dailyQ.redraw();
+          renderTop();
+        }
+      }
+    });
     initCloudSync({
       appKey: 'planner',
       syncedKeys: [KEY],

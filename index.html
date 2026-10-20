@@ -16,6 +16,7 @@
 <script src="hero-art.js"></script>
 <script src="ui-kit.js"></script>
 <script src="quest-ui.js"></script>
+<script src="planner-core.js"></script>
 <script src="codex.js"></script>
 <script src="nova.js"></script>
 <style>
@@ -113,6 +114,8 @@
 
   <!-- 5 — the five automated daily quests, then the ones you write -->
   <div id="dailyQuests"></div>
+  <!-- the War Room's Today's Quests, the same list as on planner.html -->
+  <div id="plannerQuests"></div>
   <div id="myQuests"></div>
 
   <div class="two" style="margin-top:22px">
@@ -329,6 +332,7 @@
   function renderAll() {
     renderBanner(); renderStory();
     if (daily) daily.redraw();
+    if (plan) plan.redraw();
     if (mine) mine.redraw();
     renderContracts(); renderSide(); renderWorld();
   }
@@ -338,6 +342,7 @@
   // the Hub and the Quest Board stay identical. Both call back here to
   // refresh the banner, contracts and side cards after a change.
   var daily = window.QuestUI.mountDaily('dailyQuests', { onChange: afterQuestChange });
+  var plan  = window.QuestUI.mountPlanner('plannerQuests', { onChange: afterQuestChange });
   var mine  = window.QuestUI.mountPersonal('myQuests', { onChange: afterQuestChange });
 
   function afterQuestChange() {
@@ -436,6 +441,12 @@
       appKey: 'icis',
       syncedKeys: [GS.KEY],
       onApplied: function () { if (GS.onRemoteApplied() === "adopted" && !UI.isTyping()) renderAll(); }
+    });
+    // Today's Quests write the War Room's own row; same key as planner.html.
+    initCloudSync({
+      appKey: 'planner',
+      syncedKeys: ['planner:v1'],
+      onApplied: function () { GS.reconcile(); if (!UI.isTyping()) renderAll(); }
     });
   });
 })();

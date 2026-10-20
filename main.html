@@ -16,6 +16,7 @@
 <script src="hero-art.js"></script>
 <script src="ui-kit.js"></script>
 <script src="quest-ui.js"></script>
+<script src="planner-core.js"></script>
 <style>
 /* =============================================================
    Quest Board — restyled onto the shared design system.
@@ -303,6 +304,8 @@
   <!-- The five automated quests, rendered by the same component the Hub
        uses so the two surfaces cannot drift apart. -->
   <div id="dailyQuests"></div>
+  <!-- the War Room's Today's Quests, the same list as on planner.html -->
+  <div id="plannerQuests"></div>
 
   <div class="section">
     <div class="section-title">My Quests</div>
@@ -945,12 +948,27 @@ document.addEventListener('DOMContentLoaded', function () {
 (function () {
   'use strict';
   if (!window.QuestUI) return;
-  window.QuestUI.mountDaily('dailyQuests', {
-    onChange: function () {
-      // Completing an automated quest moves XP, which the streak pill and
-      // the HUD both read.
-      if (window.GameState) window.GameState.reconcile();
-    }
+  var GS = window.GameState;
+  // Completing a quest moves XP, which the streak pill and the HUD read.
+  function moved() { if (GS) GS.reconcile(); }
+  var daily = window.QuestUI.mountDaily('dailyQuests', { onChange: moved });
+  var plan = window.QuestUI.mountPlanner('plannerQuests', { onChange: moved });
+
+  // Both lists write synced rows: the game state and the War Room's own.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function' || !GS) return;
+    initCloudSync({
+      appKey: 'icis',
+      syncedKeys: [GS.KEY],
+      onApplied: function () {
+        if (GS.onRemoteApplied() === 'adopted') { if (daily) daily.redraw(); if (plan) plan.redraw(); }
+      }
+    });
+    initCloudSync({
+      appKey: 'planner',
+      syncedKeys: ['planner:v1'],
+      onApplied: function () { GS.reconcile(); if (plan) plan.redraw(); }
+    });
   });
 })();
 </script>

@@ -57,6 +57,7 @@ function open(page, width) {
     chk('roadmap seeded with milestones', qa('[data-rm]').every(function (t) { return t.value.length > 5; }));
     eq('split defaults 40/35/25', qa('[data-split]').map(function (r) { return r.value; }).join('/'), '40/35/25');
     chk('weekly board has 7 days x 3 blocks', qa('.pl-col').length === 7 && qa('.pl-cell').length === 21);
+    chk('the Hub’s Daily Quests show on the planner', qa('#plDaily .q').length >= 3, qa('#plDaily .q').length + ' rows');
     chk('log fields include $ approved earnings', !!q('[data-keep="log|clip|earned"]'));
 
     // ---- today's cap of five, and the swap question on the sixth
@@ -311,6 +312,38 @@ function open(page, width) {
     chk('  with today’s progress', !!tile && /\d+\/5 today/.test(tile.textContent), tile ? tile.textContent : '');
     eq('Hub XP bar includes planner XP', GS.reload() && Object.keys(GS.get().ledger).some(function (k) { return k.indexOf('plan:') === 0; }), 'true');
     f3.remove();
+
+    // ---- the Hub shows the War Room's Today's Quests, and ticks them
+    var f4 = await open('../index.html', 390), d4 = f4.contentWindow.document;
+    eq('Hub lists today’s planner quests', d4.querySelectorAll('#plannerQuests .q').length, plan().today.ids.length);
+    var hubBox = Array.prototype.filter.call(d4.querySelectorAll('#plannerQuests [data-pl]'), function (b) {
+      return !b.classList.contains('on');
+    })[0];
+    var hubId = hubBox.getAttribute('data-pl'), xpHub = planXp();
+    hubBox.click();
+    chk('  ticking on the Hub completes it in the planner', !!plan().done[hubId]);
+    chk('  and pays the same XP', planXp() > xpHub, xpHub + ' -> ' + planXp());
+    d4.querySelector('#plannerQuests [data-pl="' + hubId + '"]').click();
+    chk('  unticking takes it back', !plan().done[hubId] && planXp() === xpHub);
+    f4.remove();
+
+    // ---- a new day carries every unfinished quest forward, on any page
+    var pd = plan(), yday = GS.shiftKey(GS.todayKey(), -1);
+    var oneOffs = pd.tasks.filter(function (t) { return t.repeat === 'none' && !pd.done[t.id]; });
+    var ca = oneOffs[0].id, cb = oneOffs[1].id, cc = oneOffs[2].id;
+    pd.done[cc] = { once: { at: 1, date: yday, min: 0, line: '', xp: 0, disc: 'arcana', text: 'done yesterday' } };
+    pd.today = { date: yday, ids: [ca, cb, cc], pulled: [] };
+    pd.board = pd.board.filter(function (e) { return e.date !== GS.todayKey(); });
+    localStorage.setItem('planner:v1', JSON.stringify(pd));
+    var f5 = await open('../index.html', 390), d5 = f5.contentWindow.document;
+    eq('rollover on the Hub carries the unfinished ones', plan().today.ids.join(), [ca, cb].join());
+    eq('  dated today', plan().today.date, GS.todayKey());
+    eq('  marked carried over on the Hub', d5.querySelectorAll('#plannerQuests .chip.on').length, 2);
+    f5.remove();
+    var f6 = await open('../planner.html');
+    eq('  and in the planner', Array.prototype.filter.call(f6.contentWindow.document.querySelectorAll('#today .chip'),
+      function (c) { return c.textContent === 'carried over'; }).length, 2);
+    f6.remove();
 
     // ---- a device without planner data must not wipe planner XP
     var keep = localStorage.getItem('planner:v1');
