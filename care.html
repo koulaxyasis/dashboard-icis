@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E1A">
+<title>Perawatan Ibu</title>
+<!-- Privacy: this page deliberately does NOT load sync.js / Supabase.
+     Everything typed here stays in this browser's localStorage only. -->
+<script src="game-state.js"></script>
+<script src="quest-library.js"></script>
+<script src="career-data.js"></script>
+<script src="quest-engine.js"></script>
+<script src="ui-kit.js"></script>
+<style>
+:root { --care: #7DD3C0; }
+.hdr { margin-bottom:16px; }
+.note { padding:13px 15px; font-size:12.5px; line-height:1.55; color:var(--text-3); border-color:rgba(125,211,192,.25); }
+.note strong { color:var(--text-2); }
+
+/* alert banner driven by today's log */
+.alert { display:none; padding:13px 15px; margin-top:12px; font-size:13px; line-height:1.5; color:var(--text); }
+.alert.show { display:block; }
+.alert.bad  { border-color:rgba(242,119,122,.55); background:rgba(242,119,122,.12); }
+.alert.warn { border-color:rgba(240,168,104,.5);  background:rgba(240,168,104,.10); }
+.alert b { display:block; margin-bottom:3px; }
+
+/* today strip */
+.strip { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px; }
+.st { padding:13px; text-align:center; }
+.st-v { font-family:var(--mono); font-size:19px; font-weight:700; color:var(--text); }
+.st-k { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); margin-top:4px; }
+
+/* water */
+.water { padding:15px; }
+.cups { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 12px; }
+.cup { width:30px; height:38px; border-radius:6px 6px 9px 9px; border:1.5px solid var(--line-2);
+  background:transparent; cursor:pointer; padding:0; position:relative; overflow:hidden; }
+.cup.full { border-color:rgba(96,165,250,.7); background:linear-gradient(180deg, rgba(96,165,250,.25), rgba(96,165,250,.55)); }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+/* checklists */
+.chk { display:flex; align-items:flex-start; gap:11px; padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer; }
+.chk:last-child { border-bottom:0; }
+.chk input { width:18px; height:18px; flex:none; margin:1px 0 0; accent-color:var(--care); }
+.chk-t { font-size:13px; color:var(--text-2); line-height:1.45; }
+.chk.done .chk-t { color:var(--text-3); text-decoration:line-through; }
+.chk-tag { font-family:var(--mono); font-size:10px; color:var(--text-3); margin-left:auto; flex:none; padding-left:8px; }
+
+/* log form */
+.form { padding:15px; }
+.fg { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.fg .span2 { grid-column:span 2; }
+.fg .span4 { grid-column:1 / -1; }
+@media (max-width:620px){ .fg { grid-template-columns:1fr 1fr; } .fg .span2, .fg .span4 { grid-column:1 / -1; } }
+.seg5 { display:flex; gap:5px; }
+.seg5 button { flex:1; border:1px solid var(--line); background:rgba(0,0,0,.3); color:var(--text-3);
+  border-radius:9px; padding:8px 0; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.seg5 button.on { color:#0B1A16; background:var(--care); border-color:var(--care); }
+.status { font-size:12px; color:var(--ok); min-height:16px; margin-top:8px; }
+
+/* log table */
+.tbl-wrap { overflow-x:auto; }
+table.log { width:100%; border-collapse:collapse; font-size:12px; min-width:640px; }
+table.log th { text-align:left; font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--text-3); padding:10px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+table.log td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--text-2); vertical-align:top; }
+table.log td.n { font-family:var(--mono); white-space:nowrap; }
+td .hi { color:var(--bad); font-weight:700; }
+td .md { color:var(--warn); font-weight:700; }
+.del { border:0; background:transparent; color:var(--text-3); cursor:pointer; padding:2px 4px; font-size:14px; }
+.del:hover { color:var(--bad); }
+
+/* danger signs */
+.tier { padding:14px 15px; margin-bottom:9px; }
+.tier h3 { margin:0 0 8px; font-size:13.5px; color:var(--text); display:flex; align-items:center; gap:8px; }
+.tier ul { margin:0; padding-left:18px; font-size:12.5px; line-height:1.6; color:var(--text-2); }
+.tier.red    { border-color:rgba(242,119,122,.45); }
+.tier.red h3 { color:var(--bad); }
+.tier.amber  { border-color:rgba(240,168,104,.4); }
+.tier.amber h3 { color:var(--warn); }
+.tier.green  { border-color:rgba(107,227,164,.3); }
+.tier.green h3 { color:var(--ok); }
+.callbtn { margin-top:10px; }
+
+/* guides */
+details.guide { margin-bottom:9px; }
+details.guide > summary { list-style:none; cursor:pointer; padding:14px 15px; display:flex; align-items:center; gap:10px;
+  font-size:14px; font-weight:650; color:var(--text); }
+details.guide > summary::-webkit-details-marker { display:none; }
+details.guide > summary .chev { margin-left:auto; color:var(--text-3); transition:transform .2s; }
+details.guide[open] > summary .chev { transform:rotate(90deg); }
+.gbody { padding:0 15px 15px; font-size:12.5px; line-height:1.62; color:var(--text-2); }
+.gbody h4 { margin:14px 0 6px; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--care); }
+.gbody ul, .gbody ol { margin:0; padding-left:19px; }
+.gbody li { margin-bottom:3px; }
+.gbody p { margin:0 0 8px; }
+.gbody table { width:100%; border-collapse:collapse; font-size:12px; margin-top:4px; }
+.gbody th { text-align:left; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3); padding:8px; border-bottom:1px solid var(--line); }
+.gbody td { padding:8px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; }
+.gbody .tw { overflow-x:auto; }
+.gbody .tw table { min-width:520px; }
+
+.danger-zone { margin-top:26px; text-align:center; }
+.foot { font-size:11px; color:var(--text-3); text-align:center; margin-top:10px; line-height:1.5; }
+</style>
+</head>
+<body data-icis>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="lore" style="color:var(--care)">Sanctuary</div>
+    <h1 class="h1">Perawatan Ibu</h1>
+    <div class="sub">Sedikit demi sedikit, tapi konsisten. Minum, makan, dan tanda bahaya dulu.</div>
+  </div>
+
+  <section class="card note">
+    <strong>Bukan pengganti dokter.</strong> Halaman ini membantu rutinitas dan pencatatan. Kalau ragu, hubungi kerabat perawat
+    atau dokter. Catatan di sini <strong>hanya tersimpan di browser ini</strong> dan tidak ikut sync ke cloud.
+  </section>
+
+  <div class="alert card" id="alert"></div>
+
+  <div class="strip">
+    <div class="card st"><div class="st-v" id="sTemp">–</div><div class="st-k">Suhu tertinggi hari ini</div></div>
+    <div class="card st"><div class="st-v" id="sWater">0/8</div><div class="st-k">Gelas minum</div></div>
+    <div class="card st"><div class="st-v" id="sTask">0/0</div><div class="st-k">Rutinitas selesai</div></div>
+  </div>
+
+  <!-- ================= TODAY ================= -->
+  <div class="sec"><span class="sec-t" style="color:var(--care)">Minum Hari Ini</span><span class="sec-m">target 6–8 gelas</span></div>
+  <section class="card water">
+    <div class="sub">Ketuk gelas setiap kali beliau minum. Kuah sup dan buah berair juga dihitung.</div>
+    <div class="cups" id="cups"></div>
+    <div class="row">
+      <button class="btn sm" id="wMinus">− 1</button>
+      <button class="btn sm gold" id="wPlus">+ 1 gelas</button>
+      <span class="sub" id="wHint"></span>
+    </div>
+  </section>
+
+  <div class="sec">
+    <span class="sec-t" style="color:var(--care)">Rutinitas Hari Ini</span>
+    <span class="sec-m" id="dayType"></span>
+  </div>
+  <section class="card" id="daily"></section>
+
+  <!-- ================= LOG ================= -->
+  <div class="sec"><span class="sec-t" style="color:var(--care)">Catatan Harian</span><span class="sec-m">isi tiap malam · 2 menit</span></div>
+  <section class="card form">
+    <div class="fg">
+      <div class="span2"><label class="fl" for="fDate">Tanggal</label><input id="fDate" type="date"></div>
+      <div class="span2"><label class="fl" for="fO2">Oksigen (%)</label><input id="fO2" type="number" inputmode="numeric" min="70" max="100" placeholder="mis. 97"></div>
+      <div><label class="fl" for="fT1">Suhu pagi °C</label><input id="fT1" type="number" inputmode="decimal" step="0.1" min="34" max="42" placeholder="36.8"></div>
+      <div><label class="fl" for="fT2">Suhu sore °C</label><input id="fT2" type="number" inputmode="decimal" step="0.1" min="34" max="42" placeholder="–"></div>
+      <div><label class="fl" for="fT3">Suhu malam °C</label><input id="fT3" type="number" inputmode="decimal" step="0.1" min="34" max="42" placeholder="–"></div>
+      <div><label class="fl" for="fWater">Minum (gelas)</label><input id="fWater" type="number" inputmode="numeric" min="0" max="20"></div>
+      <div class="span2"><label class="fl" for="fFood">Makan</label>
+        <select id="fFood"><option value="">–</option><option>Baik</option><option>Sedikit</option><option>Tidak mau</option></select></div>
+      <div class="span2"><label class="fl" for="fCough">Batuk</label>
+        <select id="fCough"><option value="">–</option><option>Tidak ada</option><option>Ringan</option><option>Sering</option><option>Berdahak / memburuk</option></select></div>
+      <div class="span4"><label class="fl">Energi (1 = hanya berbaring, 5 = seperti biasa)</label>
+        <div class="seg5" id="fEnergy"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+      <div class="span4"><label class="fl" for="fNote">Catatan</label><input id="fNote" maxlength="200" placeholder="mis. tidur siang 2 jam, mau makan bubur, sudah dicek kerabat perawat"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn gold" id="fSave">Simpan catatan</button>
+      <button class="btn sm" id="fCopy">Salin 7 hari terakhir</button>
+    </div>
+    <div class="status" id="fStatus"></div>
+  </section>
+
+  <section class="card" style="margin-top:10px">
+    <div class="tbl-wrap"><table class="log" id="logTbl"></table></div>
+  </section>
+
+  <!-- ================= PRIORITY ================= -->
+  <div class="sec"><span class="sec-t" style="color:var(--care)">Langkah Prioritas</span><span class="sec-m" id="prioMeta"></span></div>
+  <section class="card" id="prio"></section>
+
+  <!-- ================= DANGER SIGNS ================= -->
+  <div class="sec"><span class="sec-t" style="color:var(--bad)">Tanda Bahaya</span><span class="sec-m">simpan &amp; ingat</span></div>
+  <div class="card tier red">
+    <h3>Langsung ke IGD atau telepon 119</h3>
+    <ul>
+      <li>Sesak napas, atau napas cepat saat istirahat</li>
+      <li>Nyeri dada</li>
+      <li>Batuk darah</li>
+      <li>Bibir atau kuku kebiruan</li>
+      <li>Bingung, bicara tidak nyambung, tidak mengenali orang, atau susah dibangunkan</li>
+      <li>Suhu 39 °C ke atas, atau demam disertai sesak / bingung</li>
+      <li>Oksigen di bawah 92%</li>
+      <li>Tidak bisa minum sama sekali, atau tidak buang air kecil seharian</li>
+      <li>Satu kaki tiba-tiba bengkak, nyeri, atau merah</li>
+      <li>Jatuh dan terbentur kepala, atau tidak bisa bangun setelah jatuh</li>
+    </ul>
+    <a class="btn sm callbtn" href="tel:119" style="border-color:rgba(242,119,122,.5);color:var(--bad)">Telepon 119</a>
+  </div>
+  <div class="card tier amber">
+    <h3>Hubungi dokter / kerabat perawat dalam 1–2 hari</h3>
+    <ul>
+      <li>Demam 38 °C ke atas lebih dari 2 hari</li>
+      <li>Oksigen 92–94%</li>
+      <li>Lemas tidak membaik, atau makin berat</li>
+      <li>Batuk kembali memburuk, atau berdahak kuning / hijau</li>
+      <li>Berat badan turun tanpa sengaja</li>
+      <li>Kemerahan yang tidak hilang di punggung, bokong, atau tumit</li>
+    </ul>
+  </div>
+  <div class="card tier green">
+    <h3>Masih wajar, tetap dipantau</h3>
+    <ul>
+      <li>Banyak tidur, tapi mudah dibangunkan dan nyambung</li>
+      <li>Batuk ringan saat dingin yang tidak bertambah berat</li>
+      <li>Nafsu makan turun saat demam, asalkan tetap mau minum</li>
+    </ul>
+  </div>
+
+  <!-- ================= GUIDES ================= -->
+  <div class="sec"><span class="sec-t" style="color:var(--care)">Panduan</span><span class="sec-m">ketuk untuk buka</span></div>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="planner"></span>Jadwal harian<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <p>Pagi dibuat singkat karena hampir setiap hari ada kelas 07:10. Mandi lengkap dipindah ke siang atau sore, saat badan lebih hangat dan ada yang menemani.</p>
+      <div class="tw"><table>
+        <tr><th>Waktu</th><th>Hari kuliah (Sen–Jum)</th><th>Hari luang (Rab, Sab, Min)</th></tr>
+        <tr><td>Bangun</td><td>Bantu bangun dengan teknik miring, segelas air hangat, ukur suhu</td><td>Sama, tanpa terburu-buru</td></tr>
+        <tr><td>Sebelum berangkat</td><td>Cuci muka, sikat gigi, ganti baju. Siapkan sarapan, botol minum penuh, camilan di dekat beliau</td><td>Sarapan bersama</td></tr>
+        <tr><td>Pagi</td><td>Sarapan porsi kecil</td><td>Gerakan ringan 5–10 menit kalau tidak demam</td></tr>
+        <tr><td>Siang</td><td>Makan siang (Sen/Sel kamu pulang setelah 09:40; Kam/Jum kerabat perawat membantu)</td><td>Makan siang, lalu mandi dengan kursi mandi</td></tr>
+        <tr><td>Sore</td><td>Camilan dan minum. Mandi kalau ada yang menemani</td><td>Istirahat atau duduk di luar kamar</td></tr>
+        <tr><td>Malam</td><td>Makan malam, ukur suhu, isi catatan harian</td><td>Sama, plus belanja mingguan di hari Rabu</td></tr>
+        <tr><td>Sebelum tidur</td><td>Sikat gigi, ganti baju tidur, isi ulang botol minum</td><td>Sama</td></tr>
+      </table></div>
+      <h4>Kamis &amp; Jumat</h4>
+      <p>Siapkan semuanya malam sebelumnya: makanan yang tinggal dihangatkan, botol minum, baju ganti. Kirim pesan singkat ke kerabat perawat soal kondisi beliau pagi itu.</p>
+      <h4>Wudhu</h4>
+      <p>Batuk sering muncul setelah wudhu, jadi coba pakai air hangat suam-suam kuku dan segera keringkan wajah, tangan, dan kaki. Kalau sedang lemas, wudhu bisa sambil duduk.</p>
+      <h4>Obat</h4>
+      <p>Kalau nanti ada resep dari dokter, jadwalnya ditambahkan di sini sesuai petunjuk dokter.</p>
+    </div>
+  </details>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="flame"></span>Makan &amp; minum<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <p>Minum 6–8 gelas sehari (kecuali dokter bilang lain) dan ada protein di setiap makan. Porsi kecil 5–6 kali sehari lebih mudah diterima saat nafsu makan turun. Protein membantu menjaga otot, sehingga bangun dari tempat tidur tidak makin berat.</p>
+      <h4>Porsi per makan</h4>
+      <ul>
+        <li>Protein: seukuran telapak tangan (1 potong ayam/ikan, 2 telur, atau 2 potong tempe/tahu)</li>
+        <li>Nasi: sekepalan tangan</li>
+        <li>Sayur: dua genggam, dimasak lembut</li>
+        <li>Buah: satu genggam, sebagai camilan</li>
+      </ul>
+      <h4>Contoh menu 3 hari</h4>
+      <div class="tw"><table>
+        <tr><th>Waktu</th><th>Hari 1</th><th>Hari 2</th><th>Hari 3</th></tr>
+        <tr><td>Sarapan</td><td>Bubur ayam + telur rebus</td><td>Nasi tim + telur orak-arik + bayam</td><td>Roti + telur + pisang</td></tr>
+        <tr><td>Camilan</td><td>Pepaya</td><td>Semangka</td><td>Jeruk</td></tr>
+        <tr><td>Siang</td><td>Rice bowl ayam suwir + wortel + buncis</td><td>Nasi + sup ayam sayur bening</td><td>Nasi + pepes ikan + labu siam</td></tr>
+        <tr><td>Sore</td><td>Bakso ayam kuah 3–4 butir</td><td>Tahu kukus isi ayam</td><td>Puding susu / kacang hijau</td></tr>
+        <tr><td>Malam</td><td>Nasi goreng + telur + sayur cincang</td><td>Nasi + tempe bacem + sayur sop</td><td>Nasi + perkedel tahu panggang + sup bening</td></tr>
+      </table></div>
+      <h4>Gorengan</h4>
+      <p>Tidak perlu dilarang, cukup jadi pelengkap. Protein bertepung bisa dibuat di air fryer atau oven, atau dengan tepung tipis dan sedikit minyak.</p>
+      <h4>Cara menambah minum</h4>
+      <ul>
+        <li>Botol minum di samping tempat tidur</li>
+        <li>Minuman hangat: teh hangat, air jahe</li>
+        <li>Kuah sup dan buah berair juga dihitung</li>
+        <li>Urine kuning muda berarti cukup, kuning pekat berarti kurang</li>
+      </ul>
+      <h4>Belanja mingguan</h4>
+      <ul>
+        <li>Protein: telur 1–2 kg, dada ayam 1 kg, ikan 500 g, tempe 3 papan, tahu 10 potong</li>
+        <li>Karbo: beras, roti tawar, oat atau beras untuk bubur</li>
+        <li>Sayur: bayam, wortel, buncis, labu siam, sawi</li>
+        <li>Buah: pisang, pepaya, jeruk, semangka</li>
+        <li>Lain-lain: jahe, bawang merah &amp; putih, kaldu, susu</li>
+      </ul>
+      <p style="margin-top:8px">Jangan mulai suplemen atau produk herbal baru sebelum diperiksa. Menu disesuaikan lagi kalau dokter menemukan kondisi tertentu.</p>
+    </div>
+  </details>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="spring"></span>Mandi dengan kursi mandi<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <p>Mandi sambil duduk lebih nyaman dan lebih menjaga martabat beliau. Di hari beliau terlalu lemas, cukup diseka.</p>
+      <h4>Perlengkapan</h4>
+      <ul>
+        <li>Kursi mandi berkaki karet antiselip, keset karet antiselip</li>
+        <li>Gayung atau shower genggam</li>
+        <li>2 handuk (satu menutupi badan, satu mengeringkan)</li>
+        <li>Sabun lembut, sampo, lotion, baju ganti yang sudah disiapkan</li>
+      </ul>
+      <h4>Langkah</h4>
+      <ol>
+        <li>Siapkan semuanya dulu, supaya beliau tidak menunggu basah dan kedinginan.</li>
+        <li>Cek air dengan siku atau pergelangan tanganmu: hangat nyaman, tidak panas.</li>
+        <li>Temani berjalan ke kamar mandi, pegang lengan atas atau pinggang.</li>
+        <li>Dudukkan di kursi mandi, kaki menapak penuh.</li>
+        <li>Tutupi badan dengan handuk, buka hanya bagian yang sedang dibersihkan.</li>
+        <li>Urutan: wajah, rambut, leher, lengan, dada, punggung, kaki, terakhir area intim.</li>
+        <li>Area intim dari depan ke belakang. Biarkan beliau melakukannya sendiri kalau bisa, atau minta bantuan kerabat perawat.</li>
+        <li>Bilas, keringkan dengan ditepuk, terutama di lipatan kulit dan sela jari kaki.</li>
+        <li>Oleskan lotion di kulit kering, tapi tidak di sela jari kaki.</li>
+        <li>Pakaikan baju sambil tetap duduk, lalu temani kembali ke kamar.</li>
+      </ol>
+      <h4>Aturan aman</h4>
+      <ul>
+        <li>Jangan tinggalkan beliau sendirian selama mandi</li>
+        <li>Pusing, pucat, atau sesak: hentikan, keringkan, baringkan</li>
+        <li>Pintu tidak dikunci dari dalam</li>
+        <li>Mandi setelah makan atau minum, bukan saat perut kosong</li>
+      </ul>
+      <h4>Seka di tempat tidur</h4>
+      <p>Dua baskom: air sabun hangat dan air bilasan. Seka satu bagian, keringkan, tutup lagi, lanjut ke bagian berikutnya dengan urutan yang sama.</p>
+      <h4>Frekuensi</h4>
+      <div class="tw"><table>
+        <tr><th>Perawatan</th><th>Seberapa sering</th></tr>
+        <tr><td>Mandi / seka seluruh badan</td><td>Setiap hari, atau 2 hari sekali kalau sangat lemas (seka di hari lainnya)</td></tr>
+        <tr><td>Wajah, area intim, ketiak</td><td>Setiap hari</td></tr>
+        <tr><td>Sikat gigi</td><td>2× sehari, bisa sambil duduk dengan baskom</td></tr>
+        <tr><td>Keramas</td><td>2–3× seminggu</td></tr>
+        <tr><td>Ganti baju &amp; pakaian dalam</td><td>Setiap hari, dan setiap kali basah atau berkeringat</td></tr>
+        <tr><td>Ganti sprei</td><td>Seminggu sekali, atau segera kalau kotor / basah</td></tr>
+      </table></div>
+    </div>
+  </details>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="training"></span>Bangun dari tempat tidur &amp; gerakan ringan<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <p>Yang paling sulit adalah dari telentang ke duduk. Teknik miring memakai kekuatan lengan dan berat kaki, jadi perut dan punggung tidak perlu bekerja keras.</p>
+      <h4>Teknik bangun miring</h4>
+      <ol>
+        <li>Tekuk kedua lutut, telapak kaki menapak di kasur.</li>
+        <li>Miringkan badan ke sisi tempat tidur, seperti berguling.</li>
+        <li>Turunkan kedua kaki ke tepi kasur.</li>
+        <li>Dorong badan ke atas dengan tangan sementara kaki turun. Bantu di bahu, jangan tarik lengannya.</li>
+        <li>Duduk di tepi kasur 1–2 menit. Tanyakan apakah pusing.</li>
+        <li>Geser ke tepi, kaki sedikit di belakang lutut, condongkan badan ke depan (hidung di atas jari kaki).</li>
+        <li>Berdiri dengan mendorong dari kasur atau paha, bukan menarik tanganmu.</li>
+      </ol>
+      <h4>Tempat tidur</h4>
+      <ul>
+        <li>Saat duduk di tepi kasur, kaki menapak dan lutut kira-kira setinggi pinggul</li>
+        <li>Kursi kokoh atau meja yang tidak bergeser di samping kasur sebagai pegangan</li>
+        <li>Lampu kecil di malam hari, singkirkan karpet licin dan kabel di jalur ke kamar mandi</li>
+      </ul>
+      <h4>Selama masih demam (2–3× sehari, di tempat tidur)</h4>
+      <ul>
+        <li>Pompa pergelangan kaki 10×: membantu mencegah gumpalan darah</li>
+        <li>Tekuk-luruskan lutut bergantian 5–10× per kaki</li>
+        <li>Angkat lengan perlahan ke atas kepala 5–10×</li>
+        <li>Napas dalam 5×: tarik lewat hidung, tahan 2 detik, buang lewat mulut</li>
+      </ul>
+      <h4>Setelah demam hilang</h4>
+      <p>Jalan di dalam rumah 3–5 menit beberapa kali sehari, selalu didampingi. Naikkan sedikit setiap beberapa hari.</p>
+      <p><strong style="color:var(--bad)">Hentikan</strong> kalau nyeri dada, sesak, pusing berat, atau jantung berdebar. Kalau 2–3 minggu setelah sembuh masih sulit bangun atau berjalan, minta rujukan fisioterapis (ada yang bisa datang ke rumah).</p>
+    </div>
+  </details>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="clock"></span>Tidur &amp; istirahat<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <ul>
+        <li><strong>Jam tetap:</strong> tidur dan bangun di jam yang kurang lebih sama.</li>
+        <li><strong>Siang:</strong> setelah demam hilang, tidur siang 30–60 menit. Selebihnya duduk di kursi atau ruang tengah.</li>
+        <li><strong>Posisi:</strong> kalau batuk mengganggu, tinggikan kepala dan dada dengan 2 bantal. Saat miring, bantal di antara lutut.</li>
+        <li><strong>Kamar:</strong> sejuk tapi tidak dingin. AC atau kipas jangan langsung ke badan.</li>
+        <li><strong>Sebelum tidur:</strong> air hangat, ke kamar mandi, HP dijauhkan 30 menit sebelumnya.</li>
+        <li><strong>Ganti posisi:</strong> kalau lama berbaring di siang hari, bantu ganti posisi tiap 2 jam.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="card guide">
+    <summary><span style="color:var(--care)" data-ic="people"></span>Dukungan emosional<span class="chev" data-ic="chevron"></span></summary>
+    <div class="gbody">
+      <h4>Untuk ibu</h4>
+      <ul>
+        <li>Biarkan beliau melakukan apa yang masih bisa, walau lebih lambat. Bantu hanya di bagian yang sulit.</li>
+        <li>Tawarkan pilihan: "Mau mandi sekarang atau setelah makan?"</li>
+        <li>Ingatkan keberhasilannya dulu: "Dulu ibu bisa pulih sampai jalan lagi, sekarang kita jalani pelan-pelan lagi."</li>
+        <li>Saat beliau kesal, dengarkan dulu: "Iya bu, capek ya kalau badan nggak enak."</li>
+        <li>Hormati keputusannya soal pengobatan, sambil jujur soal kekhawatiranmu, dengan nada khawatir, bukan menyalahkan.</li>
+        <li>Waktu bersama di luar urusan merawat: ngobrol, nonton bareng, sholat berjamaah.</li>
+      </ul>
+      <h4>Untukmu</h4>
+      <ul>
+        <li>Tidak harus sempurna, cukup konsisten di hal penting.</li>
+        <li>Kalau waktu sempit: minum, makan, dan tanda bahaya dulu. Mandi lengkap dan latihan bisa ditunda sehari.</li>
+        <li>Terima bantuan kecil dari siapa pun, misalnya belanja atau mengantar.</li>
+        <li>Tidur cukup, makan teratur, sisakan waktu untuk dirimu.</li>
+        <li>Mudah marah, susah tidur, merasa sendirian, atau kuliah terganggu? Ceritakan ke orang yang kamu percaya atau layanan konseling kampus.</li>
+      </ul>
+    </div>
+  </details>
+
+  <div class="danger-zone">
+    <button class="btn sm" id="wipe">Hapus semua catatan di browser ini</button>
+    <div class="foot">Data tersimpan di localStorage browser ini saja (kunci <span class="mono">care:v1</span>).<br>Buka di HP? Catatan di laptop dan HP terpisah.</div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var UI = window.UI;
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'care:v1';
+
+  /* ---------- storage (local only, never synced) ---------- */
+  function blank() { return { logs: {}, water: {}, daily: {}, prio: {} }; }
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY));
+      if (d && typeof d === 'object') {
+        var b = blank();
+        for (var k in b) if (!d[k] || typeof d[k] !== 'object') d[k] = b[k];
+        return d;
+      }
+    } catch (e) {}
+    return blank();
+  }
+  var data = load();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+
+  /* ---------- dates (local calendar day, no 6 AM rollover) ---------- */
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function keyOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function today() { return keyOf(new Date()); }
+  var DAYS = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  var MON = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  function pretty(k) {
+    var p = k.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return DAYS[d.getDay()].slice(0, 3) + ', ' + d.getDate() + ' ' + MON[d.getMonth()];
+  }
+  function esc(s) { return UI ? UI.esc(s) : String(s == null ? '' : s); }
+
+  /* ---------- icons in static markup ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ic]'), function (el) {
+    if (UI) el.innerHTML = UI.icon(el.getAttribute('data-ic'), el.classList.contains('chev') ? 16 : 18);
+  });
+
+  /* ---------- water ---------- */
+  var GOAL = 8;
+  function water() { return data.water[today()] || 0; }
+  function setWater(n) {
+    data.water[today()] = Math.max(0, Math.min(20, n));
+    save(); renderWater(); renderStrip();
+    // keep the log form in step if it's on today
+    if ($('fDate').value === today()) $('fWater').value = water();
+  }
+  function renderWater() {
+    var n = water(), html = '';
+    for (var i = 0; i < Math.max(GOAL, n); i++) {
+      html += '<button class="cup' + (i < n ? ' full' : '') + '" data-i="' + i + '" aria-label="Gelas ' + (i + 1) + '"></button>';
+    }
+    $('cups').innerHTML = html;
+    $('wHint').textContent = n >= 6 ? 'Target tercapai' : (6 - n) + ' gelas lagi ke target minimal';
+  }
+  $('cups').addEventListener('click', function (e) {
+    var b = e.target.closest('.cup'); if (!b) return;
+    var i = +b.dataset.i;
+    setWater(i < water() ? i : i + 1);   // tap a full cup to undo back to it
+  });
+  $('wPlus').addEventListener('click', function () { setWater(water() + 1); });
+  $('wMinus').addEventListener('click', function () { setWater(water() - 1); });
+
+  /* ---------- daily routine (resets every day) ---------- */
+  var DAILY = [
+    { id: 'tpagi',  t: 'Ukur suhu pagi', tag: 'pagi' },
+    { id: 'bangun', t: 'Bantu bangun dengan teknik miring, segelas air hangat', tag: 'pagi' },
+    { id: 'sarap',  t: 'Sarapan porsi kecil dengan protein (telur, bubur ayam)', tag: 'pagi' },
+    { id: 'siap',   t: 'Botol minum penuh dan camilan di dekat beliau', tag: 'pagi' },
+    { id: 'siang',  t: 'Makan siang dengan protein', tag: 'siang' },
+    { id: 'gerak',  t: 'Gerakan ringan di tempat tidur (pompa kaki, lutut, lengan, napas dalam)', tag: '2–3×' },
+    { id: 'mandi',  t: 'Mandi dengan kursi mandi, atau seka kalau terlalu lemas', tag: 'siang/sore' },
+    { id: 'tsore',  t: 'Ukur suhu sore', tag: 'sore' },
+    { id: 'malam',  t: 'Makan malam dengan protein', tag: 'malam' },
+    { id: 'tmalam', t: 'Ukur suhu malam + isi catatan harian', tag: 'malam' },
+    { id: 'gigi',   t: 'Sikat gigi, ganti baju tidur, isi ulang botol minum', tag: 'tidur' }
+  ];
+  function dayDone() { return data.daily[today()] || (data.daily[today()] = {}); }
+  function renderDaily() {
+    var d = new Date().getDay(), done = data.daily[today()] || {};
+    var busy = d === 4 || d === 5, free = d === 0 || d === 3 || d === 6;
+    $('dayType').textContent = DAYS[d] + ' · ' + (busy ? 'hari padat — siapkan dari semalam' : free ? 'hari luang' : 'kuliah pagi');
+    $('daily').innerHTML = DAILY.map(function (x) {
+      var on = !!done[x.id];
+      return '<label class="chk' + (on ? ' done' : '') + '"><input type="checkbox" data-id="' + x.id + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="chk-t">' + esc(x.t) + '</span><span class="chk-tag">' + esc(x.tag) + '</span></label>';
+    }).join('');
+  }
+  $('daily').addEventListener('change', function (e) {
+    var id = e.target.dataset.id; if (!id) return;
+    var d = dayDone(); if (e.target.checked) d[id] = 1; else delete d[id];
+    save(); renderDaily(); renderStrip();
+  });
+
+  /* ---------- priority checklist (persistent) ---------- */
+  var PRIO = [
+    'Beli termometer digital dan oksimeter di apotek',
+    'Ukur suhu 3× sehari dan catat di Catatan Harian',
+    'Minta kerabat perawat datang besok atau lusa',
+    'Ceritakan semua keluhan ke kerabat perawat (lemas, demam, batuk, makan & minum, riwayat kesehatan)',
+    'Minta dicek: suhu, oksigen, tekanan darah, suara napas',
+    'Tanyakan: perlu cek darah (Hb, gula darah, ginjal, hati) atau rontgen dada?',
+    'Kalau perlu cek darah: lab yang ambil darah di rumah atau dokter panggilan',
+    'Foto kemasan semua herbal/suplemen yang diminum untuk ditunjukkan ke dokter',
+    'Jangan mulai suplemen atau herbal baru sampai diperiksa',
+    'Botol minum di samping tempat tidur, tawarkan minum setiap beliau bangun',
+    'Siapkan kursi mandi dan keset antiselip'
+  ];
+  function renderPrio() {
+    var n = 0;
+    $('prio').innerHTML = PRIO.map(function (t, i) {
+      var on = !!data.prio[i]; if (on) n++;
+      return '<label class="chk' + (on ? ' done' : '') + '"><input type="checkbox" data-i="' + i + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="chk-t">' + esc(t) + '</span></label>';
+    }).join('');
+    $('prioMeta').textContent = n + ' / ' + PRIO.length + ' selesai';
+  }
+  $('prio').addEventListener('change', function (e) {
+    var i = e.target.dataset.i; if (i == null) return;
+    if (e.target.checked) data.prio[i] = 1; else delete data.prio[i];
+    save(); renderPrio();
+  });
+
+  /* ---------- log ---------- */
+  var energy = null;
+  function setEnergy(v) {
+    energy = v;
+    Array.prototype.forEach.call($('fEnergy').children, function (b) { b.classList.toggle('on', +b.dataset.v === v); });
+  }
+  $('fEnergy').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var v = +b.dataset.v; setEnergy(energy === v ? null : v);
+  });
+  function num(id) { var v = parseFloat($(id).value); return isNaN(v) ? null : v; }
+  function fill(k) {
+    var L = data.logs[k] || {};
+    $('fT1').value = L.t1 != null ? L.t1 : '';
+    $('fT2').value = L.t2 != null ? L.t2 : '';
+    $('fT3').value = L.t3 != null ? L.t3 : '';
+    $('fO2').value = L.o2 != null ? L.o2 : '';
+    $('fWater').value = L.water != null ? L.water : (k === today() ? water() : '');
+    $('fFood').value = L.food || '';
+    $('fCough').value = L.cough || '';
+    $('fNote').value = L.note || '';
+    setEnergy(L.energy || null);
+  }
+  $('fDate').addEventListener('change', function () { if ($('fDate').value) fill($('fDate').value); });
+
+  $('fSave').addEventListener('click', function () {
+    var k = $('fDate').value || today();
+    var L = {
+      t1: num('fT1'), t2: num('fT2'), t3: num('fT3'), o2: num('fO2'),
+      water: num('fWater'), food: $('fFood').value, cough: $('fCough').value,
+      energy: energy, note: $('fNote').value.trim()
+    };
+    var empty = true; for (var x in L) if (L[x] != null && L[x] !== '') empty = false;
+    if (empty) { delete data.logs[k]; } else { data.logs[k] = L; }
+    if (k === today() && L.water != null) data.water[k] = L.water;
+    save(); renderAll();
+    $('fStatus').textContent = empty ? 'Catatan dikosongkan.' : 'Tersimpan ✓';
+    setTimeout(function () { $('fStatus').textContent = ''; }, 1800);
+  });
+
+  function tempCls(t) { return t == null ? '' : t >= 39 ? 'hi' : t >= 38 ? 'md' : t >= 37.5 ? 'md' : ''; }
+  function o2Cls(o) { return o == null ? '' : o < 92 ? 'hi' : o <= 94 ? 'md' : ''; }
+  function cell(v, cls, suffix) {
+    if (v == null || v === '') return '–';
+    return cls ? '<span class="' + cls + '">' + esc(v) + (suffix || '') + '</span>' : esc(v) + (suffix || '');
+  }
+  function sortedKeys() { return Object.keys(data.logs).sort().reverse(); }
+
+  function renderLog() {
+    var keys = sortedKeys();
+    if (!keys.length) {
+      $('logTbl').innerHTML = '<tr><td class="empty" style="min-width:0">Belum ada catatan. Isi formulir di atas setiap malam.</td></tr>';
+      $('logTbl').style.minWidth = '0';
+      return;
+    }
+    $('logTbl').style.minWidth = '';
+    $('logTbl').innerHTML =
+      '<tr><th>Tanggal</th><th>Pagi</th><th>Sore</th><th>Malam</th><th>O₂</th><th>Minum</th><th>Makan</th><th>Batuk</th><th>Energi</th><th>Catatan</th><th></th></tr>' +
+      keys.map(function (k) {
+        var L = data.logs[k];
+        return '<tr>' +
+          '<td class="n">' + pretty(k) + '</td>' +
+          '<td class="n">' + cell(L.t1, tempCls(L.t1)) + '</td>' +
+          '<td class="n">' + cell(L.t2, tempCls(L.t2)) + '</td>' +
+          '<td class="n">' + cell(L.t3, tempCls(L.t3)) + '</td>' +
+          '<td class="n">' + cell(L.o2, o2Cls(L.o2), '%') + '</td>' +
+          '<td class="n">' + cell(L.water) + '</td>' +
+          '<td>' + cell(L.food) + '</td>' +
+          '<td>' + cell(L.cough) + '</td>' +
+          '<td class="n">' + cell(L.energy, L.energy != null && L.energy <= 1 ? 'md' : '', L.energy != null ? '/5' : '') + '</td>' +
+          '<td>' + cell(L.note) + '</td>' +
+          '<td><button class="del" data-k="' + k + '" title="Edit" aria-label="Edit">✎</button></td>' +
+        '</tr>';
+      }).join('');
+  }
+  $('logTbl').addEventListener('click', function (e) {
+    var b = e.target.closest('.del'); if (!b) return;
+    $('fDate').value = b.dataset.k; fill(b.dataset.k);
+    $('fDate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  $('fCopy').addEventListener('click', function () {
+    var keys = sortedKeys().slice(0, 7).reverse();
+    if (!keys.length) { $('fStatus').textContent = 'Belum ada catatan untuk disalin.'; return; }
+    var txt = 'Catatan 7 hari terakhir\n' + keys.map(function (k) {
+      var L = data.logs[k], t = [L.t1, L.t2, L.t3].filter(function (v) { return v != null; }).join(' / ');
+      return pretty(k) + ': suhu ' + (t || '-') + ' °C, O2 ' + (L.o2 != null ? L.o2 + '%' : '-') +
+        ', minum ' + (L.water != null ? L.water + ' gelas' : '-') + ', makan ' + (L.food || '-') +
+        ', batuk ' + (L.cough || '-') + ', energi ' + (L.energy != null ? L.energy + '/5' : '-') +
+        (L.note ? ', ' + L.note : '');
+    }).join('\n');
+    var done = function () { $('fStatus').textContent = 'Disalin. Tempel di WhatsApp ke kerabat perawat atau dokter.'; };
+    try { navigator.clipboard.writeText(txt).then(done, function () { $('fStatus').textContent = 'Gagal menyalin.'; }); }
+    catch (e) { $('fStatus').textContent = 'Gagal menyalin.'; }
+  });
+
+  /* ---------- alerts + strip ---------- */
+  function renderStrip() {
+    var L = data.logs[today()] || {};
+    var temps = [L.t1, L.t2, L.t3].filter(function (v) { return v != null; });
+    var max = temps.length ? Math.max.apply(null, temps) : null;
+    $('sTemp').innerHTML = max == null ? '–' : '<span style="color:' + (max >= 38 ? 'var(--bad)' : max >= 37.5 ? 'var(--warn)' : 'var(--text)') + '">' + max.toFixed(1) + '°</span>';
+    $('sWater').innerHTML = '<span style="color:' + (water() >= 6 ? 'var(--ok)' : 'var(--text)') + '">' + water() + '/' + GOAL + '</span>';
+    var dd = data.daily[today()] || {}, n = DAILY.filter(function (x) { return dd[x.id]; }).length;
+    $('sTask').textContent = n + '/' + DAILY.length;
+  }
+
+  function feverDays() {
+    // consecutive days, ending today or yesterday, with any temp >= 38
+    var n = 0, d = new Date();
+    for (var i = 0; i < 14; i++) {
+      var L = data.logs[keyOf(d)];
+      var hot = L && [L.t1, L.t2, L.t3].some(function (v) { return v != null && v >= 38; });
+      if (hot) n++; else if (i > 0) break;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+
+  function renderAlert() {
+    var a = $('alert'), L = data.logs[today()] || {};
+    var temps = [L.t1, L.t2, L.t3].filter(function (v) { return v != null; });
+    var max = temps.length ? Math.max.apply(null, temps) : null;
+    var msg = null, cls = '';
+    if ((max != null && max >= 39) || (L.o2 != null && L.o2 < 92)) {
+      cls = 'bad';
+      msg = '<b>Segera ke IGD atau telepon 119.</b>' +
+        (max != null && max >= 39 ? 'Suhu ' + max.toFixed(1) + ' °C. ' : '') +
+        (L.o2 != null && L.o2 < 92 ? 'Oksigen ' + L.o2 + '%. ' : '') +
+        'Ini termasuk tanda bahaya.';
+    } else if (feverDays() >= 3) {
+      cls = 'warn';
+      msg = '<b>Demam sudah ' + feverDays() + ' hari berturut-turut.</b>Hubungi dokter atau kerabat perawat hari ini.';
+    } else if ((L.o2 != null && L.o2 <= 94) || (max != null && max >= 38)) {
+      cls = 'warn';
+      msg = '<b>Perlu perhatian.</b>' +
+        (max != null && max >= 38 ? 'Demam ' + max.toFixed(1) + ' °C. ' : '') +
+        (L.o2 != null && L.o2 <= 94 ? 'Oksigen ' + L.o2 + '%. ' : '') +
+        'Kabari kerabat perawat. Ke IGD kalau muncul sesak, bingung, atau tidak bisa minum.';
+    }
+    a.className = 'alert card' + (msg ? ' show ' + cls : '');
+    a.innerHTML = msg || '';
+  }
+
+  /* ---------- wipe (two-tap confirm, no browser dialog) ---------- */
+  var armed = null;
+  $('wipe').addEventListener('click', function () {
+    if (!armed) {
+      $('wipe').textContent = 'Ketuk lagi untuk menghapus';
+      armed = setTimeout(function () { armed = null; $('wipe').textContent = 'Hapus semua catatan di browser ini'; }, 3000);
+      return;
+    }
+    clearTimeout(armed); armed = null;
+    data = blank(); save(); renderAll(); fill(today());
+    $('wipe').textContent = 'Terhapus ✓';
+    setTimeout(function () { $('wipe').textContent = 'Hapus semua catatan di browser ini'; }, 1600);
+  });
+
+  function renderAll() { renderWater(); renderDaily(); renderPrio(); renderLog(); renderStrip(); renderAlert(); }
+
+  $('fDate').value = today();
+  fill(today());
+  renderAll();
+})();
+</script>
+</body>
+</html>

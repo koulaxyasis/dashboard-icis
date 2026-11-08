@@ -314,6 +314,12 @@
       spring: function () { return 'LV ' + t.byId.vitality.level; },
       treasury: function () { return 'LV ' + t.byId.fortune.level; },
       tavern: function () { return 'LV ' + t.byId.fellowship.level; },
+      // Local-only peek at the care page (care:v1 is never cloud-synced).
+      care: function () {
+        var c = GS.readJSON('care:v1', null), d = new Date();
+        var k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        return c && c.logs && c.logs[k] ? 'log done' : 'log today';
+      },
       alchemy: function () { return 'tracker'; },
       hero: function () { return 'LV ' + t.level; },
       spirit: function () { return 'companion'; }

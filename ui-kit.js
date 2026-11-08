@@ -43,6 +43,7 @@
     skull:     '<path d="M12 3a8 8 0 0 0-8 8v3l2 1v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3l2-1v-3a8 8 0 0 0-8-8z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
     book:      '<path d="M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4V4z"/><path d="M20 4h-7a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h7V4z"/>',
     bolt:      '<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>',
+    care:      '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M12 9.5v5M9.5 12h5"/>',
     planner:   '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M7 14h3M7 17h3M14 14l1.5 1.5L18 13"/>'
   };
 
@@ -67,6 +68,7 @@
     { key: 'spring',  href: 'po-water.html',  lore: 'Healing Spring',    practical: 'Water',           icon: 'spring',   color: '#60A5FA' },
     { key: 'treasury',href: 'finance.html',   lore: 'Treasury',          practical: 'Finance',         icon: 'treasury', color: '#34D399' },
     { key: 'alchemy', href: 'caffeine.html',  lore: "Alchemist's Lab",   practical: 'Caffeine',        icon: 'alchemy',  color: '#C9A36B' },
+    { key: 'care',    href: 'care.html',      lore: 'Sanctuary',         practical: 'Care Ibu',        icon: 'care',     color: '#7DD3C0' },
     { key: 'tavern',  href: 'tavern.html',    lore: 'Tavern',            practical: 'Social',          icon: 'tavern',   color: '#F472B6' },
     { key: 'hero',    href: 'character.html', lore: 'Hero Profile',      practical: 'Character',       icon: 'hero',     color: '#E9BE6E' },
     { key: 'spirit',  href: 'nova.html',      lore: 'Spirit Companion',  practical: 'Nova',            icon: 'spirit',   color: '#A78BFA' }
